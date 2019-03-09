@@ -1,26 +1,7 @@
-// proxy.sol - execute actions atomically through the proxy's identity
-
-// Copyright (C) 2017  DappHub, LLC
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-pragma solidity ^0.4.23;
+pragma solidity ^0.5.0;
 
 contract DSAuthority {
-    function canCall(
-        address src, address dst, bytes4 sig
-    ) public view returns (bool);
+    function canCall(address src, address dst, bytes4 sig) public view returns (bool);
 }
 
 contract DSAuthEvents {
@@ -101,7 +82,7 @@ contract DSNote {
 // useful to execute a sequence of atomic actions. Since the owner of
 // the proxy can be changed, this allows for dynamic ownership models
 // i.e. a multisig
-contract DSProxy is DSAuth, DSNote {
+contract DSProxy is DSAuth {
     DSProxyCache public cache;  // global cache for contracts
 
     constructor(address _cacheAddr) public {

@@ -7,6 +7,8 @@
 // contracts in the same cache. The cache a proxy instance uses can be
 // changed.  The cache uses the sha3 hash of a contract's bytecode to
 // lookup the address
+pragma solidity ^0.5.0;
+
 contract DSProxyCache {
     mapping(bytes32 => address) cache;
 
