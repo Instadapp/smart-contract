@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.4.23;
 
 contract DSAuthority {
     function canCall(address src, address dst, bytes4 sig) public view returns (bool);
@@ -179,11 +179,10 @@ contract DSProxyCache {
 }
 
 // ProxyRegistry
-// This Registry deploys new proxy instances through DSProxyFactory.build(address) and keeps a registry of owner => proxy
 contract ProxyRegistry {
     event Created(address indexed sender, address indexed owner, address proxy);
     mapping(address => DSProxy) public proxies;
-    DSProxyCache public cache = new DSProxyCache();
+    DSProxyCache cache = new DSProxyCache();
 
     // deploys a new proxy instance
     // sets owner of proxy to caller
