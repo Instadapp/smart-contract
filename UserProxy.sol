@@ -1,16 +1,16 @@
 pragma solidity ^0.4.23;
 
-contract DSAuthority {
+contract UserAuthority {
     function canCall(address src, address dst, bytes4 sig) public view returns (bool);
 }
 
-contract DSAuthEvents {
+contract UserAuthEvents {
     event LogSetAuthority (address indexed authority);
     event LogSetOwner     (address indexed owner);
 }
 
-contract DSAuth is DSAuthEvents {
-    DSAuthority  public  authority;
+contract UserAuth is UserAuthEvents {
+    UserAuthority  public  authority;
     address      public  owner;
 
     constructor() public {
@@ -26,7 +26,7 @@ contract DSAuth is DSAuthEvents {
         emit LogSetOwner(owner);
     }
 
-    function setAuthority(DSAuthority authority_)
+    function setAuthority(UserAuthority authority_)
         public
         auth
     {
@@ -44,7 +44,7 @@ contract DSAuth is DSAuthEvents {
             return true;
         } else if (src == owner) {
             return true;
-        } else if (authority == DSAuthority(0)) {
+        } else if (authority == UserAuthority(0)) {
             return false;
         } else {
             return authority.canCall(src, this, sig);
@@ -52,7 +52,7 @@ contract DSAuth is DSAuthEvents {
     }
 }
 
-contract DSNote {
+contract UserNote {
     event LogNote(
         bytes4   indexed  sig,
         address  indexed  guy,
@@ -77,13 +77,13 @@ contract DSNote {
     }
 }
 
-// DSProxy
+// UserProxy
 // Allows code execution using a persistant identity This can be very
 // useful to execute a sequence of atomic actions. Since the owner of
 // the proxy can be changed, this allows for dynamic ownership models
 // i.e. a multisig
-contract DSProxy is DSAuth, DSNote {
-    DSProxyCache public cache;  // global cache for contracts
+contract UserProxy is UserAuth, UserNote {
+    UserProxyCache public cache;  // global cache for contracts
 
     constructor(address _cacheAddr) public {
         setCache(_cacheAddr);
@@ -114,7 +114,7 @@ contract DSProxy is DSAuth, DSNote {
         payable
         returns (bytes memory response)
     {
-        require(_target != address(0), "ds-proxy-target-address-required");
+        require(_target != address(0), "User-proxy-target-address-required");
 
         // call contract in current context
         assembly {
@@ -141,13 +141,13 @@ contract DSProxy is DSAuth, DSNote {
         note
         returns (bool)
     {
-        require(_cacheAddr != address(0), "ds-proxy-cache-address-required");
-        cache = DSProxyCache(_cacheAddr);  // overwrite cache
+        require(_cacheAddr != address(0), "User-proxy-cache-address-required");
+        cache = UserProxyCache(_cacheAddr);  // overwrite cache
         return true;
     }
 }
 
-// DSProxyCache
+// UserProxyCache
 // This global cache stores addresses of contracts previously deployed
 // by a proxy. This saves gas from repeat deployment of the same
 // contracts and eliminates blockchain bloat.
@@ -156,7 +156,7 @@ contract DSProxy is DSAuth, DSNote {
 // contracts in the same cache. The cache a proxy instance uses can be
 // changed.  The cache uses the sha3 hash of a contract's bytecode to
 // lookup the address
-contract DSProxyCache {
+contract UserProxyCache {
     mapping(bytes32 => address) cache;
 
     function read(bytes memory _code) public view returns (address) {
