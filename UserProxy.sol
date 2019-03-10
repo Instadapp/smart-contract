@@ -1,7 +1,21 @@
 pragma solidity ^0.4.23;
 
 
+library SafeMath {
+
+    function add(uint256 a, uint256 b) internal pure returns (uint256) {
+        uint256 c = a + b;
+        require(c >= a, "math-not-safe");
+        return c;
+    }
+
+}
+
 contract UserAuth {
+
+    using SafeMath for uint;
+    using SafeMath for uint256;
+    
     event LogSetOwner(address indexed owner, bool isGuardian);
     event LogSetGuardian(address indexed guardian);
 
@@ -35,9 +49,9 @@ contract UserAuth {
         emit LogSetOwner(owner, false);
     }
 
-    function setOwnerViaGuardian(address owner_, uint num) public auth {
+    function setOwnerViaGuardian(address owner_, uint num) public {
         require(msg.sender == guardians[num], "permission-denied");
-        require(block.timestamp > (lastActivity + activePeriod), "active-period-not-over");
+        require(block.timestamp > lastActivity.add(activePeriod), "active-period-not-over");
         owner = owner_;
         emit LogSetOwner(owner, true);
     }
@@ -110,6 +124,7 @@ contract UserProxy is UserAuth, UserNote, LogicProxy {
     {
         require(_target != address(0), "user-proxy-target-address-required");
         require(isAuthLogic(_target), "logic-proxy-address-not-allowed");
+        lastActivity = block.timestamp;
         // call contract in current context
         assembly {
             let succeeded := delegatecall(sub(gas, 5000), _target, add(_data, 0x20), mload(_data), 0, 0)
