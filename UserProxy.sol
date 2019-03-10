@@ -1,57 +1,55 @@
 pragma solidity ^0.4.23;
 
 
-contract UserAuthority {
-    function canCall(address src, address dst, bytes4 sig) public view returns (bool);
-}
+contract UserAuth {
+    event LogSetOwner(address indexed owner, bool isGuardian);
+    event LogSetGuardian(address indexed guardian);
 
-contract UserAuthEvents {
-    event LogSetAuthority (address indexed authority);
-    event LogSetOwner     (address indexed owner);
-}
-
-contract UserAuth is UserAuthEvents {
-    UserAuthority  public  authority;
-    address      public  owner;
+    mapping(uint => address) public guardians;
+    address public owner;
+    uint public lastActivity; // timestamp
+    uint public activePeriod; // timestamp // guardians can set owner after owner stay inactive for certain period
 
     constructor() public {
         owner = msg.sender;
-        emit LogSetOwner(msg.sender);
-    }
-
-    function setOwner(address owner_)
-        public
-        auth
-    {
-        owner = owner_;
-        emit LogSetOwner(owner);
-    }
-
-    function setAuthority(UserAuthority authority_)
-        public
-        auth
-    {
-        authority = authority_;
-        emit LogSetAuthority(authority);
+        emit LogSetOwner(msg.sender, false);
     }
 
     modifier auth {
-        require(isAuthorized(msg.sender, msg.sig));
+        require(isAuth(msg.sender), "permission-denied");
         _;
     }
 
-    function isAuthorized(address src, bytes4 sig) internal view returns (bool) {
+    function isAuth(address src) internal view returns (bool) {
         if (src == address(this)) {
             return true;
         } else if (src == owner) {
             return true;
-        } else if (authority == UserAuthority(0)) {
-            return false;
         } else {
-            return authority.canCall(src, this, sig);
+            return false;
         }
     }
+
+    function setOwner(address owner_) public auth {
+        owner = owner_;
+        emit LogSetOwner(owner, false);
+    }
+
+    function setOwnerViaGuardian(address owner_, uint num) public auth {
+        require(msg.sender == guardians[num], "permission-denied");
+        require(block.timestamp > (lastActivity + activePeriod), "active-period-not-over");
+        owner = owner_;
+        emit LogSetOwner(owner, true);
+    }
+
+    function setGuardian(uint num, address guardian_) public auth {
+        require(num > 0 && num < 6, "guardians-cant-exceed-five");
+        guardians[num] = guardian_;
+        emit LogSetGuardian(guardian_);
+    }
+
 }
+
 
 contract UserNote {
     event LogNote(
@@ -66,14 +64,11 @@ contract UserNote {
     modifier note {
         bytes32 foo;
         bytes32 bar;
-
         assembly {
             foo := calldataload(4)
             bar := calldataload(36)
         }
-
         emit LogNote(msg.sig, msg.sender, foo, bar, msg.value, msg.data);
-
         _;
     }
 }
@@ -82,10 +77,10 @@ interface LogicRegistry {
     function getLogic(address logicAddr) external view returns(bool);
 }
 
+// checking if the logic proxy is authorised
 contract LogicProxy {
     address public logicProxyAddr;
-
-    function isLogic(address logicAddr) internal view returns(bool) {
+    function isAuthLogic(address logicAddr) internal view returns(bool) {
         LogicRegistry logicProxy = LogicRegistry(logicProxyAddr);
         return logicProxy.getLogic(logicAddr);
     }
@@ -98,8 +93,10 @@ contract LogicProxy {
 // i.e. a multisig
 contract UserProxy is UserAuth, UserNote, LogicProxy {
 
-    constructor(address logicProxyAddr_) public {
+    constructor(address logicProxyAddr_, uint activePeriod_) public {
         logicProxyAddr = logicProxyAddr_;
+        lastActivity = block.timestamp;
+        activePeriod = activePeriod_;
     }
 
     function() external payable {}
@@ -112,8 +109,7 @@ contract UserProxy is UserAuth, UserNote, LogicProxy {
         returns (bytes memory response)
     {
         require(_target != address(0), "user-proxy-target-address-required");
-        require(isLogic(_target), "invalid-logic-proxy-address");
-
+        require(isAuthLogic(_target), "logic-proxy-address-not-allowed");
         // call contract in current context
         assembly {
             let succeeded := delegatecall(sub(gas, 5000), _target, add(_data, 0x20), mload(_data), 0, 0)
