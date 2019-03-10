@@ -22,7 +22,7 @@ contract AddressRegistry {
     }
 }
 
-contract LogicProxyRegistry is AddressRegistry {
+contract LogicRegistry is AddressRegistry {
 
     event DefaultLogicSet(address logicAddr);
     event LogicSet(address logicAddr, bool isLogic);

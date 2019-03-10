@@ -22,7 +22,8 @@ contract UserAuth {
     mapping(uint => address) public guardians;
     address public owner;
     uint public lastActivity; // timestamp
-    uint public activePeriod; // timestamp // guardians can set owner after owner stay inactive for certain period
+    // guardians can set owner after owner stay inactive for certain period
+    uint public activePeriod; // timestamp
 
     constructor() public {
         owner = msg.sender;
@@ -92,9 +93,9 @@ interface LogicRegistry {
 }
 
 // checking if the logic proxy is authorised
-contract LogicProxy {
+contract UserLogic {
     address public logicProxyAddr;
-    function isAuthLogic(address logicAddr) internal view returns(bool) {
+    function isAuthorisedLogic(address logicAddr) internal view returns(bool) {
         LogicRegistry logicProxy = LogicRegistry(logicProxyAddr);
         return logicProxy.getLogic(logicAddr);
     }
@@ -105,7 +106,7 @@ contract LogicProxy {
 // useful to execute a sequence of atomic actions. Since the owner of
 // the proxy can be changed, this allows for dynamic ownership models
 // i.e. a multisig
-contract UserProxy is UserAuth, UserNote, LogicProxy {
+contract UserProxy is UserAuth, UserNote, UserLogic {
 
     constructor(address logicProxyAddr_, uint activePeriod_) public {
         logicProxyAddr = logicProxyAddr_;
@@ -123,7 +124,7 @@ contract UserProxy is UserAuth, UserNote, LogicProxy {
         returns (bytes memory response)
     {
         require(_target != address(0), "user-proxy-target-address-required");
-        require(isAuthLogic(_target), "logic-proxy-address-not-allowed");
+        require(isAuthorisedLogic(_target), "logic-proxy-address-not-allowed");
         lastActivity = block.timestamp;
         // call contract in current context
         assembly {
