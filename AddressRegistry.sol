@@ -8,6 +8,7 @@ contract AddressRegistry {
 
     constructor() public {
         registry[keccak256(abi.encodePacked("admin"))] = msg.sender;
+        registry[keccak256(abi.encodePacked("owner"))] = msg.sender;
     }
 
     function getAddr(string memory name) public view returns(address) {

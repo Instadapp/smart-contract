@@ -1,5 +1,6 @@
 pragma solidity ^0.4.23;
 
+
 interface AddrRegistry {
     function getAddr(string calldata name) external view returns(address);
 }
