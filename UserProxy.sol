@@ -2,13 +2,11 @@ pragma solidity ^0.4.23;
 
 
 library SafeMath {
-
     function add(uint256 a, uint256 b) internal pure returns (uint256) {
         uint256 c = a + b;
         require(c >= a, "math-not-safe");
         return c;
     }
-
 }
 
 contract UserAuth {
