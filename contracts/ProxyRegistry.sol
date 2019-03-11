@@ -12,14 +12,11 @@ contract ProxyRegistry {
         logicProxyAddr = logicProxyAddr_;
     }
 
-    // deploys a new proxy instance
-    // sets owner of proxy to caller
     function build(uint activeDays) public returns (UserProxy proxy) {
         proxy = build(msg.sender, activeDays);
     }
 
-    // deploys a new proxy instance
-    // sets custom owner of proxy
+    // deploys a new proxy instance and sets custom owner of proxy
     function build(address owner, uint activeDays) public returns (UserProxy proxy) {
         require(
             proxies[owner] == UserProxy(0) || proxies[owner].owner() != owner, 

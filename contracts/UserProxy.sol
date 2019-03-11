@@ -93,7 +93,7 @@ contract UserNote {
 }
 
 
-interface LogicRegistry {
+interface AddressRegistry {
     function getLogic(address logicAddr) external view returns (bool);
 }
 
@@ -101,8 +101,8 @@ interface LogicRegistry {
 // checking if the logic proxy is authorised
 contract UserLogic {
     address public logicProxyAddr;
-    function isAuthorisedLogic(address logicAddr) internal view returns (bool) {
-        LogicRegistry logicProxy = LogicRegistry(logicProxyAddr);
+    function isLogicAuthorised(address logicAddr) internal view returns (bool) {
+        AddressRegistry logicProxy = AddressRegistry(logicProxyAddr);
         return logicProxy.getLogic(logicAddr);
     }
 }
@@ -110,17 +110,17 @@ contract UserLogic {
 
 
 contract UserProxy is UserAuth, UserNote, UserLogic {
-    constructor(address logicProxyAddr_, uint activePeriod_) public {
-        logicProxyAddr = logicProxyAddr_;
+    constructor(address _logicProxyAddr, uint _activePeriod) public {
+        logicProxyAddr = _logicProxyAddr;
         lastActivity = block.timestamp;
-        activePeriod = activePeriod_;
+        activePeriod = _activePeriod;
     }
 
     function() external payable {}
 
     function execute(address _target, bytes memory _data) public payable auth note returns (bytes memory response) {
         require(_target != address(0), "user-proxy-target-address-required");
-        require(isAuthorisedLogic(_target), "logic-proxy-address-not-allowed");
+        require(isLogicAuthorised(_target), "logic-proxy-address-not-allowed");
         lastActivity = block.timestamp;
         // call contract in current context
         assembly {
