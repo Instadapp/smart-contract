@@ -2,7 +2,6 @@ pragma solidity ^0.5.0;
 
 
 contract AddressRegistry {
-
     event AddressSet(string name, address addr);
     mapping(bytes32 => address) registry;
 
