@@ -1,0 +1,18 @@
+{
+  "ignore": [
+    "README.md",
+    "package-lock.json"
+  ],
+  "commands": {
+    "Compile contracts": "truffle compile",
+    "Migrate contracts": "truffle migrate",
+    "Test contracts": "truffle test",
+    "Run eslint": "npm run lint",
+    "Run solium": "npm run solium",
+    "Run solidity-coverage": "npm run coverage",
+    "Run lint, solium, and truffle test": "npm run test"
+  },
+  "hooks": {
+    "post-unpack": "npm install"
+  }
+}

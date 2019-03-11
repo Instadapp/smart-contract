@@ -1,9 +1,8 @@
-pragma solidity ^0.4.23;
-
+pragma solidity ^0.5.0;
 
 import "./UserProxy.sol";
 
-// ProxyRegistry
+
 contract ProxyRegistry {
     event Created(address indexed sender, address indexed owner, address proxy);
     mapping(address => UserProxy) public proxies;
@@ -26,6 +25,7 @@ contract ProxyRegistry {
             proxies[owner] == UserProxy(0) || proxies[owner].owner() != owner, 
             "multiple-proxy-per-user-not-allowed"
         ); // Not allow new proxy if the user already has one and remains being the owner
+        
         proxy = new UserProxy(logicProxyAddr, activeDays);
         emit Created(msg.sender, owner, address(proxy));
         proxy.setOwner(owner);

@@ -1,4 +1,4 @@
-pragma solidity ^0.4.23;
+pragma solidity ^0.5.0;
 
 
 library SafeMath {
@@ -9,11 +9,11 @@ library SafeMath {
     }
 }
 
-contract UserAuth {
 
+contract UserAuth {
     using SafeMath for uint;
     using SafeMath for uint256;
-    
+
     event LogSetOwner(address indexed owner, bool isGuardian);
     event LogSetGuardian(address indexed guardian);
 
@@ -31,16 +31,6 @@ contract UserAuth {
     modifier auth {
         require(isAuth(msg.sender), "permission-denied");
         _;
-    }
-
-    function isAuth(address src) internal view returns (bool) {
-        if (src == address(this)) {
-            return true;
-        } else if (src == owner) {
-            return true;
-        } else {
-            return false;
-        }
     }
 
     function setOwner(address owner_) public auth {
@@ -61,18 +51,20 @@ contract UserAuth {
         emit LogSetGuardian(guardian_);
     }
 
+    function isAuth(address src) internal view returns (bool) {
+        if (src == address(this)) {
+            return true;
+        } else if (src == owner) {
+            return true;
+        } else {
+            return false;
+        }
+    }
 }
 
 
 contract UserNote {
-    event LogNote(
-        bytes4   indexed  sig,
-        address  indexed  guy,
-        bytes32  indexed  foo,
-        bytes32  indexed  bar,
-        uint              wad,
-        bytes             fax
-    ) anonymous;
+    event LogNote(bytes4 indexed sig, address indexed guy, bytes32 indexed foo, bytes32 indexed bar, uint wad, bytes fax);
 
     modifier note {
         bytes32 foo;
@@ -81,23 +73,34 @@ contract UserNote {
             foo := calldataload(4)
             bar := calldataload(36)
         }
-        emit LogNote(msg.sig, msg.sender, foo, bar, msg.value, msg.data);
+        emit LogNote(
+            msg.sig, 
+            msg.sender, 
+            foo, 
+            bar, 
+            msg.value, 
+            msg.data
+        );
         _;
     }
 }
 
+
 interface LogicRegistry {
-    function getLogic(address logicAddr) external view returns(bool);
+    function getLogic(address logicAddr) external view returns (bool);
 }
+
 
 // checking if the logic proxy is authorised
 contract UserLogic {
     address public logicProxyAddr;
-    function isAuthorisedLogic(address logicAddr) internal view returns(bool) {
+    function isAuthorisedLogic(address logicAddr) internal view returns (bool) {
         LogicRegistry logicProxy = LogicRegistry(logicProxyAddr);
         return logicProxy.getLogic(logicAddr);
     }
 }
+
+
 
 // UserProxy
 // Allows code execution using a persistant identity This can be very
@@ -105,7 +108,6 @@ contract UserLogic {
 // the proxy can be changed, this allows for dynamic ownership models
 // i.e. a multisig
 contract UserProxy is UserAuth, UserNote, UserLogic {
-
     constructor(address logicProxyAddr_, uint activePeriod_) public {
         logicProxyAddr = logicProxyAddr_;
         lastActivity = block.timestamp;
@@ -114,13 +116,7 @@ contract UserProxy is UserAuth, UserNote, UserLogic {
 
     function() external payable {}
 
-    function execute(address _target, bytes memory _data)
-        public
-        auth
-        note
-        payable
-        returns (bytes memory response)
-    {
+    function execute(address _target, bytes memory _data) public payable auth note returns (bytes memory response) {
         require(_target != address(0), "user-proxy-target-address-required");
         require(isAuthorisedLogic(_target), "logic-proxy-address-not-allowed");
         lastActivity = block.timestamp;
@@ -135,10 +131,10 @@ contract UserProxy is UserAuth, UserNote, UserLogic {
             returndatacopy(add(response, 0x20), 0, size)
 
             switch iszero(succeeded)
-            case 1 {
-                // throw if delegatecall failed
-                revert(add(response, 0x20), size)
-            }
+                case 1 {
+                    // throw if delegatecall failed
+                    revert(add(response, 0x20), size)
+                }
         }
     }
 }

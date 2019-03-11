@@ -1,0 +1,10 @@
+{
+    "reporterEnabled": "mocha-junit-reporter, eth-gas-reporter",
+    "mochaJunitReporterReporterOptions": {
+	    "mochaFile": "./test-results/test-contract-results.xml"
+    },
+    "reporterOptions": {
+      "currency": "USD",
+      "gasPrice": 21
+    }
+}
