@@ -64,7 +64,14 @@ contract UserAuth {
 
 
 contract UserNote {
-    event LogNote(bytes4 indexed sig, address indexed guy, bytes32 indexed foo, bytes32 indexed bar, uint wad, bytes fax);
+    event LogNote(
+        bytes4 indexed sig,
+        address indexed guy,
+        bytes32 indexed foo,
+        bytes32 bar,
+        uint wad,
+        bytes fax
+    );
 
     modifier note {
         bytes32 foo;
@@ -102,11 +109,6 @@ contract UserLogic {
 
 
 
-// UserProxy
-// Allows code execution using a persistant identity This can be very
-// useful to execute a sequence of atomic actions. Since the owner of
-// the proxy can be changed, this allows for dynamic ownership models
-// i.e. a multisig
 contract UserProxy is UserAuth, UserNote, UserLogic {
     constructor(address logicProxyAddr_, uint activePeriod_) public {
         logicProxyAddr = logicProxyAddr_;

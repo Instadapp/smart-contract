@@ -16,11 +16,7 @@ contract ProxyTest {
 
     function transferETH(address dest, uint amount) public payable {
         dest.transfer(amount);
-
-        emit LogTransferETH(
-            dest, 
-            amount
-        );
+        emit LogTransferETH(dest, amount);
     }
 
     function transferERC20(address tokenAddr, address dest, address amount) public {
