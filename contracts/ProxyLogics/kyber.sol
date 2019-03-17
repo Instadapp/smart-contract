@@ -1,23 +1,7 @@
 pragma solidity 0.5.0;
 
 
-library SafeMath {
-    function mul(uint256 a, uint256 b) internal pure returns (uint256) {
-        if (a == 0) {
-            return 0;
-        }
-        uint256 c = a * b;
-        require(c / a == b, "Assertion Failed");
-        return c;
-    }
-
-    function div(uint256 a, uint256 b) internal pure returns (uint256) {
-        require(b > 0, "Assertion Failed");
-        uint256 c = a / b;
-        return c;
-    }
-
-}
+import "./safemath.sol";
 
 interface IERC20 {
     function balanceOf(address who) external view returns (uint256);
@@ -60,8 +44,8 @@ contract Registry {
 
 
 contract Trade is Registry {
+    
     using SafeMath for uint;
-    using SafeMath for uint256;
 
     event KyberTrade(address src, uint srcAmt, address dest, uint destAmt, address beneficiary, uint minConversionRate, address affiliate);
 
