@@ -31,7 +31,7 @@ interface AddressRegistryInterface {
  */
 contract ProxyRecord {
     
-    address public proxyContract;
+    address public proxyRegistryContract;
     
     /**
      * @dev this updates the internal proxy ownership on "proxy registry" contract
@@ -39,7 +39,7 @@ contract ProxyRecord {
      * @param nextOwner is the new assigned owner
      */
     function setProxyRecordOwner(address currentOwner, address nextOwner) internal {
-        ProxyRegistryInterface initCall = ProxyRegistryInterface(proxyContract);
+        ProxyRegistryInterface initCall = ProxyRegistryInterface(proxyRegistryContract);
         initCall.updateProxyRecord(currentOwner, nextOwner);
     }
 
@@ -62,9 +62,7 @@ contract UserAuth is ProxyRecord {
      * @dev defines the "proxy registry" contract and sets the owner
      */
     constructor() public {
-        proxyContract = msg.sender;
-        owner = msg.sender;
-        emit LogSetOwner(owner, msg.sender);
+        proxyRegistryContract = msg.sender;
     }
 
     /**
@@ -131,7 +129,7 @@ contract UserGuardian is UserAuth {
      * @dev Throws if guardians not enabled by system admin
      */
     modifier guard() {
-        ProxyRegistryInterface initCall = ProxyRegistryInterface(proxyContract);
+        ProxyRegistryInterface initCall = ProxyRegistryInterface(proxyRegistryContract);
         require(initCall.guardianEnabled());
         _;
     }
@@ -161,8 +159,7 @@ contract UserGuardian is UserAuth {
 
     /**
      * @dev sets the guardian with assigned number (upto 3)
-     * @param num is the guardian assigned number
-     * @param _guardian is the new guardian address
+     * @param _activePeriod is the period when guardians have no rights to dethrone the owner
      */
     function updateActivePeriod(uint _activePeriod) public auth guard {
         activePeriod = _activePeriod;
@@ -204,31 +201,66 @@ contract UserNote {
 }
 
 
-// checking if the logic proxy is authorised
+/**
+ * @title User Proxy Logic
+ */
 contract UserLogic {
-    address public logicProxyAddr;
+    address public logicRegistryAddr;
+
+    /**
+     * @param logicAddr is the logic proxy contract address
+     * @return the true boolean for logic proxy if authorised otherwise false
+     */
     function isLogicAuthorised(address logicAddr) internal view returns (bool) {
-        AddressRegistryInterface logicProxy = AddressRegistryInterface(logicProxyAddr);
+        AddressRegistryInterface logicProxy = AddressRegistryInterface(logicRegistryAddr);
         return logicProxy.getLogic(logicAddr);
     }
+
 }
 
 
 contract UserProxy is UserGuardian, UserNote, UserLogic {
 
-    constructor(address _owner, address _logicProxyAddr) public {
-        logicProxyAddr = _logicProxyAddr;
+    event LogExecute(address target, uint srcNum, uint sessionNum);
+
+    /**
+     * @dev sets the "address registry", owner's last activity, owner's active period and initial owner
+     * @param _owner initial owner of the contract
+     * @param _logicRegistryAddr address registry address which have logic proxy registry
+     */
+    constructor(address _owner, address _logicRegistryAddr) public {
+        logicRegistryAddr = _logicRegistryAddr;
+        owner = _owner;
         lastActivity = block.timestamp;
         activePeriod = 30 days; // default and changeable
-        owner = _owner;
     }
 
     function() external payable {}
 
-    function execute(address _target, bytes memory _data) public payable auth note returns (bytes memory response) {
+    /**
+     * @dev execute authorised calls via delegate call
+     * @param _target logic proxy address
+     * @param _data delegate call data
+     * @param srcNum to find the source
+     * @param sessionNum to find the session
+     */
+    function execute(
+        address _target,
+        bytes memory _data,
+        uint srcNum,
+        uint sessionNum
+    ) 
+        public
+        payable
+        auth
+        note
+        returns (bytes memory response)
+    {
         require(_target != address(0), "user-proxy-target-address-required");
         require(isLogicAuthorised(_target), "logic-proxy-address-not-allowed");
         lastActivity = block.timestamp;
+        emit LogExecute(_target, srcNum, sessionNum);
+        
         // call contract in current context
         assembly {
             let succeeded := delegatecall(sub(gas, 5000), _target, add(_data, 0x20), mload(_data), 0, 0)
