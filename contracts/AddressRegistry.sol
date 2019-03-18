@@ -2,9 +2,9 @@ pragma solidity ^0.5.0;
 
 
 contract AddressRegistry {
-    event AddressSet(string name, address addr);
-    event DefaultLogicSet(address logicAddr);
-    event LogicSet(address logicAddr, bool isLogic);
+    event LogSetAddress(string name, address addr);
+    event LogSetDefaultLogic(address logicAddr);
+    event LogSetLogic(address logicAddr, bool isLogic);
 
     mapping(bytes32 => address) registry;
     mapping(address => bool) public defaultLogicProxies;
@@ -15,28 +15,35 @@ contract AddressRegistry {
         registry[keccak256(abi.encodePacked("owner"))] = msg.sender;
     }
 
+    /**
+     * @dev get the address from system registry 
+     */
     function getAddress(string memory name) public view returns(address) {
         return registry[keccak256(abi.encodePacked(name))];
     }
 
+    /**
+     * @dev set new address in system registry 
+     */
     function setAddress(string memory name, address addr) public {
         require(
             msg.sender == getAddress("admin") || 
             msg.sender == getAddress("owner"),
-            "Permission Denied"
+            "permission-denied"
         );
         registry[keccak256(abi.encodePacked(name))] = addr;
-        emit AddressSet(name, addr);
+        emit LogSetAddress(name, addr);
     }
 
     modifier isAdmin() {
-        require(
-            msg.sender == getAddress("admin"),
-            "Permission Denied"
-        );
+        require(msg.sender == getAddress("admin"), "permission-denied");
         _;
     }
 
+    /**
+     * @dev get the boolean of the logic proxy contract
+     * @param logicAddr is the logic proxy address
+     */
     function getLogic(address logicAddr) public view returns (bool) {
         if (defaultLogicProxies[logicAddr]) {
             return true;
@@ -47,16 +54,23 @@ contract AddressRegistry {
         }
     }
 
+    /**
+     * @dev this sets the default logic proxy to true
+     * @param logicAddr is the default logic proxy address
+     */
     function setDefaultLogic(address logicAddr) public isAdmin {
-        require(msg.sender == getAddress("admin"), "Permission Denied");
         defaultLogicProxies[logicAddr] = true;
-        emit DefaultLogicSet(logicAddr);
+        emit LogSetDefaultLogic(logicAddr);
     }
 
+    /**
+     * @dev this updates the boolean of the logic proxy
+     * @param logicAddr is the logic proxy address
+     * @param isLogic is the boolean to set for the logic proxy
+     */
     function setLogic(address logicAddr, bool isLogic) public isAdmin {
-        require(msg.sender == getAddress("admin"), "Permission Denied");
         logicProxies[logicAddr] = true;
-        emit LogicSet(logicAddr, isLogic);
+        emit LogSetLogic(logicAddr, isLogic);
     }
 
 }
