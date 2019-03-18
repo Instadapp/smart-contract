@@ -3,6 +3,9 @@ pragma solidity ^0.5.0;
 import "./UserWallet.sol";
 
 
+/**
+ * @title Address Registry
+ */
 contract AddressRegistry {
     event LogSetAddress(string name, address addr);
 
@@ -41,6 +44,9 @@ contract AddressRegistry {
 }
 
 
+/**
+ * @title Logic Registry
+ */
 contract LogicRegistry is AddressRegistry {
 
     event LogSetDefaultLogic(address logicAddr);
@@ -85,6 +91,9 @@ contract LogicRegistry is AddressRegistry {
 }
 
 
+/**
+ * @title User Wallet Registry
+ */
 contract ProxyRegistry is LogicRegistry {
     
     event Created(address indexed sender, address indexed owner, address proxy);
