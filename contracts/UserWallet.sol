@@ -1,6 +1,9 @@
 pragma solidity ^0.5.0;
 
 
+/**
+ * @dev because math is not safe 
+ */
 library SafeMath {
     function add(uint256 a, uint256 b) internal pure returns (uint256) {
         uint256 c = a + b;
@@ -9,46 +12,53 @@ library SafeMath {
     }
 }
 
-/**
- * @title ProxyRegistry Interface 
- */
-interface ProxyRegistryInterface {
-    function updateProxyRecord(address currentOwner, address nextOwner) external;
-    function guardianEnabled() external returns (bool);
-}
 
 /**
  * @title AddressRegistryInterface Interface 
  */
 interface AddressRegistryInterface {
     function getLogic(address logicAddr) external view returns (bool);
-    function getAddress(string calldata name) external view returns(address);
+    function updateProxyRecord(address currentOwner, address nextOwner) external;
+    function guardianEnabled() external returns (bool);
 }
 
 
 /**
- * @title Proxy Record
+ * @title Address Record
  */
-contract ProxyRecord {
-    
-    address public proxyRegistryContract;
+contract AddressRecord {
+
+    /**
+     * @dev address registry of system, logic and proxy addresses
+     */
+    address public registry;
     
     /**
-     * @dev this updates the internal proxy ownership on "proxy registry" contract
+     * @dev this updates the internal proxy ownership on "registry" contract
      * @param currentOwner is the current owner
      * @param nextOwner is the new assigned owner
      */
     function setProxyRecordOwner(address currentOwner, address nextOwner) internal {
-        ProxyRegistryInterface initCall = ProxyRegistryInterface(proxyRegistryContract);
+        AddressRegistryInterface initCall = AddressRegistryInterface(registry);
         initCall.updateProxyRecord(currentOwner, nextOwner);
+    }
+
+    /**
+     * @param logicAddr is the logic proxy contract address
+     * @return the true boolean for logic proxy if authorised otherwise false
+     */
+    function isLogicAuthorised(address logicAddr) internal view returns (bool) {
+        AddressRegistryInterface logicProxy = AddressRegistryInterface(registry);
+        return logicProxy.getLogic(logicAddr);
     }
 
 }
 
+
 /**
  * @title User Auth
  */
-contract UserAuth is ProxyRecord {
+contract UserAuth is AddressRecord {
     using SafeMath for uint;
     using SafeMath for uint256;
 
@@ -63,7 +73,6 @@ contract UserAuth is ProxyRecord {
      * @dev defines the "proxy registry" contract and sets the owner
      */
     constructor() public {
-        proxyRegistryContract = msg.sender;
         gracePeriod = 3 days;
     }
 
@@ -117,6 +126,7 @@ contract UserAuth is ProxyRecord {
 
 }
 
+
 /**
  * @title User Guardians
  */
@@ -134,8 +144,8 @@ contract UserGuardian is UserAuth {
      * @dev Throws if guardians not enabled by system admin
      */
     modifier guard() {
-        ProxyRegistryInterface initCall = ProxyRegistryInterface(proxyRegistryContract);
-        require(initCall.guardianEnabled());
+        AddressRegistryInterface initCall = AddressRegistryInterface(registry);
+        require(initCall.guardianEnabled(), "guardian-not-enabled");
         _;
     }
 
@@ -173,6 +183,7 @@ contract UserGuardian is UserAuth {
 
 }
 
+
 /**
  * @dev logging the execute events
  */
@@ -207,24 +218,9 @@ contract UserNote {
 
 
 /**
- * @title User Proxy Logic
+ * @title User Owned Contract Wallet
  */
-contract UserLogic {
-    address public logicRegistryAddr;
-
-    /**
-     * @param logicAddr is the logic proxy contract address
-     * @return the true boolean for logic proxy if authorised otherwise false
-     */
-    function isLogicAuthorised(address logicAddr) internal view returns (bool) {
-        AddressRegistryInterface logicProxy = AddressRegistryInterface(logicRegistryAddr);
-        return logicProxy.getLogic(logicAddr);
-    }
-
-}
-
-
-contract UserProxy is UserGuardian, UserNote, UserLogic {
+contract UserWallet is UserGuardian, UserNote {
 
     event LogExecute(address target, uint srcNum, uint sessionNum);
 
@@ -233,8 +229,8 @@ contract UserProxy is UserGuardian, UserNote, UserLogic {
      * @param _owner initial owner of the contract
      * @param _logicRegistryAddr address registry address which have logic proxy registry
      */
-    constructor(address _owner, address _logicRegistryAddr) public {
-        logicRegistryAddr = _logicRegistryAddr;
+    constructor(address _owner) public {
+        registry = msg.sender;
         owner = _owner;
         lastActivity = block.timestamp;
         activePeriod = 30 days; // default and changeable
