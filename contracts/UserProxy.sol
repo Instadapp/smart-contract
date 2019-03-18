@@ -56,13 +56,15 @@ contract UserAuth is ProxyRecord {
     event LogSetPendingOwner(address indexed pendingOwner, address setter);
     address public owner;
     address public pendingOwner;
-    uint public claimOnwershipTime; // 7 days
+    uint public claimOnwershipTime; // now + 7 days
+    uint public gracePeriod; // to set the new owner
 
     /**
      * @dev defines the "proxy registry" contract and sets the owner
      */
     constructor() public {
         proxyRegistryContract = msg.sender;
+        gracePeriod = 3 days;
     }
 
     /**
@@ -74,11 +76,12 @@ contract UserAuth is ProxyRecord {
     }
 
     /**
-     * @dev sets the "pending owner"
+     * @dev sets the "pending owner" and provide 3 days grace period to set the new owner via setOwner()
+     * Throws if called before 10 (i.e. 7 + 3) day after assigning "pending owner"
      * @param nextOwner is the assigned "pending owner"
      */
     function setPendingOwner(address nextOwner) public auth {
-        require(block.timestamp > claimOnwershipTime, "owner-is-still-pending");
+        require(block.timestamp > claimOnwershipTime.add(gracePeriod), "owner-is-still-pending");
         pendingOwner = nextOwner;
         claimOnwershipTime = block.timestamp.add(7 days);
         emit LogSetPendingOwner(nextOwner, msg.sender);
@@ -86,10 +89,12 @@ contract UserAuth is ProxyRecord {
 
     /**
      * @dev sets "pending owner" as real owner
+     * Throws if no "pending owner"
      * Throws if called before 7 day after assigning "pending owner"
      */
     function setOwner() public {
         require(pendingOwner != address(0), "no-pending-address");
+        require(block.timestamp > claimOnwershipTime, "owner-is-still-pending");
         setProxyRecordOwner(owner, pendingOwner);
         owner = pendingOwner;
         pendingOwner = address(0);
