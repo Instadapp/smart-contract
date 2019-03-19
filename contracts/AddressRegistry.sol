@@ -11,11 +11,6 @@ contract AddressRegistry {
 
     mapping(bytes32 => address) registry;
 
-    constructor() public {
-        registry[keccak256(abi.encodePacked("admin"))] = msg.sender;
-        registry[keccak256(abi.encodePacked("owner"))] = msg.sender;
-    }
-
     modifier isAdmin() {
         require(
             msg.sender == getAddress("admin") || 
@@ -106,7 +101,7 @@ contract LogicRegistry is AddressRegistry {
 /**
  * @title User Wallet Registry
  */
-contract ProxyRegistry is LogicRegistry {
+contract WalletRegistry is LogicRegistry {
     
     event Created(address indexed sender, address indexed owner, address proxy);
     
@@ -168,6 +163,16 @@ contract ProxyRegistry is LogicRegistry {
      */
     function disableManager() public isAdmin {
         managerEnabled = false;     
+    }
+
+}
+
+
+contract Registry is WalletRegistry {
+
+    constructor() public {
+        registry[keccak256(abi.encodePacked("admin"))] = msg.sender;
+        registry[keccak256(abi.encodePacked("owner"))] = msg.sender;
     }
 
 }

@@ -188,7 +188,7 @@ contract UserGuardian is UserAuth {
     /**
      * @dev Throws if the msg.sender is not guardian
      */
-    function isGuardian() internal returns (bool) {
+    function isGuardian() internal view returns (bool) {
         if (msg.sender == guardians[1] || msg.sender == guardians[2] || msg.sender == guardians[3]) {
             return true;
         } else {
@@ -233,7 +233,7 @@ contract UserManager is UserGuardian {
     /**
      * @dev Throws if the msg.sender is not manager
      */
-    function isManager() internal returns (bool) {
+    function isManager() internal view returns (bool) {
         if (msg.sender == managers[1] || msg.sender == managers[2] || msg.sender == managers[3]) {
             return true;
         } else {
@@ -287,7 +287,6 @@ contract UserWallet is UserManager, UserNote {
     /**
      * @dev sets the "address registry", owner's last activity, owner's active period and initial owner
      * @param _owner initial owner of the contract
-     * @param _logicRegistryAddr address registry address which have logic proxy registry
      */
     constructor(address _owner) public {
         registry = msg.sender;
@@ -344,7 +343,7 @@ contract UserWallet is UserManager, UserNote {
      * and if the sender is owner or contract itself or manager
      * and if manager then Throws if target is default proxy address
      */
-    function isExecutable(address proxyTarget) internal returns (bool) {
+    function isExecutable(address proxyTarget) internal view returns (bool) {
         (bool isLogic, bool isDefault) = isLogicAuthorised(proxyTarget);
         require(isLogic, "logic-proxy-address-not-allowed");
         if (isAuth(msg.sender)) {
