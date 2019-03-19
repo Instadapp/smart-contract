@@ -58,8 +58,8 @@ contract LogicRegistry is AddressRegistry {
     /**
      * @dev get the boolean of the logic contract
      * @param logicAddr is the logic proxy address
-     * @return bool is the logic proxy is authorised by system admin
-     * @return uint 0 for default proxy and 1 for changeable proxy
+     * @return bool logic proxy is authorised by system admin
+     * @return bool logic proxy is default proxy 
      */
     function isLogicAuth(address logicAddr) public view returns (bool, bool) {
         if (defaultLogicProxies[logicAddr]) {
@@ -67,7 +67,7 @@ contract LogicRegistry is AddressRegistry {
         } else if (logicProxies[logicAddr]) {
             return (true, false);
         } else {
-            return false;
+            return (false, false);
         }
     }
 
