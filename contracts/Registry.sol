@@ -16,6 +16,15 @@ contract AddressRegistry {
         registry[keccak256(abi.encodePacked("owner"))] = msg.sender;
     }
 
+    modifier isAdmin() {
+        require(
+            msg.sender == getAddress("admin") || 
+            msg.sender == getAddress("owner"),
+            "permission-denied"
+        );
+        _;
+    }
+
     /**
      * @dev get the address from system registry 
      */
@@ -26,19 +35,9 @@ contract AddressRegistry {
     /**
      * @dev set new address in system registry 
      */
-    function setAddress(string memory name, address addr) public {
-        require(
-            msg.sender == getAddress("admin") || 
-            msg.sender == getAddress("owner"),
-            "permission-denied"
-        );
+    function setAddress(string memory name, address addr) public isAdmin {
         registry[keccak256(abi.encodePacked(name))] = addr;
         emit LogSetAddress(name, addr);
-    }
-
-    modifier isAdmin() {
-        require(msg.sender == getAddress("admin"), "permission-denied");
-        _;
     }
 
 }
@@ -49,21 +48,24 @@ contract AddressRegistry {
  */
 contract LogicRegistry is AddressRegistry {
 
-    event LogSetDefaultLogic(address logicAddr);
-    event LogSetLogic(address logicAddr, bool isLogic);
+    event LogEnableDefaultLogic(address logicAddr);
+    event LogEnableLogic(address logicAddr);
+    event LogDisableLogic(address logicAddr);
 
     mapping(address => bool) public defaultLogicProxies;
     mapping(address => bool) public logicProxies;
 
     /**
-     * @dev get the boolean of the logic proxy contract
+     * @dev get the boolean of the logic contract
      * @param logicAddr is the logic proxy address
+     * @return bool is the logic proxy is authorised by system admin
+     * @return uint 0 for default proxy and 1 for changeable proxy
      */
-    function getLogic(address logicAddr) public view returns (bool) {
+    function isLogicAuth(address logicAddr) public view returns (bool, bool) {
         if (defaultLogicProxies[logicAddr]) {
-            return true;
+            return (true, true);
         } else if (logicProxies[logicAddr]) {
-            return true;
+            return (true, false);
         } else {
             return false;
         }
@@ -71,21 +73,31 @@ contract LogicRegistry is AddressRegistry {
 
     /**
      * @dev this sets the default logic proxy to true
+     * default proxies mostly contains the logic for withdrawal of assets
+     * and can never be false to freely let user withdraw their assets
      * @param logicAddr is the default logic proxy address
      */
-    function setDefaultLogic(address logicAddr) public isAdmin {
+    function enableDefaultLogic(address logicAddr) public isAdmin {
         defaultLogicProxies[logicAddr] = true;
-        emit LogSetDefaultLogic(logicAddr);
+        emit LogEnableDefaultLogic(logicAddr);
     }
 
     /**
-     * @dev this updates the boolean of the logic proxy
+     * @dev enable logic proxy address and sets true
      * @param logicAddr is the logic proxy address
-     * @param isLogic is the boolean to set for the logic proxy
      */
-    function setLogic(address logicAddr, bool isLogic) public isAdmin {
+    function enableLogic(address logicAddr) public isAdmin {
         logicProxies[logicAddr] = true;
-        emit LogSetLogic(logicAddr, isLogic);
+        emit LogEnableLogic(logicAddr);
+    }
+
+    /**
+     * @dev enable logic proxy address and sets false
+     * @param logicAddr is the logic proxy address
+     */
+    function disableLogic(address logicAddr) public isAdmin {
+        logicProxies[logicAddr] = false;
+        emit LogDisableLogic(logicAddr);
     }
 
 }
@@ -99,7 +111,8 @@ contract ProxyRegistry is LogicRegistry {
     event Created(address indexed sender, address indexed owner, address proxy);
     
     mapping(address => UserWallet) public proxies;
-    bool public guardianEnabled;
+    bool public guardianEnabled; // user guardian mechanism enabled
+    bool public managerEnabled; // is user admin mechanism enabled
 
     /**
      * @dev deploys a new proxy instance and sets msg.sender as owner of proxy
@@ -141,6 +154,20 @@ contract ProxyRegistry is LogicRegistry {
      */
     function disableGuardian() public isAdmin {
         guardianEnabled = false;     
+    }
+
+        /**
+     * @dev enable user manager in overall system
+     */
+    function enableManager() public isAdmin {
+        managerEnabled = true;
+    }
+
+    /**
+     * @dev disable user manager in overall system
+     */
+    function disableManager() public isAdmin {
+        managerEnabled = false;     
     }
 
 }

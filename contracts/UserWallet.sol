@@ -17,9 +17,10 @@ library SafeMath {
  * @title AddressRegistryInterface Interface 
  */
 interface AddressRegistryInterface {
-    function getLogic(address logicAddr) external view returns (bool);
+    function isLogicAuth(address logicAddr) external view returns (bool, bool);
     function updateProxyRecord(address currentOwner, address nextOwner) external;
     function guardianEnabled() external returns (bool);
+    function managerEnabled() external returns (bool);
 }
 
 
@@ -47,9 +48,9 @@ contract AddressRecord {
      * @param logicAddr is the logic proxy contract address
      * @return the true boolean for logic proxy if authorised otherwise false
      */
-    function isLogicAuthorised(address logicAddr) internal view returns (bool) {
+    function isLogicAuthorised(address logicAddr) internal view returns (bool, bool) {
         AddressRegistryInterface logicProxy = AddressRegistryInterface(registry);
-        return logicProxy.getLogic(logicAddr);
+        return logicProxy.isLogicAuth(logicAddr);
     }
 
 }
@@ -67,7 +68,7 @@ contract UserAuth is AddressRecord {
     address public owner;
     address public pendingOwner;
     uint public claimOnwershipTime; // now + 7 days
-    uint public gracePeriod; // to set the new owner
+    uint public gracePeriod; // to set the new owner - defaults to 3 days
 
     /**
      * @dev defines the "proxy registry" contract and sets the owner
@@ -129,10 +130,12 @@ contract UserAuth is AddressRecord {
 
 /**
  * @title User Guardians
+ * @dev the assigned guardian addresses (upto 3) can set new owners
+ * but only after certain period of owner's inactivity (i.e. activePeriod)
  */
 contract UserGuardian is UserAuth {
 
-    event LogSetGuardian(address indexed guardian);
+    event LogSetGuardian(uint num, address indexed prevGuardian, address indexed newGuardian);
     event LogNewActivePeriod(uint newActivePeriod);
     event LogSetOwnerViaGuardian(address nextOwner, address indexed guardian);
 
@@ -143,7 +146,7 @@ contract UserGuardian is UserAuth {
     /**
      * @dev Throws if guardians not enabled by system admin
      */
-    modifier guard() {
+    modifier isGuardianEnabled() {
         AddressRegistryInterface initCall = AddressRegistryInterface(registry);
         require(initCall.guardianEnabled(), "guardian-not-enabled");
         _;
@@ -154,7 +157,8 @@ contract UserGuardian is UserAuth {
      * @param nextOwner is the new owner
      * @param num is the assigned guardian number
      */
-    function setOwnerViaGuardian(address nextOwner, uint num) public guard {
+    function setOwnerViaGuardian(address nextOwner, uint num) public isGuardianEnabled {
+        require(isGuardian() == true, "not-guardian");
         require(msg.sender == guardians[num], "permission-denied");
         require(block.timestamp > lastActivity.add(activePeriod), "active-period-not-over");
         owner = nextOwner;
@@ -166,19 +170,75 @@ contract UserGuardian is UserAuth {
      * @param num is the guardian assigned number
      * @param _guardian is the new guardian address
      */
-    function setGuardian(uint num, address _guardian) public auth guard {
+    function setGuardian(uint num, address _guardian) public auth isGuardianEnabled {
         require(num > 0 && num < 4, "guardians-cant-exceed-three");
+        emit LogSetGuardian(num, guardians[num], _guardian);
         guardians[num] = _guardian;
-        emit LogSetGuardian(_guardian);
     }
 
     /**
      * @dev sets the guardian with assigned number (upto 3)
      * @param _activePeriod is the period when guardians have no rights to dethrone the owner
      */
-    function updateActivePeriod(uint _activePeriod) public auth guard {
+    function updateActivePeriod(uint _activePeriod) public auth isGuardianEnabled {
         activePeriod = _activePeriod;
         emit LogNewActivePeriod(_activePeriod);
+    }
+
+    /**
+     * @dev Throws if the msg.sender is not guardian
+     */
+    function isGuardian() internal returns (bool) {
+        if (msg.sender == guardians[1] || msg.sender == guardians[2] || msg.sender == guardians[3]) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+}
+
+
+/**
+ * @title User Manager
+ * @dev the assigned manager addresses (upto 3) can manage the wealth in contract to contract fashion
+ * but can't withdraw the assets on their personal address
+ */
+contract UserManager is UserGuardian {
+
+    event LogSetManager(uint num, address indexed prevManager, address indexed newManager);
+
+    mapping(uint => address) public managers;
+
+    /**
+     * @dev Throws if manager not enabled by system admin
+     */
+    modifier isManagerEnabled() {
+        AddressRegistryInterface initCall = AddressRegistryInterface(registry);
+        require(initCall.managerEnabled(), "admin-not-enabled");
+        _;
+    }
+
+    /**
+     * @dev sets the manager with assigned number (upto 3)
+     * @param num is the assigned number of manager
+     * @param _manager is the new admin address
+     */
+    function setManager(uint num, address _manager) public auth isManagerEnabled {
+        require(num > 0 && num < 4, "guardians-cant-exceed-three");
+        emit LogSetManager(num, managers[num], _manager);
+        managers[num] = _manager;
+    }
+
+    /**
+     * @dev Throws if the msg.sender is not manager
+     */
+    function isManager() internal returns (bool) {
+        if (msg.sender == managers[1] || msg.sender == managers[2] || msg.sender == managers[3]) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
 }
@@ -220,7 +280,7 @@ contract UserNote {
 /**
  * @title User Owned Contract Wallet
  */
-contract UserWallet is UserGuardian, UserNote {
+contract UserWallet is UserManager, UserNote {
 
     event LogExecute(address target, uint srcNum, uint sessionNum);
 
@@ -233,7 +293,7 @@ contract UserWallet is UserGuardian, UserNote {
         registry = msg.sender;
         owner = _owner;
         lastActivity = block.timestamp;
-        activePeriod = 30 days; // default and changeable
+        activePeriod = 30 days; // default on deployment and changeable afterwards
     }
 
     function() external payable {}
@@ -253,12 +313,11 @@ contract UserWallet is UserGuardian, UserNote {
     ) 
         public
         payable
-        auth
         note
         returns (bytes memory response)
     {
         require(_target != address(0), "user-proxy-target-address-required");
-        require(isLogicAuthorised(_target), "logic-proxy-address-not-allowed");
+        require(isExecutable(_target), "not-executable");
         lastActivity = block.timestamp;
         emit LogExecute(_target, srcNum, sessionNum);
         
@@ -277,6 +336,23 @@ contract UserWallet is UserGuardian, UserNote {
                     // throw if delegatecall failed
                     revert(add(response, 0x20), size)
                 }
+        }
+    }
+
+    /**
+     * @dev checks if the proxy is authorised
+     * and if the sender is owner or contract itself or manager
+     * and if manager then Throws if target is default proxy address
+     */
+    function isExecutable(address proxyTarget) internal returns (bool) {
+        (bool isLogic, bool isDefault) = isLogicAuthorised(proxyTarget);
+        require(isLogic, "logic-proxy-address-not-allowed");
+        if (isAuth(msg.sender)) {
+            return true;
+        } else if (isManager() && !isDefault) {
+            return true;
+        } else {
+            return false;
         }
     }
 
