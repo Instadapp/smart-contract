@@ -298,7 +298,6 @@ contract UserWallet is UserManager, UserNote {
 
     /**
      * @dev sets the "address registry", owner's last activity, owner's active period and initial owner
-     * @param _owner initial owner of the contract
      */
     constructor() public {
         registry = msg.sender;

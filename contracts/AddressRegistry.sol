@@ -169,7 +169,7 @@ contract WalletRegistry is LogicRegistry {
 }
 
 
-contract Registry is WalletRegistry {
+contract InstaRegistry is WalletRegistry {
 
     constructor() public {
         registry[keccak256(abi.encodePacked("admin"))] = msg.sender;
