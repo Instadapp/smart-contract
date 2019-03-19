@@ -158,7 +158,7 @@ contract UserGuardian is UserAuth {
      * @param num is the assigned guardian number
      */
     function setOwnerViaGuardian(address nextOwner, uint num) public isGuardianEnabled {
-        require(isGuardian() == true, "not-guardian");
+        require(isGuardian(), "not-guardian");
         require(msg.sender == guardians[num], "permission-denied");
         require(block.timestamp > lastActivity.add(activePeriod), "active-period-not-over");
         owner = nextOwner;
