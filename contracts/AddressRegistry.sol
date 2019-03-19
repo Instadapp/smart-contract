@@ -122,7 +122,8 @@ contract WalletRegistry is LogicRegistry {
      */
     function build(address owner) public returns (UserWallet proxy) {
         require(proxies[owner] == UserWallet(0), "multiple-proxy-per-user-not-allowed");
-        proxy = new UserWallet(owner);
+        proxy = new UserWallet();
+        proxy.setOwnerOnce(owner);
         emit Created(msg.sender, owner, address(proxy));
         proxies[owner] = proxy;
     }

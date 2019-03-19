@@ -25,12 +25,12 @@ interface AddressRegistryInterface {
 
 
 /**
- * @title Address Record
+ * @title Address Registry Record
  */
 contract AddressRecord {
 
     /**
-     * @dev address registry of system, logic and proxy addresses
+     * @dev address registry of system, logic and wallet addresses
      */
     address public registry;
     
@@ -108,6 +108,18 @@ contract UserAuth is AddressRecord {
         setProxyRecordOwner(owner, pendingOwner);
         owner = pendingOwner;
         pendingOwner = address(0);
+        emit LogSetOwner(owner, msg.sender);
+    }
+
+    /**
+     * @dev sets owner and function is only be called once by registry on build()
+     * and this hack verifiy the contract on etherscan automatically
+     * as no dynamic owner address is sent in the constructor
+     * @param _owner is the new owner of this contract wallet
+     */
+    function setOwnerOnce(address _owner) public auth {
+        require(msg.sender == registry, "permission-denied");
+        owner = _owner;
         emit LogSetOwner(owner, msg.sender);
     }
 
@@ -288,9 +300,9 @@ contract UserWallet is UserManager, UserNote {
      * @dev sets the "address registry", owner's last activity, owner's active period and initial owner
      * @param _owner initial owner of the contract
      */
-    constructor(address _owner) public {
+    constructor() public {
         registry = msg.sender;
-        owner = _owner;
+        owner = msg.sender; // will be changed in initial call itself
         lastActivity = block.timestamp;
         activePeriod = 30 days; // default on deployment and changeable afterwards
     }
