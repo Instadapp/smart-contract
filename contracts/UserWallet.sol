@@ -245,7 +245,7 @@ contract UserManager is UserGuardian {
     /**
      * @dev Throws if the msg.sender is not manager
      */
-    function isManager() internal view returns (bool) {
+    function isManager() internal isManagerEnabled returns (bool) {
         if (msg.sender == managers[1] || msg.sender == managers[2] || msg.sender == managers[3]) {
             return true;
         } else {
@@ -354,7 +354,7 @@ contract UserWallet is UserManager, UserNote {
      * and if the sender is owner or contract itself or manager
      * and if manager then Throws if target is default proxy address
      */
-    function isExecutable(address proxyTarget) internal view returns (bool) {
+    function isExecutable(address proxyTarget) internal returns (bool) {
         (bool isLogic, bool isDefault) = isLogicAuthorised(proxyTarget);
         require(isLogic, "logic-proxy-address-not-allowed");
         if (isAuth(msg.sender)) {
