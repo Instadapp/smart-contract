@@ -77,136 +77,8 @@ contract Trade is Registry {
         return uniswapMain.getExchange(_token);
     }
 
-    /*
-     * Uniswap's get expected rate function
-     * @params:-
-     * src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
-     * dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
-     * srcAmtFixed - if Token to sell has fixed quantity then true else Token to sell should have fixed quantity to buy
-     * srcDestAmt - if srcAmtFixed is true then quantity will be of src token else quantity will be of dest token
-    */
-    // function getExpectedRateUniswap(address src, address dest, bool srcAmtFixed, uint srcDestAmt) external view returns (uint256) {
-    //     if (src == getAddress("eth")) {
-    //         // define uniswap exchange with dest address
-    //         UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
-    //         if (srcAmtFixed) {
-    //             return exchangeContract.getEthToTokenInputPrice(srcDestAmt);
-    //         } else {
-    //             return exchangeContract.getEthToTokenOutputPrice(srcDestAmt);
-    //         }
-    //     } else if (dest == getAddress("eth")) {
-    //         // define uniswap exchange with src address
-    //         UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
-    //         if (srcAmtFixed) {
-    //             return exchangeContract.getTokenToEthInputPrice(srcDestAmt);
-    //         } else {
-    //             return exchangeContract.getTokenToEthOutputPrice(srcDestAmt);
-    //         }
-    //     } else {
-    //         UniswapExchange exchangeContractSrc = UniswapExchange(_getExchangeAddress(src));
-    //         UniswapExchange exchangeContractDest = UniswapExchange(_getExchangeAddress(dest));
-    //         if (srcAmtFixed) {
-    //             uint ethQty = exchangeContractSrc.getTokenToEthInputPrice(srcDestAmt);
-    //             return exchangeContractDest.getEthToTokenInputPrice(ethQty);
-    //         } else {
-    //             uint ethQty = exchangeContractDest.getTokenToEthInputPrice(srcDestAmt);
-    //             return exchangeContractSrc.getEthToTokenInputPrice(ethQty);
-    //         }
-    //     }
-    // }
-
-    function getExpectedRateSrcUniswap(address src, address dest, uint srcDestAmt) external view returns (uint256) {
-        if (src == getAddress("eth")) {
-            // define uniswap exchange with dest address
-            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
-            return exchangeContract.getEthToTokenInputPrice(srcDestAmt);
-        } else if (dest == getAddress("eth")) {
-            // define uniswap exchange with src address
-            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
-            return exchangeContract.getTokenToEthInputPrice(srcDestAmt);
-        } else {
-            UniswapExchange exchangeContractSrc = UniswapExchange(_getExchangeAddress(src));
-            UniswapExchange exchangeContractDest = UniswapExchange(_getExchangeAddress(dest));
-            uint ethQty = exchangeContractSrc.getTokenToEthInputPrice(srcDestAmt);
-            return exchangeContractDest.getEthToTokenInputPrice(ethQty);
-        }
-    }
-
-    function getExpectedRateDestUniswap(address src, address dest, uint srcDestAmt) external view returns (uint256) {
-        address eth = getAddress("eth");
-        if (src == eth) {
-            // define uniswap exchange with dest address
-            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
-            return exchangeContract.getEthToTokenOutputPrice(srcDestAmt);
-        } else if (dest == eth) {
-            // define uniswap exchange with src address
-            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
-            return exchangeContract.getTokenToEthOutputPrice(srcDestAmt);
-        } else {
-            UniswapExchange exchangeContractSrc = UniswapExchange(_getExchangeAddress(src));
-            UniswapExchange exchangeContractDest = UniswapExchange(_getExchangeAddress(dest));
-            uint ethQty = exchangeContractDest.getTokenToEthInputPrice(srcDestAmt);
-            return exchangeContractSrc.getEthToTokenInputPrice(ethQty);
-        }
-    }
-
-    // function tradeUniswap(
-    //     address src, // token to sell
-    //     address dest, // token to buy
-    //     uint srcAmt, // amount of token for sell
-    //     uint destAmt, // amount of token to buy
-    //     bool srcAmtFixed, // if true src has fixed qty else dest has fixed qty
-    //     uint srcDestAmt,
-    //     uint minSlippage // % slippage of other token than the fixed one
-    // ) public payable returns (uint) {
-    //     if (src == getAddress("eth")) {
-    //         UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
-    //     // function ethToTokenSwapInput(uint256 min_tokens, uint256 deadline) external payable returns (uint256  tokens_bought);
-    //         if (srcAmtFixed) {
-
-    //         } else {
-
-    //         }
-    //         return exchangeContract.ethToTokenSwapInput()
-    //     } else if (dest == getAddress("eth")) {
-    //         UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
-    //     } else {
-
-    //     }
-    // }
-
-    function tradeSrcUniswap(
-        address src, // token to sell
-        address dest, // token to buy
-        uint srcAmt, // amount of token for sell
-        uint minDestAmt, // min dest token amount (slippage)
-        uint deadline // time for this transaction to be valid
-    ) public payable returns (uint) {
-
-        address eth = getAddress("eth");
-        address user = msg.sender;
-        uint ethQty = getToken(
-            user,
-            src,
-            srcAmt,
-            eth
-        );
-
-        if (src == eth) {
-            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
-            uint tokensBought = exchangeContract.ethToTokenSwapInput.value(ethQty)(minDestAmt, deadline);
-            return tokensBought;
-        } else if (dest == eth) {
-            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
-            uint ethBought = exchangeContract.tokenToEthSwapInput(srcAmt, minDestAmt, deadline);
-            return ethBought;
-        } else {
-            
-        }
-    }
-
-
-    function getToken(
+    // Check required ETH Quantity to execute code 
+    function _getToken(
         address trader,
         address src,
         uint srcAmt,
@@ -222,6 +94,89 @@ contract Trade is Registry {
             IERC20 tokenFunctions = IERC20(src);
             tokenFunctions.transferFrom(trader, address(this), srcAmt);
             ethQty = 0;
+        }
+    }
+
+
+    /**
+     * @title Uniswap's get expected rate from source
+     * @param src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+     * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+     * @param srcAmt - source token amount
+    */
+    function getExpectedRateSrcUniswap(address src, address dest, uint srcAmt) external view returns (uint256) {
+        if (src == getAddress("eth")) {
+            // define uniswap exchange with dest address
+            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
+            return exchangeContract.getEthToTokenInputPrice(srcAmt);
+        } else if (dest == getAddress("eth")) {
+            // define uniswap exchange with src address
+            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
+            return exchangeContract.getTokenToEthInputPrice(srcAmt);
+        } else {
+            UniswapExchange exchangeContractSrc = UniswapExchange(_getExchangeAddress(src));
+            UniswapExchange exchangeContractDest = UniswapExchange(_getExchangeAddress(dest));
+            uint ethQty = exchangeContractSrc.getTokenToEthInputPrice(srcAmt);
+            return exchangeContractDest.getEthToTokenInputPrice(ethQty);
+        }
+    }
+
+    /**
+     * @title Uniswap's get expected rate from dest
+     * @param src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+     * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+     * @param destAmt - dest token amount
+    */
+    function getExpectedRateDestUniswap(address src, address dest, uint destAmt) external view returns (uint256) {
+        address eth = getAddress("eth");
+        if (src == eth) {
+            // define uniswap exchange with dest address
+            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
+            return exchangeContract.getEthToTokenOutputPrice(destAmt);
+        } else if (dest == eth) {
+            // define uniswap exchange with src address
+            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
+            return exchangeContract.getTokenToEthOutputPrice(destAmt);
+        } else {
+            UniswapExchange exchangeContractSrc = UniswapExchange(_getExchangeAddress(src));
+            UniswapExchange exchangeContractDest = UniswapExchange(_getExchangeAddress(dest));
+            uint ethQty = exchangeContractDest.getTokenToEthInputPrice(destAmt);
+            return exchangeContractSrc.getEthToTokenInputPrice(ethQty);
+        }
+    }
+
+
+    function tradeSrcUniswap(
+        address src, // token to sell
+        uint srcAmt, // amount of token for sell
+        address dest, // token to buy
+        uint minDestAmt, // min dest token amount (slippage)
+        uint deadline // time for this transaction to be valid
+    ) public payable returns (uint) {
+
+        address eth = getAddress("eth");
+        address user = msg.sender;
+        uint ethQty = _getToken(
+            user,
+            src,
+            srcAmt,
+            eth
+        );
+
+        if (src == eth) {
+            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
+            uint tokensBought = exchangeContract.ethToTokenTransferInput.value(ethQty)(minDestAmt, deadline, user);
+            return tokensBought;
+        } else if (dest == eth) {
+            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
+            uint ethBought = exchangeContract.tokenToEthTransferInput(srcAmt, minDestAmt, deadline, user);
+            return ethBought;
+        } else {
+            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
+            uint ethBought = exchangeContract.getTokenToEthInputPrice(srcAmt);
+            uint minEthBought = ethBought.mul(98).div(100);
+            uint tokensBought = exchangeContract.tokenToTokenTransferInput(srcAmt, minDestAmt, minEthBought, deadline, user, dest);
+            return tokensBought;
         }
     }
 
