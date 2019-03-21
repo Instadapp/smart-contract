@@ -167,9 +167,8 @@ contract Trade is Registry {
     ) public payable returns (uint) {
 
         address eth = getAddress("eth");
-        address user = msg.sender;
         uint ethQty = _getToken(
-            user,
+            msg.sender,
             src,
             srcAmt,
             eth
@@ -177,16 +176,16 @@ contract Trade is Registry {
 
         if (src == eth) {
             UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
-            uint tokensBought = exchangeContract.ethToTokenTransferInput.value(ethQty)(minDestAmt, deadline, user);
+            uint tokensBought = exchangeContract.ethToTokenTransferInput.value(ethQty)(minDestAmt, deadline, msg.sender);
             return tokensBought;
         } else if (dest == eth) {
             UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
-            uint ethBought = exchangeContract.tokenToEthTransferInput(srcAmt, minDestAmt, deadline, user);
+            uint ethBought = exchangeContract.tokenToEthTransferInput(srcAmt, minDestAmt, deadline, msg.sender);
             return ethBought;
         } else {
             UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
             uint ethBought = exchangeContract.getTokenToEthInputPrice(srcAmt);
-            uint tokensBought = exchangeContract.tokenToTokenTransferInput(srcAmt, minDestAmt, uint(0), deadline, user, dest);
+            uint tokensBought = exchangeContract.tokenToTokenTransferInput(srcAmt, minDestAmt, uint(0), deadline, msg.sender, dest);
             return tokensBought;
         }
     }
@@ -209,9 +208,8 @@ contract Trade is Registry {
     ) public payable returns (uint) {
 
         address eth = getAddress("eth");
-        address user = msg.sender;
         uint ethQty = _getToken(
-            user,
+            msg.sender,
             src,
             maxSrcAmt,
             eth
@@ -219,7 +217,7 @@ contract Trade is Registry {
 
         if (src == eth) {
             UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
-            uint ethSold = exchangeContract.ethToTokenTransferInput.value(ethQty)(destAmt, deadline, user);
+            uint ethSold = exchangeContract.ethToTokenTransferInput.value(ethQty)(destAmt, deadline, msg.sender);
             if (ethSold < ethQty) {
                 uint srcToReturn = ethQty - ethSold;
                 msg.sender.transfer(srcToReturn);
@@ -227,22 +225,22 @@ contract Trade is Registry {
             return ethSold;
         } else if (dest == eth) {
             UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
-            uint tokensSold = exchangeContract.tokenToEthTransferInput(destAmt, maxSrcAmt, deadline, user);
+            uint tokensSold = exchangeContract.tokenToEthTransferInput(destAmt, maxSrcAmt, deadline, msg.sender);
             if (tokensSold < maxSrcAmt) {
                 IERC20 srcTkn = IERC20(src);
                 uint srcToReturn = maxSrcAmt - tokensSold;
-                srcTkn.transfer(user, srcToReturn);
+                srcTkn.transfer(msg.sender, srcToReturn);
             }
             return tokensSold;
         } else {
             UniswapExchange exchangeContractSrc = UniswapExchange(_getExchangeAddress(src));
             UniswapExchange exchangeContractdest = UniswapExchange(_getExchangeAddress(dest));
             uint ethBought = exchangeContractdest.getTokenToEthInputPrice(destAmt);
-            uint tokensSold = exchangeContractSrc.tokenToTokenTransferOutput(destAmt, maxSrcAmt, uint(0-1), deadline, user, dest);
+            uint tokensSold = exchangeContractSrc.tokenToTokenTransferOutput(destAmt, maxSrcAmt, uint(0-1), deadline, msg.sender, dest);
             if (tokensSold < maxSrcAmt) {
                 IERC20 srcTkn = IERC20(src);
                 uint srcToReturn = maxSrcAmt - tokensSold;
-                srcTkn.transfer(user, srcToReturn);
+                srcTkn.transfer(msg.sender, srcToReturn);
             }
             return tokensSold;
         }
