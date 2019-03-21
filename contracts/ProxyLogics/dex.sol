@@ -5,6 +5,7 @@ import "./safemath.sol";
 
 interface IERC20 {
     function balanceOf(address who) external view returns (uint256);
+    function allowance(address _owner, address _spender) external view returns (uint256);
     function transfer(address to, uint256 value) external returns (bool);
     function approve(address spender, uint256 value) external returns (bool);
     function transferFrom(address from, address to, uint256 value) external returns (bool);
@@ -12,6 +13,14 @@ interface IERC20 {
 
 interface AddressRegistry {
     function getAddr(string calldata name) external view returns (address);
+}
+
+// Kyber's contract Interface
+interface KyberExchange {
+    // Kyber's trade function
+    function trade(address src, uint srcAmount, address dest, address destAddress, uint maxDestAmount, uint minConversionRate, address walletId) external payable returns (uint);
+    // Kyber's Get expected Rate function
+    function getExpectedRate(address src, address dest, uint srcQty) external view returns (uint, uint);
 }
 
 // Uniswap's factory Interface
@@ -42,25 +51,19 @@ interface UniswapExchange {
 contract Registry {
     address public addressRegistry;
     modifier onlyAdmin() {
-        require(msg.sender == getAddress("admin"), "Permission Denied");
+        require(msg.sender == _getAddress("admin"), "Permission Denied");
         _;
     }
-    function getAddress(string memory name) internal view returns (address) {
+    function _getAddress(string memory name) internal view returns (address) {
         AddressRegistry addrReg = AddressRegistry(addressRegistry);
         return addrReg.getAddr(name);
     }
 }
 
+// common stuffs in Kyber and Uniswap's trade
+contract commonStuffs {
 
-contract Trade is Registry {
-    
     using SafeMath for uint;
-
-    // Get Uniswap's Exchange address from Factory Contract
-    function _getExchangeAddress(address _token) internal view returns (address) {
-        UniswapFactory uniswapMain = UniswapFactory(getAddress("uniswap"));
-        return uniswapMain.getExchange(_token);
-    }
 
     // Check required ETH Quantity to execute code 
     function _getToken(
@@ -68,10 +71,7 @@ contract Trade is Registry {
         address src,
         uint srcAmt,
         address eth
-    )
-    internal
-    returns (uint ethQty)
-    {
+    ) internal returns (uint ethQty) {
         if (src == eth) {
             require(msg.value == srcAmt, "Invalid Operation");
             ethQty = srcAmt;
@@ -82,6 +82,118 @@ contract Trade is Registry {
         }
     }
 
+    function _approveDexes(address token, address dexToApprove) internal returns (bool) {
+        IERC20 tokenFunctions = IERC20(token);
+        return tokenFunctions.approve(dexToApprove, uint(0-1));
+    }
+
+    function _allowance(address token, address spender) internal view returns (uint) {
+        IERC20 tokenFunctions = IERC20(token);
+        return tokenFunctions.allowance(address(this), spender);
+    }
+    
+}
+
+
+// Kyber's dex functions
+contract kyber is Registry, commonStuffs {
+
+    function getExpectedRateKyber(address src, address dest, uint srcAmt) public view returns (uint, uint) {
+        KyberExchange kyberFunctions = KyberExchange(_getAddress("kyber"));
+        return kyberFunctions.getExpectedRate(src, dest, srcAmt);
+    }
+
+    function _approveKyber(address token) internal returns (bool) {
+        address kyberProxy = _getAddress("kyber");
+        return _approveDexes(token, kyberProxy);
+    }
+
+    /**
+     * @title Kyber's trade when token to sell Amount fixed
+     * @param src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+     * @param srcAmt - amount of token for sell
+     * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+     * @param minDestAmt - min amount of token to buy (slippage)
+    */
+    function tradeSrcKyber(
+        address src, // token to sell
+        uint srcAmt, // amount of token for sell
+        address dest, // token to buy
+        uint minDestAmt // minimum slippage rate
+    ) public payable returns (uint tokensBought) {
+        address eth = _getAddress("eth");
+        uint ethQty = _getToken(
+            msg.sender,
+            src,
+            srcAmt,
+            eth
+        );
+
+        // Interacting with Kyber Proxy Contract
+        KyberExchange kyberFunctions = KyberExchange(_getAddress("kyber"));
+        tokensBought = kyberFunctions.trade.value(ethQty)(
+            src,
+            srcAmt,
+            dest,
+            msg.sender,
+            uint(0-1),
+            minDestAmt,
+            _getAddress("admin")
+        );
+
+    }
+
+    function tradeDestKyber(
+        address src, // token to sell
+        uint maxSrcAmt, // amount of token for sell
+        address dest, // token to buy
+        uint destAmt // minimum slippage rate
+    ) public payable returns (uint tokensBought) {
+        address eth = _getAddress("eth");
+        uint ethQty = _getToken(
+            msg.sender,
+            src,
+            maxSrcAmt,
+            eth
+        );
+
+        // Interacting with Kyber Proxy Contract
+        KyberExchange kyberFunctions = KyberExchange(_getAddress("kyber"));
+        tokensBought = kyberFunctions.trade.value(ethQty)(
+            src,
+            maxSrcAmt,
+            dest,
+            msg.sender,
+            destAmt,
+            destAmt,
+            _getAddress("admin")
+        );
+
+        // maxDestAmt usecase implementated
+        if (src == eth && address(this).balance > 0) {
+            msg.sender.transfer(address(this).balance);
+        } else if (src != eth) {
+            // as there is no balanceOf of eth
+            IERC20 srcTkn = IERC20(src);
+            uint srcBal = srcTkn.balanceOf(address(this));
+            if (srcBal > 0) {
+                srcTkn.transfer(msg.sender, srcBal);
+            }
+        }
+
+    }
+
+}
+
+
+// Uinswap's dex functions
+contract uniswap is Registry, commonStuffs {
+
+    // Get Uniswap's Exchange address from Factory Contract
+    function _getExchangeAddress(address _token) internal view returns (address) {
+        UniswapFactory uniswapMain = UniswapFactory(_getAddress("uniswap"));
+        return uniswapMain.getExchange(_token);
+    }
 
     /**
      * @title Uniswap's get expected rate from source
@@ -94,11 +206,12 @@ contract Trade is Registry {
         address dest,
         uint srcAmt
     ) external view returns (uint256) {
-        if (src == getAddress("eth")) {
+        address eth = _getAddress("eth");
+        if (src == eth) {
             // define uniswap exchange with dest address
             UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
             return exchangeContract.getEthToTokenInputPrice(srcAmt);
-        } else if (dest == getAddress("eth")) {
+        } else if (dest == eth) {
             // define uniswap exchange with src address
             UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
             return exchangeContract.getTokenToEthInputPrice(srcAmt);
@@ -121,7 +234,7 @@ contract Trade is Registry {
         address dest,
         uint destAmt
     ) external view returns (uint256) {
-        address eth = getAddress("eth");
+        address eth = _getAddress("eth");
         if (src == eth) {
             // define uniswap exchange with dest address
             UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
@@ -155,7 +268,7 @@ contract Trade is Registry {
         uint deadline
     ) public payable returns (uint) {
 
-        address eth = getAddress("eth");
+        address eth = _getAddress("eth");
         uint ethQty = _getToken(
             msg.sender,
             src,
@@ -195,7 +308,7 @@ contract Trade is Registry {
         uint deadline
     ) public payable returns (uint) {
 
-        address eth = getAddress("eth");
+        address eth = _getAddress("eth");
         uint ethQty = _getToken(
             msg.sender,
             src,
