@@ -61,7 +61,7 @@ contract Registry {
 }
 
 // common stuffs in Kyber and Uniswap's trade
-contract commonStuffs {
+contract CommonStuffs {
 
     using SafeMath for uint;
 
@@ -96,16 +96,35 @@ contract commonStuffs {
 
 
 // Kyber's dex functions
-contract kyber is Registry, commonStuffs {
+contract Kyber is Registry, CommonStuffs {
 
-    function getExpectedRateKyber(address src, address dest, uint srcAmt) public view returns (uint, uint) {
+    function getExpectedRateKyber(address src, address dest, uint srcAmt) internal view returns (uint) {
         KyberExchange kyberFunctions = KyberExchange(_getAddress("kyber"));
-        return kyberFunctions.getExpectedRate(src, dest, srcAmt);
+        uint expectedRate;
+        (expectedRate,) = kyberFunctions.getExpectedRate(src, dest, srcAmt);
+        uint kyberRate = expectedRate.mul(srcAmt);
+        return kyberRate;
     }
 
+    // approve to Kyber Proxy contract
     function _approveKyber(address token) internal returns (bool) {
         address kyberProxy = _getAddress("kyber");
         return _approveDexes(token, kyberProxy);
+    }
+
+    // Check Allowance to Kyber Proxy contract
+    function _allowanceKyber(address token) internal view returns (uint) {
+        address kyberProxy = _getAddress("kyber");
+        return _allowance(token, kyberProxy);
+    }
+
+    function _allowanceApproveKyber(address token) internal returns (bool) {
+        uint allowanceGiven = _allowanceKyber(token);
+        if (allowanceGiven == 0) {
+            return _approveKyber(token);
+        } else {
+            return true;
+        }
     }
 
     /**
@@ -187,7 +206,7 @@ contract kyber is Registry, commonStuffs {
 
 
 // Uinswap's dex functions
-contract uniswap is Registry, commonStuffs {
+contract Uniswap is Registry, CommonStuffs {
 
     // Get Uniswap's Exchange address from Factory Contract
     function _getExchangeAddress(address _token) internal view returns (address) {
@@ -195,17 +214,39 @@ contract uniswap is Registry, commonStuffs {
         return uniswapMain.getExchange(_token);
     }
 
+    // Approve Uniswap's Exchanges
+    function _approveUniswapExchange(address token) internal returns (bool) {
+        address uniswapExchange = _getExchangeAddress(token);
+        return _approveDexes(token, uniswapExchange);
+    }
+
+    // Check Allowance to Uniswap's Exchanges
+    function _allowanceUniswapExchange(address token) internal view returns (uint) {
+        address uniswapExchange = _getExchangeAddress(token);
+        return _allowance(token, uniswapExchange);
+    }
+
+    function _allowanceApproveUniswap(address token) internal returns (bool) {
+        uint allowanceGiven = _allowanceUniswapExchange(token);
+        if (allowanceGiven == 0) {
+            return _approveUniswapExchange(token);
+        } else {
+            return true;
+        }
+    }
+
     /**
      * @title Uniswap's get expected rate from source
      * @param src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
      * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
      * @param srcAmt - source token amount
+     * @returns expected Dest Amount
     */
     function getExpectedRateSrcUniswap(
         address src,
         address dest,
         uint srcAmt
-    ) external view returns (uint256) {
+    ) internal view returns (uint256) {
         address eth = _getAddress("eth");
         if (src == eth) {
             // define uniswap exchange with dest address
@@ -233,7 +274,7 @@ contract uniswap is Registry, commonStuffs {
         address src,
         address dest,
         uint destAmt
-    ) external view returns (uint256) {
+    ) internal view returns (uint256) {
         address eth = _getAddress("eth");
         if (src == eth) {
             // define uniswap exchange with dest address
@@ -344,6 +385,70 @@ contract uniswap is Registry, commonStuffs {
             return tokensSold;
         }
 
+    }
+
+}
+
+contract Trade is Kyber, Uniswap {
+
+    function getRateFromSrc(address src, address dest, uint srcAmt) public view returns(uint, uint) {
+        uint uniswapRate = getExpectedRateSrcUniswap(src, dest, srcAmt);
+        uint kyberRate = getExpectedRateKyber(src, dest, srcAmt);
+        if (uniswapRate > kyberRate) {
+            return (uniswapRate, 1);
+        } else {
+            return (kyberRate, 2);
+        }
+    }
+
+    function tradeFromSrc(
+        address src,
+        uint srcAmt,
+        address dest,
+        uint minDestAmt,
+        uint dexNum
+    ) public payable returns (uint) {
+        address eth = _getAddress("eth");
+        if (dexNum == 1) {
+            if (src == eth) {
+                return tradeSrcUniswap(src, srcAmt, dest, minDestAmt, now + 10000000);
+            } else {
+                _allowanceApproveUniswap(src);
+                return tradeSrcUniswap(src, srcAmt, dest, minDestAmt, now + 10000000);
+            }
+        } else {
+            if (src == eth) {
+                return tradeSrcKyber(src, srcAmt, dest, minDestAmt);
+            } else {
+                _allowanceApproveKyber(src);
+                return tradeSrcKyber(src, srcAmt, dest, minDestAmt);
+            }
+        }
+    }
+
+    function tradeFromDest(
+        address src,
+        uint maxSrcAmt,
+        address dest,
+        uint destAmt,
+        uint dexNum
+    ) public payable returns (uint) {
+        address eth = _getAddress("eth");
+        if (dexNum == 1) {
+            if (src == eth) {
+                return tradeDestUniswap(src, maxSrcAmt, dest, destAmt, now + 10000000);
+            } else {
+                _allowanceApproveUniswap(src);
+                return tradeDestUniswap(src, maxSrcAmt, dest, destAmt, now + 10000000);
+            }
+        } else {
+            if (src == eth) {
+                return tradeDestKyber(src, maxSrcAmt, dest, destAmt);
+            } else {
+                _allowanceApproveKyber(src);
+                return tradeDestKyber(src, maxSrcAmt, dest, destAmt);
+            }
+        }
     }
 
 }
