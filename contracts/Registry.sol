@@ -106,8 +106,8 @@ contract WalletRegistry is LogicRegistry {
     event Created(address indexed sender, address indexed owner, address proxy);
     
     mapping(address => UserWallet) public proxies;
-    bool public guardianEnabled; // user guardian mechanism enabled
-    bool public managerEnabled; // is user admin mechanism enabled
+    bool public guardianEnabled; // user guardian mechanism enabled in overall system
+    bool public managerEnabled; // user manager mechanism enabled in overall system
 
     /**
      * @dev deploys a new proxy instance and sets msg.sender as owner of proxy
@@ -152,7 +152,7 @@ contract WalletRegistry is LogicRegistry {
         guardianEnabled = false;     
     }
 
-        /**
+    /**
      * @dev enable user manager in overall system
      */
     function enableManager() public isAdmin {
