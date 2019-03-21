@@ -127,7 +127,11 @@ contract Trade is Registry {
      * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
      * @param destAmt - dest token amount
     */
-    function getExpectedRateDestUniswap(address src, address dest, uint destAmt) external view returns (uint256) {
+    function getExpectedRateDestUniswap(
+        address src,
+        address dest,
+        uint destAmt
+    ) external view returns (uint256) {
         address eth = getAddress("eth");
         if (src == eth) {
             // define uniswap exchange with dest address
@@ -146,12 +150,20 @@ contract Trade is Registry {
     }
 
 
+    /**
+     * @title Uniswap's trade when token to sell Amount fixed
+     * @param src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+     * @param srcAmt - amount of token for sell
+     * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+     * @param minDestAmt - min amount of token to buy (slippage)
+     * @param deadline - time for this transaction to be valid
+    */
     function tradeSrcUniswap(
-        address src, // token to sell
-        uint srcAmt, // amount of token for sell
-        address dest, // token to buy
-        uint minDestAmt, // min dest token amount (slippage)
-        uint deadline // time for this transaction to be valid
+        address src,
+        uint srcAmt,
+        address dest,
+        uint minDestAmt,
+        uint deadline
     ) public payable returns (uint) {
 
         address eth = getAddress("eth");
@@ -174,10 +186,67 @@ contract Trade is Registry {
         } else {
             UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
             uint ethBought = exchangeContract.getTokenToEthInputPrice(srcAmt);
-            uint minEthBought = ethBought.mul(98).div(100);
-            uint tokensBought = exchangeContract.tokenToTokenTransferInput(srcAmt, minDestAmt, minEthBought, deadline, user, dest);
+            uint tokensBought = exchangeContract.tokenToTokenTransferInput(srcAmt, minDestAmt, uint(0), deadline, user, dest);
             return tokensBought;
         }
+    }
+
+
+    /**
+     * @title Uniswap's trade when token to buy Amount fixed
+     * @param src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+     * @param maxSrcAmt - max amount of token for sell (slippage)
+     * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+     * @param destAmt - amount of token to buy
+     * @param deadline - time for this transaction to be valid
+    */
+    function tradeDestUniswap(
+        address src,
+        uint maxSrcAmt,
+        address dest,
+        uint destAmt,
+        uint deadline
+    ) public payable returns (uint) {
+
+        address eth = getAddress("eth");
+        address user = msg.sender;
+        uint ethQty = _getToken(
+            user,
+            src,
+            maxSrcAmt,
+            eth
+        );
+
+        if (src == eth) {
+            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
+            uint ethSold = exchangeContract.ethToTokenTransferInput.value(ethQty)(destAmt, deadline, user);
+            if (ethSold < ethQty) {
+                uint srcToReturn = ethQty - ethSold;
+                msg.sender.transfer(srcToReturn);
+            }
+            return ethSold;
+        } else if (dest == eth) {
+            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));
+            uint tokensSold = exchangeContract.tokenToEthTransferInput(destAmt, maxSrcAmt, deadline, user);
+            if (tokensSold < maxSrcAmt) {
+                IERC20 srcTkn = IERC20(src);
+                uint srcToReturn = maxSrcAmt - tokensSold;
+                srcTkn.transfer(user, srcToReturn);
+            }
+            return tokensSold;
+        } else {
+            UniswapExchange exchangeContractSrc = UniswapExchange(_getExchangeAddress(src));
+            UniswapExchange exchangeContractdest = UniswapExchange(_getExchangeAddress(dest));
+            uint ethBought = exchangeContractdest.getTokenToEthInputPrice(destAmt);
+            uint tokensSold = exchangeContractSrc.tokenToTokenTransferOutput(destAmt, maxSrcAmt, uint(0-1), deadline, user, dest);
+            if (tokensSold < maxSrcAmt) {
+                IERC20 srcTkn = IERC20(src);
+                uint srcToReturn = maxSrcAmt - tokensSold;
+                srcTkn.transfer(user, srcToReturn);
+            }
+            return tokensSold;
+        }
+
     }
 
 }
