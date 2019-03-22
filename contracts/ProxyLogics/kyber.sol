@@ -5,6 +5,7 @@ import "./safemath.sol";
 
 interface IERC20 {
     function balanceOf(address who) external view returns (uint256);
+    function allowance(address _owner, address _spender) external view returns (uint256);
     function transfer(address to, uint256 value) external returns (bool);
     function approve(address spender, uint256 value) external returns (bool);
     function transferFrom(address from, address to, uint256 value) external returns (bool);
@@ -34,12 +35,7 @@ contract Registry {
     }
 }
 
-
-contract Trade is Registry {
-    
-    using SafeMath for uint;
-
-    event KyberTrade(address src, uint srcAmt, address dest, uint destAmt, address beneficiary, uint minConversionRate, address affiliate);
+contract helper is Registry {
 
     function _getToken(
         address trader,
@@ -60,19 +56,43 @@ contract Trade is Registry {
         }
     }
 
+    // approve to Kyber Proxy contract
+    function _approveKyber(address token) internal returns (bool) {
+        address kyberProxy = _getAddress("kyber");
+        IERC20 tokenFunctions = IERC20(token);
+        return tokenFunctions.approve(kyberProxy, uint(0-1));
+    }
+
+    // Check Allowance to Kyber Proxy contract
+    function _allowanceKyber(address token) internal view returns (uint) {
+        address kyberProxy = _getAddress("kyber");
+        IERC20 tokenFunctions = IERC20(token);
+        return tokenFunctions.allowance(address(this), kyberProxy);
+    }
+
+    // Check allowance, if not approve
+    function _allowanceApproveKyber(address token) internal returns (bool) {
+        uint allowanceGiven = _allowanceKyber(token);
+        if (allowanceGiven == 0) {
+            return _approveKyber(token);
+        } else {
+            return true;
+        }
+    }
+}
+
+
+contract Trade is helper {
+    
+    using SafeMath for uint;
+
+    event KyberTrade(address src, uint srcAmt, address dest, uint destAmt, address beneficiary, uint minConversionRate, address affiliate);
 
     function getExpectedRateKyber(address src, address dest, uint srcAmt) public view returns (uint, uint) {
         Kyber kyberFunctions = Kyber(_getAddress("kyber"));
         return kyberFunctions.getExpectedRate(src, dest, srcAmt);
     }
 
-    function approveKyber(address[] memory tokenArr) public {
-        address kyberProxy = _getAddress("kyber");
-        for (uint i = 0; i < tokenArr.length; i++) {
-            IERC20 tokenFunctions = IERC20(tokenArr[i]);
-            tokenFunctions.approve(kyberProxy, 2 ** 256 - 1);
-        }
-    }
 
     /**
      * @title Kyber's trade when token to sell Amount fixed
@@ -94,6 +114,10 @@ contract Trade is Registry {
             srcAmt,
             eth
         );
+
+        if (src != eth) {
+            _allowanceApproveKyber(src);
+        }
 
         // Interacting with Kyber Proxy Contract
         Kyber kyberFunctions = Kyber(_getAddress("kyber"));
@@ -117,6 +141,7 @@ contract Trade is Registry {
         address dest, // token to buy
         uint destAmt // minimum slippage rate
     ) public payable returns (uint tokensBought) {
+
         address eth = _getAddress("eth");
         uint ethQty = _getToken(
             msg.sender,
@@ -124,6 +149,10 @@ contract Trade is Registry {
             maxSrcAmt,
             eth
         );
+
+        if (src != eth) {
+            _allowanceApproveKyber(src);
+        }
 
         // Interacting with Kyber Proxy Contract
         Kyber kyberFunctions = Kyber(_getAddress("kyber"));
@@ -133,7 +162,7 @@ contract Trade is Registry {
             dest,
             msg.sender,
             destAmt,
-            destAmt,
+            destAmt - 1,
             _getAddress("admin")
         );
 
@@ -157,6 +186,7 @@ contract Trade is Registry {
 
 
 contract InstaKyber is Trade {
+
     constructor(address rAddr) public {
         addressRegistry = rAddr;
     }
