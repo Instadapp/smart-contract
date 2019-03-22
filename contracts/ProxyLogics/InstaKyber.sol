@@ -50,6 +50,7 @@ contract Helper {
     address public admin; // InstaDApp Kyber Registered Admin
 
     uint public maxCap = 2**255;
+    uint public fees = 200; // 0.2% => 200/1000
 
     /**
      * @dev fetching token from the trader if ERC20
@@ -79,9 +80,8 @@ contract Helper {
     /**
      * @dev configuring token approval with user proxy
      * @param token is the token
-     * @param spender is the user proxy
      */
-    function manageApproval(address token, address spender, uint srcAmt) internal view returns (uint) {
+    function manageApproval(address token, uint srcAmt) internal returns (uint) {
         IERC20 tokenCall = IERC20(token);
         uint tokenAllowance = tokenCall.allowance(address(this), kyber);
         if (srcAmt > tokenAllowance) {
@@ -144,6 +144,7 @@ contract Swap is Helper {
         uint maxDestAmt
     ) public payable returns (uint destAmt)
     {
+        manageApproval(src, srcAmt);
         uint ethQty = getToken(msg.sender, src, srcAmt);
         (, uint slippageRate) = getExpectedRate(src, dest, srcAmt);
 
@@ -174,8 +175,8 @@ contract Swap is Helper {
     /**
      * @dev selling token where srcAmt is fixed
      * @param src - token to sell
-     * @param srcAmt - token amount to sell
      * @param dest - token to buy
+     * @param srcAmt - token amount to sell
      */
     function sell(
         address src,
@@ -183,6 +184,7 @@ contract Swap is Helper {
         uint srcAmt
     ) public payable returns (uint destAmt)
     {
+        manageApproval(src, srcAmt);
         uint ethQty = getToken(msg.sender, src, srcAmt);
         (, uint slippageRate) = getExpectedRate(src, dest, srcAmt);
 
@@ -232,7 +234,7 @@ contract InstaTrade is Swap {
     constructor(address _eth, address _kyber, address _admin) public {
         eth = _eth; // 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
         kyber = _kyber; // 0x818E6FECD516Ecc3849DAf6845e3EC868087B755
-        admin = _admin;
+        admin = _admin; // 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638
     }
 
 }
