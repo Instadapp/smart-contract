@@ -294,7 +294,7 @@ contract UserNote {
  */
 contract UserWallet is UserManager, UserNote {
 
-    event LogExecute(address target, uint srcNum, uint sessionNum);
+    event LogExecute(address sender, address target, uint srcNum, uint sessionNum);
 
     /**
      * @dev sets the "address registry", owner's last activity, owner's active period and initial owner
@@ -326,10 +326,14 @@ contract UserWallet is UserManager, UserNote {
         note
         returns (bytes memory response)
     {
-        require(_target != address(0), "user-proxy-target-address-required");
         require(isExecutable(_target), "not-executable");
         lastActivity = block.timestamp;
-        emit LogExecute(_target, srcNum, sessionNum);
+        emit LogExecute(
+            msg.sender,
+            _target,
+            srcNum,
+            sessionNum
+        );
         
         // call contract in current context
         assembly {
@@ -355,6 +359,7 @@ contract UserWallet is UserManager, UserNote {
      * and if manager then Throws if target is default proxy address
      */
     function isExecutable(address proxyTarget) internal returns (bool) {
+        require(proxyTarget != address(0), "user-proxy-target-address-required");
         (bool isLogic, bool isDefault) = isLogicAuthorised(proxyTarget);
         require(isLogic, "logic-proxy-address-not-allowed");
         if (isAuth(msg.sender)) {

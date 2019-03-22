@@ -1,7 +1,7 @@
 pragma solidity 0.5.0;
 
 
-import "./safemath.sol";
+import "./Safemath.sol";
 
 interface IERC20 {
     function balanceOf(address who) external view returns (uint256);
