@@ -135,6 +135,14 @@ contract Trade is helper {
 
     }
 
+
+    /**
+     * @title Kyber's trade when token to sell Amount fixed
+     * @param src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+     * @param maxSrcAmt - max amount of token for sell (slippage)
+     * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+     * @param destAmt - amount of token to buy
+    */
     function tradeDestKyber(
         address src, // token to sell
         uint maxSrcAmt, // amount of token for sell
