@@ -2,11 +2,41 @@ pragma solidity ^0.5.0;
 
 
 /**
+ * @title AddressRegistryInterface Interface 
+ */
+interface AddressRegistryInterface {
+    function isLogic(address logicAddr) external view returns (bool);
+}
+
+
+/**
+ * @title Address Registry Record
+ */
+contract AddressRecord {
+
+    /**
+     * @dev address registry of system, logic and wallet addresses
+     */
+    address public registry;
+
+    /**
+     * @dev Throws if the logic is not authorised
+     */
+    modifier logicAuth(address logicAddr) {
+        AddressRegistryInterface logicProxy = AddressRegistryInterface(registry);
+        bool islogic = logicProxy.isLogic(logicAddr);
+        require(islogic, "logic-not-authorised");
+        _;
+    }
+
+}
+
+
+/**
  * @title User Auth
  */
 contract UserAuth {
 
-    event LogSetOwner(address indexed owner, address setter);
     address public owner;
 
     /**
@@ -18,12 +48,12 @@ contract UserAuth {
     }
     
     /**
-     * @dev sets new owner
+     * @dev sets new owner only once
      * @param _owner is the new owner of this proxy contract
      */
     function setOwner(address _owner) public auth {
+        require(owner == address(0), "owner-already-assigned");
         owner = _owner;
-        emit LogSetOwner(owner, msg.sender);
     }
 
 }
@@ -65,15 +95,15 @@ contract UserNote {
 /**
  * @title User Owned Contract Wallet
  */
-contract UserWallet is UserAuth, UserNote {
+contract UserWallet is AddressRecord, UserAuth, UserNote {
 
-    event LogExecute(address target);
+    event LogExecute(address target, uint src);
 
     /**
-     * @dev sets the initial owner
+     * @dev sets the address registry
      */
     constructor() public {
-        owner = msg.sender; // will be changed in initial call
+        registry = msg.sender;
     }
 
     function() external payable {}
@@ -82,16 +112,18 @@ contract UserWallet is UserAuth, UserNote {
      * @dev execute authorised calls via delegate call
      * @param _target logic proxy address
      * @param _data delegate call data
+     * @param _src function execution interface source
      */
-    function execute(address _target, bytes memory _data) 
+    function execute(address _target, bytes memory _data, uint _src) 
         public
         payable
         note
         auth
+        logicAuth(_target)
         returns (bytes memory response)
     {
         require(_target != address(0), "invalid-logic-proxy-address");
-        emit LogExecute(_target);
+        emit LogExecute(_target, _src);
         
         // call contract in current context
         assembly {
