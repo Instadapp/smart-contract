@@ -292,7 +292,7 @@ contract UserNote {
 /**
  * @title User Owned Contract Wallet
  */
-contract UserWallet is UserManager, UserNote {
+contract InstaWallet is UserManager, UserNote {
 
     event LogExecute(address sender, address target, uint srcNum, uint sessionNum);
 

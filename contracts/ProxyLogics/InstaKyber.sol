@@ -53,6 +53,28 @@ contract Helper {
     uint public fees = 200; // 0.2% => 200/1000
 
     /**
+     * @dev getting rates from Kyber
+     * @param src is the token being sold
+     * @param dest is the token being bought
+     * @param srcAmt is the amount of token being sold
+     * @return expectedRate - the current rate
+     * @return slippageRate - rate with 3% slippage
+     */
+    function getExpectedRate(
+        address src,
+        address dest,
+        uint srcAmt
+    ) public view returns (
+        uint expectedRate,
+        uint slippageRate
+    ) 
+    {
+        KyberInterface swapCall = KyberInterface(kyber);
+        (expectedRate, slippageRate) = swapCall.getExpectedRate(src, dest, srcAmt);
+        slippageRate = (slippageRate / 97) * 99; // changing slippage rate upto 99%
+    }
+
+    /**
      * @dev fetching token from the trader if ERC20
      * @param trader is the trader
      * @param src is the token which is being sold
@@ -87,28 +109,6 @@ contract Helper {
         if (srcAmt > tokenAllowance) {
             setApproval(token);
         }
-    }
-
-    /**
-     * @dev getting rates from Kyber
-     * @param src is the token being sold
-     * @param dest is the token being bought
-     * @param srcAmt is the amount of token being sold
-     * @return expectedRate - the current rate
-     * @return slippageRate - rate with 3% slippage
-     */
-    function getExpectedRate(
-        address src,
-        address dest,
-        uint srcAmt
-    ) internal view returns (
-        uint expectedRate,
-        uint slippageRate
-    ) 
-    {
-        KyberInterface swapCall = KyberInterface(kyber);
-        (expectedRate, slippageRate) = swapCall.getExpectedRate(src, dest, srcAmt);
-        slippageRate = (slippageRate / 97) * 99; // changing slippage rate upto 99%
     }
     
 }
@@ -231,10 +231,10 @@ contract InstaTrade is Swap {
     /**
      * @dev setting up variables on deployment
      */
-    constructor(address _eth, address _kyber, address _admin) public {
+    constructor(address _eth, address _kyber) public {
         eth = _eth; // 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
         kyber = _kyber; // 0x818E6FECD516Ecc3849DAf6845e3EC868087B755
-        admin = _admin; // 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638
+        admin = msg.sender; // 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638
     }
 
 }
