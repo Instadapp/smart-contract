@@ -105,14 +105,14 @@ contract WalletRegistry is LogicRegistry {
     
     event Created(address indexed sender, address indexed owner, address proxy);
     
-    mapping(address => UserWallet) public proxies;
+    mapping(address => InstaWallet) public proxies;
     bool public guardianEnabled; // user guardian mechanism enabled in overall system
     bool public managerEnabled; // user manager mechanism enabled in overall system
 
     /**
      * @dev deploys a new proxy instance and sets msg.sender as owner of proxy
      */
-    function build() public returns (UserWallet proxy) {
+    function build() public returns (InstaWallet proxy) {
         proxy = build(msg.sender);
     }
 
@@ -120,9 +120,9 @@ contract WalletRegistry is LogicRegistry {
      * @dev deploys a new proxy instance and sets custom owner of proxy
      * Throws if the owner already have a UserWallet
      */
-    function build(address owner) public returns (UserWallet proxy) {
-        require(proxies[owner] == UserWallet(0), "multiple-proxy-per-user-not-allowed");
-        proxy = new UserWallet();
+    function build(address owner) public returns (InstaWallet proxy) {
+        require(proxies[owner] == InstaWallet(0), "multiple-proxy-per-user-not-allowed");
+        proxy = new InstaWallet();
         proxy.setOwnerOnce(owner);
         emit Created(msg.sender, owner, address(proxy));
         proxies[owner] = proxy;
@@ -135,7 +135,7 @@ contract WalletRegistry is LogicRegistry {
     function updateProxyRecord(address currentOwner, address nextOwner) public {
         require(msg.sender == address(proxies[currentOwner]), "invalid-proxy-or-owner");
         proxies[nextOwner] = proxies[currentOwner];
-        proxies[currentOwner] = UserWallet(0);
+        proxies[currentOwner] = InstaWallet(0);
     }
 
     /**
@@ -174,6 +174,7 @@ contract InstaRegistry is WalletRegistry {
     constructor() public {
         registry[keccak256(abi.encodePacked("admin"))] = msg.sender;
         registry[keccak256(abi.encodePacked("owner"))] = msg.sender;
+        build();
     }
 
 }

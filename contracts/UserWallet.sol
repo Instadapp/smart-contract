@@ -19,8 +19,8 @@ library SafeMath {
 interface AddressRegistryInterface {
     function isLogicAuth(address logicAddr) external view returns (bool, bool);
     function updateProxyRecord(address currentOwner, address nextOwner) external;
-    function guardianEnabled() external returns (bool);
-    function managerEnabled() external returns (bool);
+    function guardianEnabled() external view returns (bool);
+    function managerEnabled() external view returns (bool);
 }
 
 
@@ -33,7 +33,17 @@ contract AddressRecord {
      * @dev address registry of system, logic and wallet addresses
      */
     address public registry;
-    
+
+    /**
+     * @param logicAddr is the logic proxy contract address
+     * @return the true boolean for logic proxy if authorised otherwise false
+     */
+    function isLogicAuthorised(address logicAddr) public view returns (bool, bool) {
+        AddressRegistryInterface logicProxy = AddressRegistryInterface(registry);
+        (bool isLogic, bool isDefault) = logicProxy.isLogicAuth(logicAddr);
+        return (isLogic, isDefault);
+    }
+
     /**
      * @dev this updates the internal proxy ownership on "registry" contract
      * @param currentOwner is the current owner
@@ -42,15 +52,6 @@ contract AddressRecord {
     function setProxyRecordOwner(address currentOwner, address nextOwner) internal {
         AddressRegistryInterface initCall = AddressRegistryInterface(registry);
         initCall.updateProxyRecord(currentOwner, nextOwner);
-    }
-
-    /**
-     * @param logicAddr is the logic proxy contract address
-     * @return the true boolean for logic proxy if authorised otherwise false
-     */
-    function isLogicAuthorised(address logicAddr) internal view returns (bool, bool) {
-        AddressRegistryInterface logicProxy = AddressRegistryInterface(registry);
-        return logicProxy.isLogicAuth(logicAddr);
     }
 
 }
@@ -127,7 +128,7 @@ contract UserAuth is AddressRecord {
      * @dev checks if called by owner or contract itself
      * @param src is the address initiating the call
      */
-    function isAuth(address src) internal view returns (bool) {
+    function isAuth(address src) public view returns (bool) {
         if (src == address(this)) {
             return true;
         } else if (src == owner) {
@@ -170,7 +171,7 @@ contract UserGuardian is UserAuth {
      * @param num is the assigned guardian number
      */
     function setOwnerViaGuardian(address nextOwner, uint num) public isGuardianEnabled {
-        require(isGuardian(), "not-guardian");
+        require(isGuardian(msg.sender), "not-guardian");
         require(msg.sender == guardians[num], "permission-denied");
         require(block.timestamp > lastActivity.add(activePeriod), "active-period-not-over");
         owner = nextOwner;
@@ -200,8 +201,8 @@ contract UserGuardian is UserAuth {
     /**
      * @dev Throws if the msg.sender is not guardian
      */
-    function isGuardian() internal view returns (bool) {
-        if (msg.sender == guardians[1] || msg.sender == guardians[2] || msg.sender == guardians[3]) {
+    function isGuardian(address _guardian) public view returns (bool) {
+        if (_guardian == guardians[1] || _guardian == guardians[2] || _guardian == guardians[3]) {
             return true;
         } else {
             return false;
@@ -245,8 +246,8 @@ contract UserManager is UserGuardian {
     /**
      * @dev Throws if the msg.sender is not manager
      */
-    function isManager() internal isManagerEnabled returns (bool) {
-        if (msg.sender == managers[1] || msg.sender == managers[2] || msg.sender == managers[3]) {
+    function isManager(address _manager) public view returns (bool) {
+        if (_manager == managers[1] || _manager == managers[2] || _manager == managers[3]) {
             return true;
         } else {
             return false;
@@ -358,13 +359,13 @@ contract InstaWallet is UserManager, UserNote {
      * and if the sender is owner or contract itself or manager
      * and if manager then Throws if target is default proxy address
      */
-    function isExecutable(address proxyTarget) internal returns (bool) {
-        require(proxyTarget != address(0), "user-proxy-target-address-required");
+    function isExecutable(address proxyTarget) public view returns (bool) {
+        require(proxyTarget != address(0), "logic-proxy-address-required");
         (bool isLogic, bool isDefault) = isLogicAuthorised(proxyTarget);
         require(isLogic, "logic-proxy-address-not-allowed");
         if (isAuth(msg.sender)) {
             return true;
-        } else if (isManager() && !isDefault) {
+        } else if (isManager(msg.sender) && !isDefault) {
             return true;
         } else {
             return false;
