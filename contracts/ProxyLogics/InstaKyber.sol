@@ -45,12 +45,33 @@ contract Helper {
     using SafeMath for uint;
     using SafeMath for uint256;
 
-    address public eth; // 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-    address public kyber; // Kyber Proxy
-    address public admin; // InstaDApp Kyber Registered Admin
+    /**
+     * @dev get ethereum address for trade
+     */
+    function getAddressETH() public view returns (address eth) {
+        eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    }
 
-    uint public maxCap = 2**255;
-    uint public fees = 200; // 0.2% => 200/1000
+    /**
+     * @dev get kyber proxy address
+     */
+    function getAddressKyber() public view returns (address kyber) {
+        kyber = 0x692f391bCc85cefCe8C237C01e1f636BbD70EA4D;
+    }
+
+    /**
+     * @dev get admin address
+     */
+    function getAddressAdmin() public view returns (address admin) {
+        admin = 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638;
+    }
+
+    /**
+     * @dev get fees to trade // 200 => 0.2%
+     */
+    function getUintFees() public view returns (uint fees) {
+        fees = 200;
+    }
 
     /**
      * @dev getting rates from Kyber
@@ -69,7 +90,7 @@ contract Helper {
         uint slippageRate
     ) 
     {
-        KyberInterface swapCall = KyberInterface(kyber);
+        KyberInterface swapCall = KyberInterface(getAddressKyber());
         (expectedRate, slippageRate) = swapCall.getExpectedRate(src, dest, srcAmt);
         slippageRate = (slippageRate / 97) * 99; // changing slippage rate upto 99%
     }
@@ -81,7 +102,7 @@ contract Helper {
      * @param srcAmt is the amount of token being sold
      */
     function getToken(address trader, address src, uint srcAmt) internal returns (uint ethQty) {
-        if (src == eth) {
+        if (src == getAddressETH()) {
             require(msg.value == srcAmt, "not-enough-src");
             ethQty = srcAmt;
         } else {
@@ -97,7 +118,7 @@ contract Helper {
      */
     function setApproval(address token) internal returns (uint) {
         IERC20 tokenCall = IERC20(token);
-        tokenCall.approve(kyber, maxCap);
+        tokenCall.approve(getAddressKyber(), 2**255);
     }
 
     /**
@@ -106,7 +127,7 @@ contract Helper {
      */
     function manageApproval(address token, uint srcAmt) internal returns (uint) {
         IERC20 tokenCall = IERC20(token);
-        uint tokenAllowance = tokenCall.allowance(address(this), kyber);
+        uint tokenAllowance = tokenCall.allowance(address(this), getAddressKyber());
         if (srcAmt > tokenAllowance) {
             setApproval(token);
         }
@@ -148,7 +169,7 @@ contract Swap is Helper {
         uint ethQty = getToken(msg.sender, src, srcAmt);
         (, uint slippageRate) = getExpectedRate(src, dest, srcAmt);
 
-        KyberInterface swapCall = KyberInterface(kyber);
+        KyberInterface swapCall = KyberInterface(getAddressKyber());
         destAmt = swapCall.trade.value(ethQty)(
             src,
             srcAmt,
@@ -156,7 +177,7 @@ contract Swap is Helper {
             msg.sender,
             maxDestAmt,
             slippageRate,
-            admin
+            getAddressAdmin()
         );
 
         emit LogTrade(
@@ -167,7 +188,7 @@ contract Swap is Helper {
             destAmt,
             msg.sender,
             slippageRate,
-            admin
+            getAddressAdmin()
         );
 
     }
@@ -187,15 +208,15 @@ contract Swap is Helper {
         uint ethQty = getToken(msg.sender, src, srcAmt);
         (, uint slippageRate) = getExpectedRate(src, dest, srcAmt);
 
-        KyberInterface swapCall = KyberInterface(kyber);
+        KyberInterface swapCall = KyberInterface(getAddressKyber());
         destAmt = swapCall.trade.value(ethQty)(
             src,
             srcAmt,
             dest,
             msg.sender,
-            maxCap,
+            2**255,
             slippageRate,
-            admin
+            getAddressAdmin()
         );
 
         emit LogTrade(
@@ -206,13 +227,13 @@ contract Swap is Helper {
             destAmt,
             msg.sender,
             slippageRate,
-            admin
+            getAddressAdmin()
         );
 
         // maxDestAmt usecase implementated on user proxy
-        if (src == eth && address(this).balance > 0) {
+        if (src == getAddressETH() && address(this).balance > 0) {
             msg.sender.transfer(address(this).balance);
-        } else if (src != eth) {
+        } else if (src != getAddressETH()) {
             IERC20 srcTkn = IERC20(src);
             uint srcBal = srcTkn.balanceOf(address(this));
             if (srcBal > 0) {
@@ -227,13 +248,14 @@ contract Swap is Helper {
 
 contract InstaTrade is Swap {
 
+    uint public version;
+    
     /**
      * @dev setting up variables on deployment
+     * 1...2...3 versioning in each subsequent deployments
      */
-    constructor(address _eth, address _kyber) public {
-        eth = _eth; // 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-        kyber = _kyber; // 0x818E6FECD516Ecc3849DAf6845e3EC868087B755
-        admin = msg.sender; // 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638
+    constructor(uint _version) public {
+        version = _version;
     }
 
 }
