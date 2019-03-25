@@ -13,15 +13,16 @@ library SafeMath {
 }
 
 
-interface IERC20 {
-    function balanceOf(address who) external view returns (uint256);
-    function allowance(address _owner, address _spender) external view returns (uint256);
-    function transfer(address to, uint256 value) external returns (bool);
-    function approve(address spender, uint256 value) external returns (bool);
-    function transferFrom(address from, address to, uint256 value) external returns (bool);
+contract IERC20 {
+    function balanceOf(address who) public view returns (uint256);
+    function allowance(address _owner, address _spender) public view returns (uint256);
+    function transfer(address to, uint256 value) public returns (bool);
+    function approve(address spender, uint256 value) public returns (bool);
+    function transferFrom(address from, address to, uint256 value) public returns (bool);
 }
 
-interface KyberInterface {
+
+contract KyberInterface {
     function trade(
         address src,
         uint srcAmount,
@@ -30,13 +31,13 @@ interface KyberInterface {
         uint maxDestAmount,
         uint minConversionRate,
         address walletId
-    ) external payable returns (uint);
+        ) public payable returns (uint);
 
     function getExpectedRate(
         address src,
         address dest,
         uint srcQty
-    ) external view returns (uint, uint);
+        ) public view returns (uint, uint);
 }
 
 
@@ -48,29 +49,42 @@ contract Helper {
     /**
      * @dev get ethereum address for trade
      */
-    function getAddressETH() public view returns (address eth) {
+    function getAddressETH() public pure returns (address eth) {
         eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     }
 
     /**
      * @dev get kyber proxy address
      */
-    function getAddressKyber() public view returns (address kyber) {
+    function getAddressKyber() public pure returns (address kyber) {
         kyber = 0x692f391bCc85cefCe8C237C01e1f636BbD70EA4D;
     }
 
     /**
      * @dev get admin address
      */
-    function getAddressAdmin() public view returns (address admin) {
+    function getAddressAdmin() public pure returns (address admin) {
         admin = 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638;
     }
 
     /**
      * @dev get fees to trade // 200 => 0.2%
      */
-    function getUintFees() public view returns (uint fees) {
+    function getUintFees() public pure returns (uint fees) {
         fees = 200;
+    }
+
+    /**
+     * @dev gets ETH & token balance
+     * @param src is the token being sold
+     * @return ethBal - if not erc20, eth balance
+     * @return tknBal - if not eth, erc20 balance
+     */
+    function getBal(address src) public view returns (uint ethBal, uint tknBal) {
+        ethBal = address(this).balance;
+        if (src != getAddressETH()) {
+            tknBal = IERC20(src).balanceOf(address(this));
+        }
     }
 
     /**
@@ -90,8 +104,7 @@ contract Helper {
         uint slippageRate
     ) 
     {
-        KyberInterface swapCall = KyberInterface(getAddressKyber());
-        (expectedRate, slippageRate) = swapCall.getExpectedRate(src, dest, srcAmt);
+        (expectedRate, slippageRate) = KyberInterface(getAddressKyber()).getExpectedRate(src, dest, srcAmt);
         slippageRate = (slippageRate / 97) * 99; // changing slippage rate upto 99%
     }
 
@@ -107,8 +120,7 @@ contract Helper {
             ethQty = srcAmt;
         } else {
             manageApproval(src, srcAmt);
-            IERC20 tokenCall = IERC20(src);
-            tokenCall.transferFrom(trader, address(this), srcAmt);
+            IERC20(src).transferFrom(trader, address(this), srcAmt);
         }
     }
 
@@ -117,8 +129,7 @@ contract Helper {
      * @param token is the token address
      */
     function setApproval(address token) internal returns (uint) {
-        IERC20 tokenCall = IERC20(token);
-        tokenCall.approve(getAddressKyber(), 2**255);
+        IERC20(token).approve(getAddressKyber(), 2**255);
     }
 
     /**
@@ -126,8 +137,7 @@ contract Helper {
      * @param token is the token
      */
     function manageApproval(address token, uint srcAmt) internal returns (uint) {
-        IERC20 tokenCall = IERC20(token);
-        uint tokenAllowance = tokenCall.allowance(address(this), getAddressKyber());
+        uint tokenAllowance = IERC20(token).allowance(address(this), getAddressKyber());
         if (srcAmt > tokenAllowance) {
             setApproval(token);
         }
@@ -169,8 +179,9 @@ contract Swap is Helper {
         uint ethQty = getToken(msg.sender, src, srcAmt);
         (, uint slippageRate) = getExpectedRate(src, dest, srcAmt);
 
-        KyberInterface swapCall = KyberInterface(getAddressKyber());
-        destAmt = swapCall.trade.value(ethQty)(
+        (uint ethBal, uint tknBal) = getBal(src);
+
+        destAmt = KyberInterface(getAddressKyber()).trade.value(ethQty)(
             src,
             srcAmt,
             dest,
@@ -179,6 +190,17 @@ contract Swap is Helper {
             slippageRate,
             getAddressAdmin()
         );
+
+        // maxDestAmt usecase implementated on user proxy
+        if (address(this).balance > ethBal) {
+            msg.sender.transfer(address(this).balance - ethBal);
+        } else if (src != getAddressETH()) {
+            IERC20 srcTkn = IERC20(src);
+            uint srcBal = srcTkn.balanceOf(address(this));
+            if (srcBal > tknBal) {
+                srcTkn.transfer(msg.sender, srcBal - tknBal);
+            }
+        }
 
         emit LogTrade(
             0,
@@ -229,17 +251,6 @@ contract Swap is Helper {
             slippageRate,
             getAddressAdmin()
         );
-
-        // maxDestAmt usecase implementated on user proxy
-        if (src == getAddressETH() && address(this).balance > 0) {
-            msg.sender.transfer(address(this).balance);
-        } else if (src != getAddressETH()) {
-            IERC20 srcTkn = IERC20(src);
-            uint srcBal = srcTkn.balanceOf(address(this));
-            if (srcBal > 0) {
-                srcTkn.transfer(msg.sender, srcBal);
-            }
-        }
 
     }
 
