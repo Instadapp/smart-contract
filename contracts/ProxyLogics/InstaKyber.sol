@@ -85,6 +85,7 @@ contract Helper {
             require(msg.value == srcAmt, "not-enough-src");
             ethQty = srcAmt;
         } else {
+            manageApproval(src, srcAmt);
             IERC20 tokenCall = IERC20(src);
             tokenCall.transferFrom(trader, address(this), srcAmt);
         }
@@ -144,7 +145,6 @@ contract Swap is Helper {
         uint maxDestAmt
     ) public payable returns (uint destAmt)
     {
-        manageApproval(src, srcAmt);
         uint ethQty = getToken(msg.sender, src, srcAmt);
         (, uint slippageRate) = getExpectedRate(src, dest, srcAmt);
 
@@ -184,7 +184,6 @@ contract Swap is Helper {
         uint srcAmt
     ) public payable returns (uint destAmt)
     {
-        manageApproval(src, srcAmt);
         uint ethQty = getToken(msg.sender, src, srcAmt);
         (, uint slippageRate) = getExpectedRate(src, dest, srcAmt);
 
