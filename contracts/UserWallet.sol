@@ -179,18 +179,18 @@ contract UserGuardian is UserAuth {
     }
 
     /**
-     * @dev sets the guardian with assigned number (upto 3)
+     * @dev sets the guardian with assigned number (upto 5)
      * @param num is the guardian assigned number
      * @param _guardian is the new guardian address
      */
     function setGuardian(uint num, address _guardian) public auth isGuardianEnabled {
-        require(num > 0 && num < 4, "guardians-cant-exceed-three");
+        require(num > 0 && num < 6, "guardians-cant-exceed-three");
         emit LogSetGuardian(num, guardians[num], _guardian);
         guardians[num] = _guardian;
     }
 
     /**
-     * @dev sets the guardian with assigned number (upto 3)
+     * @dev sets the guardian with assigned number (upto 5)
      * @param _activePeriod is the period when guardians have no rights to dethrone the owner
      */
     function updateActivePeriod(uint _activePeriod) public auth isGuardianEnabled {
@@ -202,7 +202,12 @@ contract UserGuardian is UserAuth {
      * @dev Throws if the msg.sender is not guardian
      */
     function isGuardian(address _guardian) public view returns (bool) {
-        if (_guardian == guardians[1] || _guardian == guardians[2] || _guardian == guardians[3]) {
+        if (
+            _guardian == guardians[1] || _guardian == guardians[2] || 
+            _guardian == guardians[3] || _guardian == guardians[4] || 
+            _guardian == guardians[5]
+            )
+        {
             return true;
         } else {
             return false;
@@ -233,12 +238,12 @@ contract UserManager is UserGuardian {
     }
 
     /**
-     * @dev sets the manager with assigned number (upto 3)
+     * @dev sets the manager with assigned number (upto 5)
      * @param num is the assigned number of manager
      * @param _manager is the new admin address
      */
     function setManager(uint num, address _manager) public auth isManagerEnabled {
-        require(num > 0 && num < 4, "guardians-cant-exceed-three");
+        require(num > 0 && num < 6, "guardians-cant-exceed-three");
         emit LogSetManager(num, managers[num], _manager);
         managers[num] = _manager;
     }
@@ -247,7 +252,12 @@ contract UserManager is UserGuardian {
      * @dev Throws if the msg.sender is not manager
      */
     function isManager(address _manager) public view returns (bool) {
-        if (_manager == managers[1] || _manager == managers[2] || _manager == managers[3]) {
+        if (
+            _manager == managers[1] || _manager == managers[2] || 
+            _manager == managers[3] || _manager == managers[4] || 
+            _manager == managers[5]
+            )
+        {
             return true;
         } else {
             return false;
@@ -361,17 +371,18 @@ contract InstaWallet is UserManager, UserNote {
      */
     modifier isExecutable(address proxyTarget) {
         require(proxyTarget != address(0), "logic-proxy-address-required");
+
         (bool isLogic, bool isDefault) = isLogicAuthorised(proxyTarget);
         require(isLogic, "logic-proxy-address-not-allowed");
-        bool canExecute = false;
+        
+        bool enact = false;
         if (isAuth(msg.sender)) {
-            canExecute = true;
+            enact = true;
         } else if (isManager(msg.sender) && !isDefault) {
-            canExecute = true;
-        } else {
-            canExecute = false;
+            enact = true;
         }
-        require(canExecute, "not-executable");
+        
+        require(enact, "not-executable");
         _;
     }
 
