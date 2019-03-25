@@ -325,9 +325,9 @@ contract InstaWallet is UserManager, UserNote {
         public
         payable
         note
+        isExecutable(_target)
         returns (bytes memory response)
     {
-        require(isExecutable(_target), "not-executable");
         lastActivity = block.timestamp;
         emit LogExecute(
             msg.sender,
@@ -359,17 +359,20 @@ contract InstaWallet is UserManager, UserNote {
      * and if the sender is owner or contract itself or manager
      * and if manager then Throws if target is default proxy address
      */
-    function isExecutable(address proxyTarget) public view returns (bool) {
+    modifier isExecutable(address proxyTarget) {
         require(proxyTarget != address(0), "logic-proxy-address-required");
         (bool isLogic, bool isDefault) = isLogicAuthorised(proxyTarget);
         require(isLogic, "logic-proxy-address-not-allowed");
+        bool canExecute = false;
         if (isAuth(msg.sender)) {
-            return true;
+            canExecute = true;
         } else if (isManager(msg.sender) && !isDefault) {
-            return true;
+            canExecute = true;
         } else {
-            return false;
+            canExecute = false;
         }
+        require(canExecute, "not-executable");
+        _;
     }
 
 }
