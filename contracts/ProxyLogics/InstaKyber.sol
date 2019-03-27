@@ -104,8 +104,8 @@ contract Helper {
         uint slippageRate
     ) 
     {
-        (expectedRate, slippageRate) = KyberInterface(getAddressKyber()).getExpectedRate(src, dest, srcAmt);
-        slippageRate = (slippageRate / 97) * 99; // changing slippage rate upto 99%
+        (expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(src, dest, srcAmt);
+        slippageRate = (expectedRate / 100) * 99; // changing slippage rate upto 99%
     }
 
     /**
@@ -181,7 +181,8 @@ contract Swap is Helper {
 
         (uint ethBal, uint tknBal) = getBal(src);
 
-        destAmt = KyberInterface(getAddressKyber()).trade.value(ethQty)(
+        KyberInterface swapCall = KyberInterface(getAddressKyber());
+        destAmt = swapCall.trade.value(ethQty)(
             src,
             srcAmt,
             dest,
@@ -224,11 +225,11 @@ contract Swap is Helper {
     function sell(
         address src,
         address dest,
-        uint srcAmt
+        uint srcAmt,
+        uint minDestAmt
     ) public payable returns (uint destAmt)
     {
         uint ethQty = getToken(msg.sender, src, srcAmt);
-        (, uint slippageRate) = getExpectedRate(src, dest, srcAmt);
 
         KyberInterface swapCall = KyberInterface(getAddressKyber());
         destAmt = swapCall.trade.value(ethQty)(
@@ -237,7 +238,7 @@ contract Swap is Helper {
             dest,
             msg.sender,
             2**255,
-            slippageRate,
+            minDestAmt,
             getAddressAdmin()
         );
 
@@ -248,7 +249,7 @@ contract Swap is Helper {
             dest,
             destAmt,
             msg.sender,
-            slippageRate,
+            minDestAmt,
             getAddressAdmin()
         );
 
