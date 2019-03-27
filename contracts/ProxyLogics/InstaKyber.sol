@@ -80,11 +80,12 @@ contract Helper {
      * @return ethBal - if not erc20, eth balance
      * @return tknBal - if not eth, erc20 balance
      */
-    function getBal(address src) public view returns (uint ethBal, uint tknBal) {
-        ethBal = address(this).balance;
+    function getBal(address src, address _owner) public view returns (uint, uint) {
+        uint tknBal;
         if (src != getAddressETH()) {
-            tknBal = IERC20(src).balanceOf(address(this));
+            tknBal = IERC20(src).balanceOf(address(_owner));
         }
+        return (address(_owner).balance, tknBal);
     }
 
     /**
@@ -152,7 +153,7 @@ contract Swap is Helper {
      * @param what 0 for BUY & 1 for SELL
      */
     event LogTrade(
-        uint what,
+        uint what, // 0 for BUY & 1 for SELL
         address src,
         uint srcAmt,
         address dest,
@@ -173,16 +174,13 @@ contract Swap is Helper {
         address src,
         address dest,
         uint srcAmt,
-        uint maxDestAmt
+        uint maxDestAmt,
+        uint slippageRate
     ) public payable returns (uint destAmt)
     {
         uint ethQty = getToken(msg.sender, src, srcAmt);
-        (, uint slippageRate) = getExpectedRate(src, dest, srcAmt);
 
-        (uint ethBal, uint tknBal) = getBal(src);
-
-        KyberInterface swapCall = KyberInterface(getAddressKyber());
-        destAmt = swapCall.trade.value(ethQty)(
+        destAmt = KyberInterface(getAddressKyber()).trade.value(ethQty)(
             src,
             srcAmt,
             dest,
@@ -193,13 +191,13 @@ contract Swap is Helper {
         );
 
         // maxDestAmt usecase implementated on user proxy
-        if (address(this).balance > ethBal) {
-            msg.sender.transfer(address(this).balance - ethBal);
+        if (address(this).balance > 0) {
+            msg.sender.transfer(address(this).balance);
         } else if (src != getAddressETH()) {
             IERC20 srcTkn = IERC20(src);
             uint srcBal = srcTkn.balanceOf(address(this));
-            if (srcBal > tknBal) {
-                srcTkn.transfer(msg.sender, srcBal - tknBal);
+            if (srcBal > 0) {
+                srcTkn.transfer(msg.sender, srcBal);
             }
         }
 
@@ -226,19 +224,18 @@ contract Swap is Helper {
         address src,
         address dest,
         uint srcAmt,
-        uint minDestAmt
+        uint slippageRate
     ) public payable returns (uint destAmt)
     {
         uint ethQty = getToken(msg.sender, src, srcAmt);
 
-        KyberInterface swapCall = KyberInterface(getAddressKyber());
-        destAmt = swapCall.trade.value(ethQty)(
+        destAmt = KyberInterface(getAddressKyber()).trade.value(ethQty)(
             src,
             srcAmt,
             dest,
             msg.sender,
             2**255,
-            minDestAmt,
+            slippageRate,
             getAddressAdmin()
         );
 
@@ -249,7 +246,7 @@ contract Swap is Helper {
             dest,
             destAmt,
             msg.sender,
-            minDestAmt,
+            slippageRate,
             getAddressAdmin()
         );
 
