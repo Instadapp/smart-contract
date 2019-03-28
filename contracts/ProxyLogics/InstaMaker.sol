@@ -125,7 +125,7 @@ contract Helpers is DSMath {
      * @dev get uniswap MKR/DAI exchange
      */
     function getUniswapMKRExchange() public pure returns (address ume) {
-        ume = 0x2C4Bd064b998838076fa341A83d007FC2FA50957;
+        ume = 0x2C4Bd064b998838076fa341A83d007FC2FA50957; // (SAMYAK) - check if it correct
     }
 
     /**
