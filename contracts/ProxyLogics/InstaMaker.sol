@@ -21,6 +21,34 @@ library SafeMath {
 }
 
 
+contract DSMath {
+
+    function add(uint x, uint y) internal pure returns (uint z) {
+        require((z = x + y) >= x, "math-not-safe");
+    }
+
+    function mul(uint x, uint y) internal pure returns (uint z) {
+        require(y == 0 || (z = x * y) / y == x, "math-not-safe");
+    }
+
+    uint constant WAD = 10 ** 18;
+    uint constant RAY = 10 ** 27;
+
+    function rmul(uint x, uint y) internal pure returns (uint z) {
+        z = add(mul(x, y), RAY / 2) / RAY;
+    }
+
+    function rdiv(uint x, uint y) internal pure returns (uint z) {
+        z = add(mul(x, RAY), y / 2) / y;
+    }
+
+    function wdiv(uint x, uint y) internal pure returns (uint z) {
+        z = add(mul(x, WAD), y / 2) / y;
+    }
+
+}
+
+
 contract IERC20 {
     function balanceOf(address who) external view returns (uint256);
     function transfer(address to, uint256 value) external returns (bool);
@@ -29,22 +57,43 @@ contract IERC20 {
 }
 
 
-contract MakerCDP {
-    function open() external returns (bytes32 cup);
-    function join(uint wad) external; // Join PETH
-    function exit(uint wad) external; // Exit PETH
-    function give(bytes32 cup, address guy) external;
-    function lock(bytes32 cup, uint wad) external;
-    function free(bytes32 cup, uint wad) external;
-    function draw(bytes32 cup, uint wad) external;
-    function wipe(bytes32 cup, uint wad) external;
-    function per() external view returns (uint ray);
-    function lad(bytes32 cup) external view returns (address);
+contract TubInterface {
+    function open() public returns (bytes32);
+    function join(uint) public;
+    function exit(uint) public;
+    function lock(bytes32, uint) public;
+    function free(bytes32, uint) public;
+    function draw(bytes32, uint) public;
+    function wipe(bytes32, uint) public;
+    function give(bytes32, address) public;
+    function shut(bytes32) public;
+    function cups(bytes32) public view returns (address, uint, uint, uint);
+    function gem() public view returns (TokenInterface);
+    function gov() public view returns (TokenInterface);
+    function skr() public view returns (TokenInterface);
+    function sai() public view returns (TokenInterface);
+    function mat() public view returns (uint);
+    function ink(bytes32) public view returns (uint);
+    function tab(bytes32) public view returns (uint);
+    function rap(bytes32) public view returns (uint);
+    function per() public view returns (uint);
+    function pep() public view returns (PepInterface);
 }
 
 
-contract PriceInterface {
-    function peek() external view returns (bytes32, bool);
+contract TokenInterface {
+    function allowance(address, address) public view returns (uint);
+    function balanceOf(address) public view returns (uint);
+    function approve(address, uint) public;
+    function transfer(address, uint) public returns (bool);
+    function transferFrom(address, address, uint) public returns (bool);
+    function deposit() public payable;
+    function withdraw(uint) public;
+}
+
+
+contract PepInterface {
+    function peek() public returns (bytes32, bool);
 }
 
 
@@ -54,160 +103,175 @@ contract WETHFace {
 }
 
 
-contract Helpers {
+contract Helpers is DSMath {
 
     using SafeMath for uint;
     using SafeMath for uint256;
 
-    function getETHRate() public view returns (uint) {
-        PriceInterface ethRate = PriceInterface(getAddress("ethfeed"));
-        bytes32 ethrate;
-        (ethrate, ) = ethRate.peek();
+    /**
+     * @dev get MakerDAO CDP engine
+     */
+    function getPriceFeedAddress() public pure returns (address eth) {
+        eth = 0x729D19f657BD0614b4985Cf1D82531c67569197B;
+    }
+
+    /**
+     * @dev get ETH price feed
+     */
+    function getSaiTubAddress() public pure returns (address sai) {
+        sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
+    }
+
+    /**
+     * @dev get uniswap MKR/DAI exchange
+     */
+    function getUniswapMKRExchange() public pure returns (address ume) {
+        ume = 0x2C4Bd064b998838076fa341A83d007FC2FA50957;
+    }
+
+    /**
+     * @dev get admin address
+     */
+    function getAddressAdmin() public pure returns (address admin) {
+        admin = 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638;
+    }
+
+    /**
+     * @dev get onchain ethereum price
+     */
+    function getRate() public returns (uint) {
+        (bytes32 ethrate, ) = PepInterface(getPriceFeedAddress()).peek();
         return uint(ethrate);
     }
 
-    function getCDP(address borrower) public view returns (uint, bytes32) {
-        return (uint(cdps[borrower]), cdps[borrower]);
-    }
-
-    function approveERC20() public {
-        IERC20 wethTkn = IERC20(getAddress("weth"));
-        wethTkn.approve(cdpAddr, 2**256 - 1);
-        IERC20 pethTkn = IERC20(getAddress("peth"));
-        pethTkn.approve(cdpAddr, 2**256 - 1);
-        IERC20 mkrTkn = IERC20(getAddress("mkr"));
-        mkrTkn.approve(cdpAddr, 2**256 - 1);
-        IERC20 daiTkn = IERC20(getAddress("dai"));
-        daiTkn.approve(cdpAddr, 2**256 - 1);
-    }
-
-
-}
-
-
-contract IssueLoan is Helpers {
-
-    event LockedETH(address borrower, uint lockETH, uint lockPETH, address lockedBy);
-    event LoanedDAI(address borrower, uint loanDAI, address payTo);
-    event NewCDP(address borrower, bytes32 cdpBytes);
-
-    function pethPEReth(uint ethNum) public view returns (uint rPETH) {
-        MakerCDP loanMaster = MakerCDP(cdpAddr);
-        rPETH = (ethNum.mul(10 ** 27)).div(loanMaster.per());
-    }
-
-    function borrow(uint daiDraw, address beneficiary) public payable {
-        if (msg.value > 0) {lockETH(msg.sender);}
-        if (daiDraw > 0) {drawDAI(daiDraw, beneficiary);}
-    }
-
-    function lockETH(address borrower) public payable {
-        MakerCDP loanMaster = MakerCDP(cdpAddr);
-        if (cdps[borrower] == blankCDP) {
-            require(msg.sender == borrower, "Creating CDP for others is not permitted at the moment.");
-            cdps[msg.sender] = loanMaster.open();
-            emit NewCDP(msg.sender, cdps[msg.sender]);
+    /**
+     * @dev handling stability fees payment
+     */
+    function handleGovFee(TubInterface tub, uint saiDebtFee) internal {
+        address _otc = getUniswapMKRExchange();
+        (bytes32 val, bool ok) = tub.pep().peek();
+        if (ok && val != 0) {
+            uint govAmt = wdiv(saiDebtFee, uint(val)); // Fees in MKR
+            uint saiGovAmt = govAmt; // (SAMYAK) // get DAI required govAmt (MKR) from UniSwap => {saiGovAmt} not equals to {govAmt}
+            if (tub.sai().allowance(address(this), _otc) != uint(-1)) {
+                tub.sai().approve(_otc, uint(-1));
+            }
+            tub.sai().transferFrom(msg.sender, address(this), saiGovAmt);
+            // (SAMYAK) // swap DAI with MKR from uniswap
         }
-        WETHFace wethTkn = WETHFace(getAddress("weth"));
-        wethTkn.deposit.value(msg.value)(); // ETH to WETH
-        uint pethToLock = pethPEReth(msg.value);
-        loanMaster.join(pethToLock); // WETH to PETH
-        loanMaster.lock(cdps[borrower], pethToLock); // PETH to CDP
-        emit LockedETH(
-            borrower, msg.value, pethToLock, msg.sender
-        );
-    }
-
-    function drawDAI(uint daiDraw, address beneficiary) public {
-        require(!freezed, "Operation Disabled");
-        MakerCDP loanMaster = MakerCDP(cdpAddr);
-        loanMaster.draw(cdps[msg.sender], daiDraw);
-        IERC20 daiTkn = IERC20(getAddress("dai"));
-        address payTo = msg.sender;
-        if (payTo != address(0)) {
-            payTo = beneficiary;
-        }
-        daiTkn.transfer(payTo, daiDraw);
-        emit LoanedDAI(msg.sender, daiDraw, payTo);
     }
 
 }
 
 
-contract RepayLoan is IssueLoan {
+contract CDPResolver is Helpers {
 
-    event WipedDAI(address borrower, uint daiWipe, uint mkrCharged, address wipedBy);
-    event UnlockedETH(address borrower, uint ethFree);
-
-    function repay(uint daiWipe, uint ethFree) public payable {
-        if (daiWipe > 0) {wipeDAI(daiWipe, msg.sender);}
-        if (ethFree > 0) {unlockETH(ethFree);}
+    function open() public returns (bytes32) {
+        return TubInterface(getSaiTubAddress()).open();
     }
 
-    function wipeDAI(uint daiWipe, address borrower) public payable {
-        address dai = getAddress("dai");
-        address mkr = getAddress("mkr");
-        address eth = getAddress("eth");
-
-        IERC20 daiTkn = IERC20(dai);
-        IERC20 mkrTkn = IERC20(mkr);
-
-        uint contractMKR = mkrTkn.balanceOf(address(this)); // contract MKR balance before wiping
-        daiTkn.transferFrom(msg.sender, address(this), daiWipe); // get DAI to pay the debt
-        MakerCDP loanMaster = MakerCDP(cdpAddr);
-        loanMaster.wipe(cdps[borrower], daiWipe); // wipe DAI
-        uint mkrCharged = contractMKR - mkrTkn.balanceOf(address(this)); // MKR fee = before wiping bal - after wiping bal
-
-        // claiming paid MKR back
-        if (msg.value > 0) { // Interacting with Kyber to swap ETH with MKR
-            swapETHMKR(
-                eth, mkr, mkrCharged, msg.value
-            );
-        } else { // take MKR directly from address
-            mkrTkn.transferFrom(msg.sender, address(this), mkrCharged); // user paying MKR fees
-        }
-
-        emit WipedDAI(
-            borrower, daiWipe, mkrCharged, msg.sender
-        );
+    function give(uint cdpNum, address nextOwner) public {
+        TubInterface(getSaiTubAddress()).give(bytes32(cdpNum), nextOwner);
     }
 
-    function unlockETH(uint ethFree) public {
-        require(!freezed, "Operation Disabled");
-        uint pethToUnlock = pethPEReth(ethFree);
-        MakerCDP loanMaster = MakerCDP(cdpAddr);
-        loanMaster.free(cdps[msg.sender], pethToUnlock); // CDP to PETH
-        loanMaster.exit(pethToUnlock); // PETH to WETH
-        WETHFace wethTkn = WETHFace(getAddress("weth"));
-        wethTkn.withdraw(ethFree); // WETH to ETH
-        msg.sender.transfer(ethFree);
-        emit UnlockedETH(msg.sender, ethFree);
-    }
+    function lock(uint cdpNum) public payable {
+        bytes32 cup = bytes32(cdpNum);
+        address tubAddr = getSaiTubAddress();
+        if (msg.value > 0) {
+            TubInterface tub = TubInterface(tubAddr);
 
-    function swapETHMKR(
-        address eth,
-        address mkr,
-        uint mkrCharged,
-        uint ethQty
-    ) internal 
-    {
-        InstaKyber instak = InstaKyber(getAddress("InstaKyber"));
-        uint minRate;
-        (, minRate) = instak.getExpectedPrice(eth, mkr, ethQty);
-        uint mkrBought = instak.executeTrade.value(ethQty)(
-            eth, mkr, ethQty, minRate, mkrCharged
-        );
-        require(mkrCharged == mkrBought, "ETH not sufficient to cover the MKR fees.");
-        if (address(this).balance > 0) {
-            msg.sender.transfer(address(this).balance);
+            (address lad,,,) = tub.cups(cup);
+            require(lad == address(this), "cup-not-owned");
+
+            tub.gem().deposit.value(msg.value)();
+
+            uint ink = rdiv(msg.value, tub.per());
+            ink = rmul(ink, tub.per()) <= msg.value ? ink : ink - 1;
+
+            if (tub.gem().allowance(address(this), tubAddr) != uint(-1)) {
+                tub.gem().approve(tubAddr, uint(-1));
+            }
+            tub.join(ink);
+
+            if (tub.skr().allowance(address(this), tubAddr) != uint(-1)) {
+                tub.skr().approve(tubAddr, uint(-1));
+            }
+            tub.lock(cup, ink);
         }
     }
 
+    function draw(uint cdpNum, uint wad) public {
+        bytes32 cup = bytes32(cdpNum);
+        if (wad > 0) {
+            TubInterface tub = TubInterface(getSaiTubAddress());
+            tub.draw(cup, wad);
+            tub.sai().transfer(msg.sender, wad);
+        }
+    }
 
+    function wipe(uint cdpNum, uint wad) public {
+        bytes32 cup = bytes32(cdpNum);
+        address tubAddr = getSaiTubAddress();
+        if (wad > 0) {
+            TubInterface tub = TubInterface(tubAddr);
+
+            tub.sai().transferFrom(msg.sender, address(this), wad);
+            handleGovFee(tub, rmul(wad, rdiv(tub.rap(cup), tub.tab(cup))));
+
+            if (tub.sai().allowance(address(this), tubAddr) != uint(-1)) {
+                tub.sai().approve(tubAddr, uint(-1));
+            }
+            if (tub.gov().allowance(address(this), tubAddr) != uint(-1)) {
+                tub.gov().approve(tubAddr, uint(-1));
+            }
+            tub.wipe(cup, wad);
+        }
+    }
+
+    function free(uint cdpNum, uint jam) public {
+        bytes32 cup = bytes32(cdpNum);
+        address tubAddr = getSaiTubAddress();
+        if (jam > 0) {
+            TubInterface tub = TubInterface(tubAddr);
+            uint ink = rdiv(jam, tub.per());
+            ink = rmul(ink, tub.per()) <= jam ? ink : ink - 1;
+            tub.free(cup, ink);
+            if (tub.skr().allowance(address(this), tubAddr) != uint(-1)) {
+                tub.skr().approve(tubAddr, uint(-1));
+            }
+            tub.exit(ink);
+            uint freeJam = tub.gem().balanceOf(address(this)); // Withdraw possible previous stuck WETH as well
+            tub.gem().withdraw(freeJam);
+            address(msg.sender).transfer(freeJam);
+        }
+    }
 
 }
 
-contract InstaMaker is BorrowTasks {
+
+contract CDPCluster is CDPResolver {
+
+    function wipeAndFree(uint cdpNum, uint jam, uint wad) public payable {
+        wipe(cdpNum, wad);
+        free(cdpNum, jam);
+    }
+
+    function shut(uint cdpNum) public {
+        bytes32 cup = bytes32(cdpNum);
+        TubInterface tub = TubInterface(getSaiTubAddress());
+        wipeAndFree(cdpNum, rmul(tub.ink(cup), tub.per()), tub.tab(cup));
+        tub.shut(cup);
+    }
+
+    function openAndLock() public payable returns (bytes32 cup) {
+        cup = open();
+        lock(uint(cup));
+    }
+
+}
+
+
+contract InstaMaker is CDPResolver {
 
     uint public version;
     
