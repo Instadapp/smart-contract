@@ -72,7 +72,6 @@ contract TubInterface {
     function gov() public view returns (TokenInterface);
     function skr() public view returns (TokenInterface);
     function sai() public view returns (TokenInterface);
-    function mat() public view returns (uint);
     function ink(bytes32) public view returns (uint);
     function tab(bytes32) public view returns (uint);
     function rap(bytes32) public view returns (uint);
@@ -145,6 +144,16 @@ contract Helpers is DSMath {
     }
 
     /**
+     * @dev get stability fees in DAI
+     * @param wad is the DAI to wipe
+     */
+    function getStabilityFees(uint cdpNum, uint wad) public view returns (uint saiDebtFee) {
+        bytes32 cup = bytes32(cdpNum);
+        TubInterface tub = TubInterface(getSaiTubAddress());
+        saiDebtFee = rmul(wad, rdiv(tub.rap(cup), tub.tab(cup)));
+    }
+
+    /**
      * @dev handling stability fees payment
      */
     function handleGovFee(TubInterface tub, uint saiDebtFee) internal {
@@ -170,6 +179,9 @@ contract CDPResolver is Helpers {
         return TubInterface(getSaiTubAddress()).open();
     }
 
+    /**
+     * @dev transfer CDP ownership
+     */
     function give(uint cdpNum, address nextOwner) public {
         TubInterface(getSaiTubAddress()).give(bytes32(cdpNum), nextOwner);
     }
@@ -200,10 +212,32 @@ contract CDPResolver is Helpers {
         }
     }
 
+    function free(uint cdpNum, uint jam) public {
+        bytes32 cup = bytes32(cdpNum);
+        address tubAddr = getSaiTubAddress();
+        if (jam > 0) {
+            TubInterface tub = TubInterface(tubAddr);
+            uint ink = rdiv(jam, tub.per());
+            ink = rmul(ink, tub.per()) <= jam ? ink : ink - 1;
+            tub.free(cup, ink);
+            if (tub.skr().allowance(address(this), tubAddr) != uint(-1)) {
+                tub.skr().approve(tubAddr, uint(-1));
+            }
+            tub.exit(ink);
+            uint freeJam = tub.gem().balanceOf(address(this)); // Withdraw possible previous stuck WETH as well
+            tub.gem().withdraw(freeJam);
+            address(msg.sender).transfer(freeJam);
+        }
+    }
+
     function draw(uint cdpNum, uint wad) public {
         bytes32 cup = bytes32(cdpNum);
         if (wad > 0) {
             TubInterface tub = TubInterface(getSaiTubAddress());
+
+            (address lad,,,) = tub.cups(cup);
+            require(lad == address(this), "cup-not-owned");
+
             tub.draw(cup, wad);
             tub.sai().transfer(msg.sender, wad);
         }
@@ -228,24 +262,6 @@ contract CDPResolver is Helpers {
         }
     }
 
-    function free(uint cdpNum, uint jam) public {
-        bytes32 cup = bytes32(cdpNum);
-        address tubAddr = getSaiTubAddress();
-        if (jam > 0) {
-            TubInterface tub = TubInterface(tubAddr);
-            uint ink = rdiv(jam, tub.per());
-            ink = rmul(ink, tub.per()) <= jam ? ink : ink - 1;
-            tub.free(cup, ink);
-            if (tub.skr().allowance(address(this), tubAddr) != uint(-1)) {
-                tub.skr().approve(tubAddr, uint(-1));
-            }
-            tub.exit(ink);
-            uint freeJam = tub.gem().balanceOf(address(this)); // Withdraw possible previous stuck WETH as well
-            tub.gem().withdraw(freeJam);
-            address(msg.sender).transfer(freeJam);
-        }
-    }
-
 }
 
 
@@ -256,6 +272,9 @@ contract CDPCluster is CDPResolver {
         free(cdpNum, jam);
     }
 
+    /**
+     * @dev close CDP
+     */
     function shut(uint cdpNum) public {
         bytes32 cup = bytes32(cdpNum);
         TubInterface tub = TubInterface(getSaiTubAddress());
@@ -263,6 +282,9 @@ contract CDPCluster is CDPResolver {
         tub.shut(cup);
     }
 
+    /**
+     * @dev open a new CDP and lock ETH
+     */
     function openAndLock() public payable returns (bytes32 cup) {
         cup = open();
         lock(uint(cup));
