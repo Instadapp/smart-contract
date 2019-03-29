@@ -153,6 +153,22 @@ contract Helpers is DSMath {
         saiDebtFee = rmul(wad, rdiv(tub.rap(cup), tub.tab(cup)));
     }
 
+    /** (SAMYAK)
+     * @dev get DAI required to buy MKR fees
+     * @param feesMKR is the stability fee needs to paid in MKR
+     */
+    function getDAIRequired(uint feesMKR) public pure returns (uint reqDAI) {
+        reqDAI = feesMKR * 0; // get price from Uniswap
+    }
+
+    /** (SAMYAK)
+     * @dev swapping given DAI with MKR
+     * @param reqDAI is the DAI to swap with MKR
+     */
+    function swapMKR(uint reqDAI) public {
+        TokenInterface(address(0)).transfer(msg.sender, reqDAI); // just wrote this code to remove the error - DELETE IT
+    }
+
     /**
      * @dev handling stability fees payment
      */
@@ -161,12 +177,12 @@ contract Helpers is DSMath {
         (bytes32 val, bool ok) = tub.pep().peek();
         if (ok && val != 0) {
             uint govAmt = wdiv(saiDebtFee, uint(val)); // Fees in MKR
-            uint saiGovAmt = govAmt; // (SAMYAK) // get DAI required govAmt (MKR) from UniSwap => {saiGovAmt} not equals to {govAmt}
+            uint saiGovAmt = getDAIRequired(govAmt); // get price
             if (tub.sai().allowance(address(this), _otc) != uint(-1)) {
                 tub.sai().approve(_otc, uint(-1));
             }
             tub.sai().transferFrom(msg.sender, address(this), saiGovAmt);
-            // (SAMYAK) // swap DAI with MKR from uniswap
+            swapMKR(saiGovAmt); // swap DAI with MKR
         }
     }
 
