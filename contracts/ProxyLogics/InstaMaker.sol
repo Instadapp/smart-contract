@@ -111,14 +111,16 @@ contract Helpers is DSMath {
      * @dev get MakerDAO CDP engine
      */
     function getPriceFeedAddress() public pure returns (address eth) {
-        eth = 0x729D19f657BD0614b4985Cf1D82531c67569197B;
+        // eth = 0x729D19f657BD0614b4985Cf1D82531c67569197B; // mainnet
+        eth = 0xA944bd4b25C9F186A846fd5668941AA3d3B8425F; // kovan
     }
 
     /**
      * @dev get ETH price feed
      */
     function getSaiTubAddress() public pure returns (address sai) {
-        sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
+        // sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // mainnet
+        sai = 0xa71937147b55Deb8a530C7229C442Fd3F31b7db2; // kovan
     }
 
     /**
@@ -191,8 +193,9 @@ contract Helpers is DSMath {
 
 contract CDPResolver is Helpers {
 
-    function open() public returns (bytes32) {
-        return TubInterface(getSaiTubAddress()).open();
+    function open() public returns (uint) {
+        bytes32 cup = TubInterface(getSaiTubAddress()).open();
+        return uint(cup);
     }
 
     /**
@@ -301,9 +304,9 @@ contract CDPCluster is CDPResolver {
     /**
      * @dev open a new CDP and lock ETH
      */
-    function openAndLock() public payable returns (bytes32 cup) {
-        cup = open();
-        lock(uint(cup));
+    function openAndLock() public payable returns (uint cdpNum) {
+        cdpNum = open();
+        lock(cdpNum);
     }
 
 }
