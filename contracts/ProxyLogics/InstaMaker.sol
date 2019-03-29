@@ -175,7 +175,7 @@ contract Helpers is DSMath {
      */
     function getCDPOwner(uint cdpNum) public view returns (address lad) {
         bytes32 cup = bytes32(cdpNum);
-        TubInterface tub = TubInterface(getPriceFeedAddress());
+        TubInterface tub = TubInterface(getSaiTubAddress());
         (lad,,,) = tub.cups(cup);
     }
 
@@ -220,7 +220,7 @@ contract Helpers is DSMath {
      * @dev swapping given ETH with MKR
      * @param reqDAI is the ETH to swap with MKR
      */
-    function payMKRfromETH(uint feesMKR, uint deadline) public payable returns(uint ethSold) {
+    function swapMKRviaETH(uint feesMKR, uint deadline) public payable returns(uint ethSold) {
         UniswapExchange mkrExchange = UniswapExchange(getUniswapMKRExchange());
         uint ethPaid = msg.value;
         ethSold = mkrExchange.ethToTokenSwapOutput.value(ethPaid)(feesMKR, deadline);
@@ -233,7 +233,7 @@ contract Helpers is DSMath {
      * @dev swapping given DAI with MKR
      * @param reqDAI is the DAI to swap with MKR
      */
-    function payMKRfromDAI(uint feesMKR, uint maxDAItoPay, uint deadline) public returns(uint daiSold) {
+    function swapMKRviaDAI(uint feesMKR, uint maxDAItoPay, uint deadline) public returns(uint daiSold) {
         UniswapExchange daiExchange = UniswapExchange(getUniswapDAIExchange());
         TokenInterface daiContract = TokenInterface(getDAIAddress());
         // (SOWMAY) - Add Allowance and approve check for DAI with maxDAItoPay and transferFrom function
@@ -262,7 +262,7 @@ contract Helpers is DSMath {
                 tub.sai().approve(_otc, uint(-1));
             }
             tub.sai().transferFrom(msg.sender, address(this), saiGovAmt);
-            swapMKR(saiGovAmt); // swap DAI with MKR
+            swapMKRviaETH(saiGovAmt); // swap DAI with MKR
         }
     }
 
