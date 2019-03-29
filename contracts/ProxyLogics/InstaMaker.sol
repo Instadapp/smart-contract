@@ -146,6 +146,22 @@ contract Helpers is DSMath {
     }
 
     /**
+     * @dev get CDP owner by CDP IDs
+     */
+    function getCDPOwner(uint cdpNum) public view returns (address lad) {
+        bytes32 cup = bytes32(cdpNum);
+        TubInterface tub = TubInterface(getPriceFeedAddress());
+        (lad,,,) = tub.cups(cup);
+    }
+
+    /**
+     * @dev get CDP bytes by CDP ID
+     */
+    function getCDPBytes(uint cdpNum) public pure returns (bytes32 cup) {
+        cup = bytes32(cdpNum);
+    }
+
+    /**
      * @dev get stability fees in DAI
      * @param wad is the DAI to wipe
      */
