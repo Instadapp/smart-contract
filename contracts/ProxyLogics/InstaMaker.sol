@@ -102,6 +102,17 @@ contract WETHFace {
 }
 
 
+interface UniswapExchange {
+    // Get Prices
+    function getEthToTokenInputPrice(uint256 eth_sold) external view returns (uint256 tokens_bought);
+    function getTokenToEthOutputPrice(uint256 eth_bought) external view returns (uint256 tokens_sold);
+    // Trade ETH to ERC20
+    function ethToTokenTransferOutput(uint256 tokens_bought, uint256 deadline, address recipient) external payable returns (uint256  eth_sold);
+    // Trade ERC20 to ERC20
+    function tokenToTokenTransferOutput(uint256 tokens_bought, uint256 max_tokens_sold, uint256 max_eth_sold, uint256 deadline, address recipient, address token_addr) external returns (uint256  tokens_sold);
+}
+
+
 contract Helpers is DSMath {
 
     using SafeMath for uint;
