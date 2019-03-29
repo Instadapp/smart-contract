@@ -1,26 +1,6 @@
 pragma solidity ^0.5.0;
 
 
-library SafeMath {
-
-    function mul(uint256 a, uint256 b) internal pure returns (uint256) {
-        if (a == 0) {
-            return 0;
-        }
-        uint256 c = a * b;
-        require(c / a == b, "Assertion Failed");
-        return c;
-    }
-    
-    function div(uint256 a, uint256 b) internal pure returns (uint256) {
-        require(b > 0, "Assertion Failed");
-        uint256 c = a / b;
-        return c;
-    }
-
-}
-
-
 contract DSMath {
 
     function add(uint x, uint y) internal pure returns (uint z) {
@@ -115,9 +95,6 @@ contract UniswapExchange {
 
 contract Helpers is DSMath {
 
-    using SafeMath for uint;
-    using SafeMath for uint256;
-
     /**
      * @dev get MakerDAO CDP engine
      */
@@ -152,7 +129,7 @@ contract Helpers is DSMath {
      * @dev get DAI address
      */
     function getDAIAddress() public pure returns (address ude) {
-        ude = 0x89d24a6b4ccb1b6faa2625fe562bdd9a23260359;
+        ude = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
     }
 
     /**
@@ -233,20 +210,20 @@ contract Helpers is DSMath {
      * @dev swapping given DAI with MKR
      * @param reqDAI is the DAI to swap with MKR
      */
-    function swapMKRviaDAI(uint feesMKR, uint maxDAItoPay, uint deadline) public returns(uint daiSold) {
+    function swapMKR(uint feesMKR) public returns(uint daiSold) {
         UniswapExchange daiExchange = UniswapExchange(getUniswapDAIExchange());
-        TokenInterface daiContract = TokenInterface(getDAIAddress());
+        // TokenInterface daiContract = TokenInterface(getDAIAddress());
         // (SOWMAY) - Add Allowance and approve check for DAI with maxDAItoPay and transferFrom function
         daiSold = daiExchange.tokenToExchangeSwapOutput(
                     feesMKR,
-                    maxDAItoPay,
+                    feesMKR, // (SAMYAK) coz we are reading price via getDAIRequired() in single txn
                     2**255,
-                    deadline,
+                    add(now, 100), // deadline is 100 seconds after this txn gets confirmed (i.e. no deadline)
                     getUniswapMKRExchange()
         );
         // (SOWMAY) - Pay MKR to Maker contract
-        uint daiToReturn = maxDAItoPay - daiSold;
-        daiContract.transfer(msg.sender, daiToReturn);
+        // uint daiToReturn = maxDAItoPay - daiSold;
+        // daiContract.transfer(msg.sender, daiToReturn);
     }
 
     /**
@@ -262,7 +239,7 @@ contract Helpers is DSMath {
                 tub.sai().approve(_otc, uint(-1));
             }
             tub.sai().transferFrom(msg.sender, address(this), saiGovAmt);
-            swapMKRviaETH(saiGovAmt); // swap DAI with MKR
+            swapMKR(saiGovAmt); // swap DAI with MKR
         }
     }
 
