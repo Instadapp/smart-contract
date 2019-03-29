@@ -102,6 +102,17 @@ contract WETHFace {
 }
 
 
+contract UniswapExchange {
+    // Get Prices
+    function getEthToTokenInputPrice(uint256 eth_sold) external view returns (uint256 tokens_bought);
+    function getTokenToEthInputPrice(uint256 tokens_sold) external view returns (uint256 eth_bought);
+    // Trade ETH to ERC20
+    function ethToTokenSwapOutput(uint256 tokens_bought, uint256 deadline) external payable returns (uint256  eth_sold);
+    // Trade ERC20 to ERC20
+    function tokenToExchangeSwapOutput(uint256 tokens_bought, uint256 max_tokens_sold, uint256 max_eth_sold, uint256 deadline, address exchange_addr) external returns (uint256  tokens_sold);
+}
+
+
 contract Helpers is DSMath {
 
     using SafeMath for uint;
@@ -124,10 +135,24 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get uniswap MKR/DAI exchange
+     * @dev get uniswap MKR exchange
      */
     function getUniswapMKRExchange() public pure returns (address ume) {
-        ume = 0x2C4Bd064b998838076fa341A83d007FC2FA50957; // (SAMYAK) - check if it correct
+        ume = 0x2C4Bd064b998838076fa341A83d007FC2FA50957;
+    }
+
+    /**
+     * @dev get uniswap DAI exchange
+     */
+    function getUniswapDAIExchange() public pure returns (address ude) {
+        ude = 0x09cabEC1eAd1c0Ba254B09efb3EE13841712bE14;
+    }
+
+    /**
+     * @dev get DAI address
+     */
+    function getDAIAddress() public pure returns (address ude) {
+        ude = 0x89d24a6b4ccb1b6faa2625fe562bdd9a23260359;
     }
 
     /**
@@ -171,20 +196,57 @@ contract Helpers is DSMath {
         saiDebtFee = rmul(wad, rdiv(tub.rap(cup), tub.tab(cup)));
     }
 
-    /** (SAMYAK)
+    /** (SOWMAY)
+     * @dev get ETH required to buy MKR fees
+     * @param feesMKR is the stability fee needs to paid in MKR
+     */
+    function getETHRequired(uint feesMKR) public view returns (uint reqETH) {
+        UniswapExchange mkrExchange = UniswapExchange(getUniswapMKRExchange());
+        reqETH = mkrExchange.getTokenToEthInputPrice(feesMKR);
+    }
+
+    /** (SOWMAY)
      * @dev get DAI required to buy MKR fees
      * @param feesMKR is the stability fee needs to paid in MKR
      */
-    function getDAIRequired(uint feesMKR) public pure returns (uint reqDAI) {
-        reqDAI = feesMKR * 0; // get price from Uniswap
+    function getDAIRequired(uint feesMKR) public view returns (uint reqDAI) {
+        UniswapExchange mkrExchange = UniswapExchange(getUniswapMKRExchange());
+        UniswapExchange daiExchange = UniswapExchange(getUniswapDAIExchange());
+        uint ethBought = mkrExchange.getTokenToEthInputPrice(feesMKR);
+        reqDAI = daiExchange.getEthToTokenInputPrice(ethBought);
     }
 
-    /** (SAMYAK)
+    /** (SOWMAY)
+     * @dev swapping given ETH with MKR
+     * @param reqDAI is the ETH to swap with MKR
+     */
+    function payMKRfromETH(uint feesMKR, uint deadline) public payable returns(uint ethSold) {
+        UniswapExchange mkrExchange = UniswapExchange(getUniswapMKRExchange());
+        uint ethPaid = msg.value;
+        ethSold = mkrExchange.ethToTokenSwapOutput.value(ethPaid)(feesMKR, deadline);
+        // (SOWMAY) - Pay MKR to Maker contract
+        uint ethToReturn = ethPaid - ethSold;
+        msg.sender.transfer(ethToReturn);
+    }
+
+    /** (SOWMAY)
      * @dev swapping given DAI with MKR
      * @param reqDAI is the DAI to swap with MKR
      */
-    function swapMKR(uint reqDAI) public {
-        TokenInterface(address(0)).transfer(msg.sender, reqDAI); // just wrote this code to remove the error - DELETE IT
+    function payMKRfromDAI(uint feesMKR, uint maxDAItoPay, uint deadline) public returns(uint daiSold) {
+        UniswapExchange daiExchange = UniswapExchange(getUniswapDAIExchange());
+        TokenInterface daiContract = TokenInterface(getDAIAddress());
+        // (SOWMAY) - Add Allowance and approve check for DAI with maxDAItoPay and transferFrom function
+        daiSold = daiExchange.tokenToExchangeSwapOutput(
+                    feesMKR,
+                    maxDAItoPay,
+                    2**255,
+                    deadline,
+                    getUniswapMKRExchange()
+        );
+        // (SOWMAY) - Pay MKR to Maker contract
+        uint daiToReturn = maxDAItoPay - daiSold;
+        daiContract.transfer(msg.sender, daiToReturn);
     }
 
     /**
