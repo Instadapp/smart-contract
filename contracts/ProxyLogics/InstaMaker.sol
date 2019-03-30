@@ -99,16 +99,14 @@ contract Helpers is DSMath {
      * @dev get MakerDAO CDP engine
      */
     function getPriceFeedAddress() public pure returns (address eth) {
-        // eth = 0x729D19f657BD0614b4985Cf1D82531c67569197B; // mainnet
-        eth = 0xA944bd4b25C9F186A846fd5668941AA3d3B8425F; // kovan
+        eth = 0x729D19f657BD0614b4985Cf1D82531c67569197B;
     }
 
     /**
      * @dev get ETH price feed
      */
     function getSaiTubAddress() public pure returns (address sai) {
-        // sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // mainnet
-        sai = 0xa71937147b55Deb8a530C7229C442Fd3F31b7db2; // kovan
+        sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
     }
 
     /**
@@ -173,7 +171,7 @@ contract Helpers is DSMath {
         saiDebtFee = rmul(wad, rdiv(tub.rap(cup), tub.tab(cup)));
     }
 
-    /** (SOWMAY)
+    /**
      * @dev get ETH required to buy MKR fees
      * @param feesMKR is the stability fee needs to paid in MKR
      */
@@ -182,7 +180,7 @@ contract Helpers is DSMath {
         reqETH = mkrExchange.getTokenToEthInputPrice(feesMKR);
     }
 
-    /** (SOWMAY)
+    /**
      * @dev get DAI required to buy MKR fees
      * @param feesMKR is the stability fee needs to paid in MKR
      */
@@ -205,23 +203,22 @@ contract Helpers is DSMath {
         msg.sender.transfer(ethToReturn);
     }
 
-    /** (SOWMAY)
+    /**
      * @dev swapping given DAI with MKR
      */
-    function swapMKR(uint feesMKR) public returns(uint daiSold) {
-        UniswapExchange daiExchange = UniswapExchange(getUniswapDAIExchange());
-        // TokenInterface daiContract = TokenInterface(getDAIAddress());
-        // (SOWMAY) - Add Allowance and approve check for DAI with maxDAItoPay and transferFrom function
+    function swapMKR(TubInterface tub, uint feesMKR) public returns (uint daiSold) {
+        address uniDAIDEX = getUniswapDAIExchange();
+        UniswapExchange daiExchange = UniswapExchange(uniDAIDEX);
+        if (tub.sai().allowance(address(this), uniDAIDEX) != uint(-1)) {
+            tub.sai().approve(uniDAIDEX, uint(-1));
+        }
         daiSold = daiExchange.tokenToExchangeSwapOutput(
-                    feesMKR,
-                    feesMKR, // (SAMYAK) coz we are reading price via getDAIRequired() in single txn
-                    2**255,
-                    add(now, 100), // deadline is 100 seconds after this txn gets confirmed (i.e. no deadline)
-                    getUniswapMKRExchange()
+            feesMKR,
+            feesMKR, // (SAMYAK) coz we are reading price via getDAIRequired() in single txn
+            2**255,
+            add(now, 100), // deadline is 100 seconds after this txn gets confirmed (i.e. no deadline)
+            getUniswapMKRExchange()
         );
-        // (SOWMAY) - Pay MKR to Maker contract
-        // uint daiToReturn = maxDAItoPay - daiSold;
-        // daiContract.transfer(msg.sender, daiToReturn);
     }
 
     /**
@@ -237,7 +234,7 @@ contract Helpers is DSMath {
                 tub.sai().approve(_otc, uint(-1));
             }
             tub.sai().transferFrom(msg.sender, address(this), saiGovAmt);
-            swapMKR(saiGovAmt); // swap DAI with MKR
+            swapMKR(tub, saiGovAmt); // swap DAI with MKR
         }
     }
 
