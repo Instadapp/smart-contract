@@ -84,12 +84,18 @@ contract WETHFace {
 
 contract UniswapExchange {
     // Get Prices
-    function getEthToTokenInputPrice(uint256 eth_sold) external view returns (uint256 tokens_bought);
-    function getTokenToEthInputPrice(uint256 tokens_sold) external view returns (uint256 eth_bought);
+    function getEthToTokenInputPrice(uint256 ethSold) external view returns (uint256 tokensBought);
+    function getTokenToEthInputPrice(uint256 tokensSold) external view returns (uint256 ethBought);
     // Trade ETH to ERC20
-    function ethToTokenSwapOutput(uint256 tokens_bought, uint256 deadline) external payable returns (uint256  eth_sold);
+    function ethToTokenSwapOutput(uint256 tokensBought, uint256 deadline) external payable returns (uint256  ethSold);
     // Trade ERC20 to ERC20
-    function tokenToExchangeSwapOutput(uint256 tokens_bought, uint256 max_tokens_sold, uint256 max_eth_sold, uint256 deadline, address exchange_addr) external returns (uint256  tokens_sold);
+    function tokenToExchangeSwapOutput(
+        uint256 tokensBought,
+        uint256 maxTokensSold,
+        uint256 maxEthSold,
+        uint256 deadline,
+        address exchangeAddr
+        ) external returns (uint256  tokensSold);
 }
 
 
