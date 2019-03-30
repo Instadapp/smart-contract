@@ -57,7 +57,7 @@ contract Helper {
      * @dev get kyber proxy address
      */
     function getAddressKyber() public pure returns (address kyber) {
-        kyber = 0x692f391bCc85cefCe8C237C01e1f636BbD70EA4D;
+        kyber = 0x818E6FECD516Ecc3849DAf6845e3EC868087B755;
     }
 
     /**
