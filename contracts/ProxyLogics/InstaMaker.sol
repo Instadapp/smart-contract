@@ -195,7 +195,6 @@ contract Helpers is DSMath {
 
     /** (SOWMAY)
      * @dev swapping given ETH with MKR
-     * @param reqDAI is the ETH to swap with MKR
      */
     function swapMKRviaETH(uint feesMKR, uint deadline) public payable returns(uint ethSold) {
         UniswapExchange mkrExchange = UniswapExchange(getUniswapMKRExchange());
@@ -208,7 +207,6 @@ contract Helpers is DSMath {
 
     /** (SOWMAY)
      * @dev swapping given DAI with MKR
-     * @param reqDAI is the DAI to swap with MKR
      */
     function swapMKR(uint feesMKR) public returns(uint daiSold) {
         UniswapExchange daiExchange = UniswapExchange(getUniswapDAIExchange());
