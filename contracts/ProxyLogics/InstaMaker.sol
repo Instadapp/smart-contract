@@ -191,18 +191,6 @@ contract Helpers is DSMath {
         reqDAI = daiExchange.getEthToTokenInputPrice(ethBought);
     }
 
-    /** (SOWMAY)
-     * @dev swapping given ETH with MKR
-     */
-    function swapMKRviaETH(uint feesMKR, uint deadline) public payable returns(uint ethSold) {
-        UniswapExchange mkrExchange = UniswapExchange(getUniswapMKRExchange());
-        uint ethPaid = msg.value;
-        ethSold = mkrExchange.ethToTokenSwapOutput.value(ethPaid)(feesMKR, deadline);
-        // (SOWMAY) - Pay MKR to Maker contract
-        uint ethToReturn = ethPaid - ethSold;
-        msg.sender.transfer(ethToReturn);
-    }
-
     /**
      * @dev swapping given DAI with MKR
      */
