@@ -115,13 +115,6 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get admin address
-     */
-    function getAddressAdmin() public pure returns (address admin) {
-        admin = 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638;
-    }
-
-    /**
      * @dev get onchain ethereum price
      */
     function getRate() public view returns (uint ethrate) {
