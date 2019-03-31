@@ -219,14 +219,10 @@ contract Helpers is DSMath {
      * @dev handling stability fees payment
      */
     function handleGovFee(TubInterface tub, uint saiDebtFee) internal {
-        address _otc = getUniswapMKRExchange();
         (bytes32 val, bool ok) = tub.pep().peek();
         if (ok && val != 0) {
             uint govAmt = wdiv(saiDebtFee, uint(val)); // Fees in MKR
             uint saiGovAmt = getDAIRequired(govAmt); // get price
-            if (tub.sai().allowance(address(this), _otc) != uint(-1)) {
-                tub.sai().approve(_otc, uint(-1));
-            }
             tub.sai().transferFrom(msg.sender, address(this), saiGovAmt);
             swapMKR(tub, saiGovAmt); // swap DAI with MKR
         }
