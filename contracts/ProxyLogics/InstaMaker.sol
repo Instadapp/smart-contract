@@ -29,14 +29,6 @@ contract DSMath {
 }
 
 
-contract IERC20 {
-    function balanceOf(address who) external view returns (uint256);
-    function transfer(address to, uint256 value) external returns (bool);
-    function approve(address spender, uint256 value) external returns (bool);
-    function transferFrom(address from, address to, uint256 value) external returns (bool);
-}
-
-
 contract TubInterface {
     function open() public returns (bytes32);
     function join(uint) public;
