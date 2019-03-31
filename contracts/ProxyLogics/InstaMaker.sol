@@ -110,22 +110,6 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get onchain ethereum price
-     */
-    function getRate() public view returns (uint ethrate) {
-        ethrate = TubInterface(getSaiTubAddress()).per();
-    }
-
-    /**
-     * @dev get CDP owner by CDP IDs
-     */
-    function getCDPOwner(uint cdpNum) public view returns (address lad) {
-        bytes32 cup = bytes32(cdpNum);
-        TubInterface tub = TubInterface(getSaiTubAddress());
-        (lad,,,) = tub.cups(cup);
-    }
-
-    /**
      * @dev get CDP bytes by CDP ID
      */
     function getCDPBytes(uint cdpNum) public pure returns (bytes32 cup) {
