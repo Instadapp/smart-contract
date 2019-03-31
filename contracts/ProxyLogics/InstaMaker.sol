@@ -96,13 +96,6 @@ contract Helpers is DSMath {
     /**
      * @dev get MakerDAO CDP engine
      */
-    function getPriceFeedAddress() public pure returns (address eth) {
-        eth = 0x729D19f657BD0614b4985Cf1D82531c67569197B;
-    }
-
-    /**
-     * @dev get ETH price feed
-     */
     function getSaiTubAddress() public pure returns (address sai) {
         sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
     }
@@ -138,9 +131,8 @@ contract Helpers is DSMath {
     /**
      * @dev get onchain ethereum price
      */
-    function getRate() public returns (uint) {
-        (bytes32 ethrate, ) = PepInterface(getPriceFeedAddress()).peek();
-        return uint(ethrate);
+    function getRate() public view returns (uint ethrate) {
+        ethrate = TubInterface(getSaiTubAddress()).per();
     }
 
     /**
