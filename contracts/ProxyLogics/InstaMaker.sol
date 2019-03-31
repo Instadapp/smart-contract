@@ -207,9 +207,9 @@ contract Helpers is DSMath {
             tub.sai().approve(uniDAIDEX, uint(-1));
         }
         daiSold = daiExchange.tokenToExchangeSwapOutput(
-            feesMKR,
-            feesMKR, // (SAMYAK) coz we are reading price via getDAIRequired() in single txn
-            2**255,
+            feesMKR, // total MKR to buy
+            2**255, // max DAI to sell
+            2**255, // max ETH to sell - http://tinyimg.io/i/2Av1L2j.png
             add(now, 100), // deadline is 100 seconds after this txn gets confirmed (i.e. no deadline)
             getUniswapMKRExchange()
         );
