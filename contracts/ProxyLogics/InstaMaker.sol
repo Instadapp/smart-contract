@@ -2,41 +2,41 @@ pragma solidity ^0.5.0;
 
 
 interface TubInterface {
-    function open() public returns (bytes32);
-    function join(uint) public;
-    function exit(uint) public;
-    function lock(bytes32, uint) public;
-    function free(bytes32, uint) public;
-    function draw(bytes32, uint) public;
-    function wipe(bytes32, uint) public;
-    function give(bytes32, address) public;
-    function shut(bytes32) public;
-    function cups(bytes32) public view returns (address, uint, uint, uint);
-    function gem() public view returns (TokenInterface);
-    function gov() public view returns (TokenInterface);
-    function skr() public view returns (TokenInterface);
-    function sai() public view returns (TokenInterface);
-    function ink(bytes32) public view returns (uint);
-    function tab(bytes32) public view returns (uint);
-    function rap(bytes32) public view returns (uint);
-    function per() public view returns (uint);
-    function pep() public view returns (PepInterface);
+    function open() external returns (bytes32);
+    function join(uint) external;
+    function exit(uint) external;
+    function lock(bytes32, uint) external;
+    function free(bytes32, uint) external;
+    function draw(bytes32, uint) external;
+    function wipe(bytes32, uint) external;
+    function give(bytes32, address) external;
+    function shut(bytes32) external;
+    function cups(bytes32) external view returns (address, uint, uint, uint);
+    function gem() external view returns (TokenInterface);
+    function gov() external view returns (TokenInterface);
+    function skr() external view returns (TokenInterface);
+    function sai() external view returns (TokenInterface);
+    function ink(bytes32) external view returns (uint);
+    function tab(bytes32) external view returns (uint);
+    function rap(bytes32) external view returns (uint);
+    function per() external view returns (uint);
+    function pep() external view returns (PepInterface);
 }
 
 
 interface TokenInterface {
-    function allowance(address, address) public view returns (uint);
-    function balanceOf(address) public view returns (uint);
-    function approve(address, uint) public;
-    function transfer(address, uint) public returns (bool);
-    function transferFrom(address, address, uint) public returns (bool);
-    function deposit() public payable;
-    function withdraw(uint) public;
+    function allowance(address, address) external view returns (uint);
+    function balanceOf(address) external view returns (uint);
+    function approve(address, uint) external;
+    function transfer(address, uint) external returns (bool);
+    function transferFrom(address, address, uint) external returns (bool);
+    function deposit() external payable;
+    function withdraw(uint) external;
 }
 
 
 interface PepInterface {
-    function peek() public returns (bytes32, bool);
+    function peek() external returns (bytes32, bool);
 }
 
 
@@ -130,18 +130,6 @@ contract Helpers is DSMath {
      */
     function getCDPBytes(uint cdpNum) public pure returns (bytes32 cup) {
         cup = bytes32(cdpNum);
-    }
-
-    /**
-     * @dev get stability fees in DAI
-     * @param wad is the DAI to wipe
-     */
-    function getStabilityFees(uint cdpNum, uint wad) public view returns (uint mkrFee) {
-        bytes32 cup = bytes32(cdpNum);
-        TubInterface tub = TubInterface(getSaiTubAddress());
-        PepInterface pep = tub.pep();
-        (bytes32 val, bool ok) = pep.peek();
-        mkrFee = wdiv(rmul(wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
     }
 
 }
