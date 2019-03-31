@@ -115,13 +115,6 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get DAI address
-     */
-    function getDAIAddress() public pure returns (address ude) {
-        ude = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
-    }
-
-    /**
      * @dev get admin address
      */
     function getAddressAdmin() public pure returns (address admin) {
