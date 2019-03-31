@@ -138,23 +138,21 @@ contract CDPResolver is Helpers {
         address tubAddr = getSaiTubAddress();
         if (msg.value > 0) {
             TubInterface tub = TubInterface(tubAddr);
+            TokenInterface weth = tub.gem();
+            TokenInterface peth = tub.skr();
 
             (address lad,,,) = tub.cups(cup);
             require(lad == address(this), "cup-not-owned");
 
-            tub.gem().deposit.value(msg.value)();
+            weth.deposit.value(msg.value)();
 
             uint ink = rdiv(msg.value, tub.per());
             ink = rmul(ink, tub.per()) <= msg.value ? ink : ink - 1;
 
-            if (tub.gem().allowance(address(this), tubAddr) != uint(-1)) {
-                tub.gem().approve(tubAddr, uint(-1));
-            }
+            setAllowance(weth, tubAddr);
             tub.join(ink);
 
-            if (tub.skr().allowance(address(this), tubAddr) != uint(-1)) {
-                tub.skr().approve(tubAddr, uint(-1));
-            }
+            setAllowance(peth, tubAddr);
             tub.lock(cup, ink);
         }
     }
@@ -162,17 +160,22 @@ contract CDPResolver is Helpers {
     function free(uint cdpNum, uint jam) public {
         bytes32 cup = bytes32(cdpNum);
         address tubAddr = getSaiTubAddress();
+        
         if (jam > 0) {
+            
             TubInterface tub = TubInterface(tubAddr);
+            TokenInterface peth = tub.skr();
+
             uint ink = rdiv(jam, tub.per());
             ink = rmul(ink, tub.per()) <= jam ? ink : ink - 1;
             tub.free(cup, ink);
-            if (tub.skr().allowance(address(this), tubAddr) != uint(-1)) {
-                tub.skr().approve(tubAddr, uint(-1));
-            }
+
+            setAllowance(peth, tubAddr);
+            
             tub.exit(ink);
-            uint freeJam = tub.gem().balanceOf(address(this)); // Withdraw possible previous stuck WETH as well
+            uint freeJam = tub.gem().balanceOf(address(this)); // withdraw possible previous stuck WETH as well
             tub.gem().withdraw(freeJam);
+            
             address(msg.sender).transfer(freeJam);
         }
     }
@@ -193,11 +196,11 @@ contract CDPResolver is Helpers {
     function wipe(uint cdpNum, uint wad) public {
         require(wad > 0, "no-wipe-no-dai");
 
-        address _tub = getSaiTubAddress();
+        address tubAddr = getSaiTubAddress();
         address _daiEx = getUniswapDAIExchange();
         address _mkrEx = getUniswapMKRExchange();
 
-        TubInterface tub = TubInterface(_tub);
+        TubInterface tub = TubInterface(tubAddr);
         UniswapExchange daiEx = UniswapExchange(_daiEx);
         UniswapExchange mkrEx = UniswapExchange(_mkrEx);
         TokenInterface dai = tub.sai();
@@ -206,8 +209,8 @@ contract CDPResolver is Helpers {
 
         bytes32 cup = bytes32(cdpNum);
 
-        setAllowance(dai, _tub);
-        setAllowance(mkr, _tub);
+        setAllowance(dai, tubAddr);
+        setAllowance(mkr, tubAddr);
         setAllowance(dai, _daiEx);
 
         (bytes32 val, bool ok) = pep.peek();
@@ -271,7 +274,7 @@ contract CDPCluster is CDPResolver {
 }
 
 
-contract InstaMaker is CDPResolver {
+contract InstaMaker is CDPCluster {
 
     uint public version;
     
