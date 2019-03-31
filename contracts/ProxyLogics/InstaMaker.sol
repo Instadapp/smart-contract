@@ -1,6 +1,63 @@
 pragma solidity ^0.5.0;
 
 
+interface TubInterface {
+    function open() public returns (bytes32);
+    function join(uint) public;
+    function exit(uint) public;
+    function lock(bytes32, uint) public;
+    function free(bytes32, uint) public;
+    function draw(bytes32, uint) public;
+    function wipe(bytes32, uint) public;
+    function give(bytes32, address) public;
+    function shut(bytes32) public;
+    function cups(bytes32) public view returns (address, uint, uint, uint);
+    function gem() public view returns (TokenInterface);
+    function gov() public view returns (TokenInterface);
+    function skr() public view returns (TokenInterface);
+    function sai() public view returns (TokenInterface);
+    function ink(bytes32) public view returns (uint);
+    function tab(bytes32) public view returns (uint);
+    function rap(bytes32) public view returns (uint);
+    function per() public view returns (uint);
+    function pep() public view returns (PepInterface);
+}
+
+
+interface TokenInterface {
+    function allowance(address, address) public view returns (uint);
+    function balanceOf(address) public view returns (uint);
+    function approve(address, uint) public;
+    function transfer(address, uint) public returns (bool);
+    function transferFrom(address, address, uint) public returns (bool);
+    function deposit() public payable;
+    function withdraw(uint) public;
+}
+
+
+interface PepInterface {
+    function peek() public returns (bytes32, bool);
+}
+
+
+interface WETHFace {
+    function deposit() external payable;
+    function withdraw(uint wad) external;
+}
+
+interface UniswapExchange {
+    function getEthToTokenOutputPrice(uint256 tokensBought) external view returns (uint256 ethSold);
+    function getTokenToEthOutputPrice(uint256 ethBought) external view returns (uint256 tokensSold);
+    function tokenToTokenSwapOutput(
+        uint256 tokensBought,
+        uint256 maxTokensSold,
+        uint256 maxEthSold,
+        uint256 deadline,
+        address tokenAddr
+        ) external returns (uint256  tokensSold);
+}
+
+
 contract DSMath {
 
     function add(uint x, uint y) internal pure returns (uint z) {
@@ -26,68 +83,6 @@ contract DSMath {
         z = add(mul(x, WAD), y / 2) / y;
     }
 
-}
-
-
-contract TubInterface {
-    function open() public returns (bytes32);
-    function join(uint) public;
-    function exit(uint) public;
-    function lock(bytes32, uint) public;
-    function free(bytes32, uint) public;
-    function draw(bytes32, uint) public;
-    function wipe(bytes32, uint) public;
-    function give(bytes32, address) public;
-    function shut(bytes32) public;
-    function cups(bytes32) public view returns (address, uint, uint, uint);
-    function gem() public view returns (TokenInterface);
-    function gov() public view returns (TokenInterface);
-    function skr() public view returns (TokenInterface);
-    function sai() public view returns (TokenInterface);
-    function ink(bytes32) public view returns (uint);
-    function tab(bytes32) public view returns (uint);
-    function rap(bytes32) public view returns (uint);
-    function per() public view returns (uint);
-    function pep() public view returns (PepInterface);
-}
-
-
-contract TokenInterface {
-    function allowance(address, address) public view returns (uint);
-    function balanceOf(address) public view returns (uint);
-    function approve(address, uint) public;
-    function transfer(address, uint) public returns (bool);
-    function transferFrom(address, address, uint) public returns (bool);
-    function deposit() public payable;
-    function withdraw(uint) public;
-}
-
-
-contract PepInterface {
-    function peek() public returns (bytes32, bool);
-}
-
-
-contract WETHFace {
-    function deposit() external payable;
-    function withdraw(uint wad) external;
-}
-
-
-contract UniswapExchange {
-    // Get Prices
-    function getEthToTokenInputPrice(uint256 ethSold) external view returns (uint256 tokensBought);
-    function getTokenToEthInputPrice(uint256 tokensSold) external view returns (uint256 ethBought);
-    // Trade ETH to ERC20
-    function ethToTokenSwapOutput(uint256 tokensBought, uint256 deadline) external payable returns (uint256  ethSold);
-    // Trade ERC20 to ERC20
-    function tokenToExchangeSwapOutput(
-        uint256 tokensBought,
-        uint256 maxTokensSold,
-        uint256 maxEthSold,
-        uint256 deadline,
-        address exchangeAddr
-        ) external returns (uint256  tokensSold);
 }
 
 
@@ -141,61 +136,12 @@ contract Helpers is DSMath {
      * @dev get stability fees in DAI
      * @param wad is the DAI to wipe
      */
-    function getStabilityFees(uint cdpNum, uint wad) public view returns (uint saiDebtFee) {
+    function getStabilityFees(uint cdpNum, uint wad) public view returns (uint mkrFee) {
         bytes32 cup = bytes32(cdpNum);
         TubInterface tub = TubInterface(getSaiTubAddress());
-        saiDebtFee = rmul(wad, rdiv(tub.rap(cup), tub.tab(cup)));
-    }
-
-    /**
-     * @dev get ETH required to buy MKR fees
-     * @param feesMKR is the stability fee needs to paid in MKR
-     */
-    function getETHRequired(uint feesMKR) public view returns (uint reqETH) {
-        UniswapExchange mkrExchange = UniswapExchange(getUniswapMKRExchange());
-        reqETH = mkrExchange.getTokenToEthInputPrice(feesMKR);
-    }
-
-    /**
-     * @dev get DAI required to buy MKR fees
-     * @param feesMKR is the stability fee needs to paid in MKR
-     */
-    function getDAIRequired(uint feesMKR) public view returns (uint reqDAI) {
-        UniswapExchange mkrExchange = UniswapExchange(getUniswapMKRExchange());
-        UniswapExchange daiExchange = UniswapExchange(getUniswapDAIExchange());
-        uint ethBought = mkrExchange.getTokenToEthInputPrice(feesMKR);
-        reqDAI = daiExchange.getEthToTokenInputPrice(ethBought);
-    }
-
-    /**
-     * @dev swapping given DAI with MKR
-     */
-    function swapMKR(TubInterface tub, uint feesMKR) public returns (uint daiSold) {
-        address uniDAIDEX = getUniswapDAIExchange();
-        UniswapExchange daiExchange = UniswapExchange(uniDAIDEX);
-        if (tub.sai().allowance(address(this), uniDAIDEX) != uint(-1)) {
-            tub.sai().approve(uniDAIDEX, uint(-1));
-        }
-        daiSold = daiExchange.tokenToExchangeSwapOutput(
-            feesMKR, // total MKR to buy
-            2**255, // max DAI to sell
-            2**255, // max ETH to sell - http://tinyimg.io/i/2Av1L2j.png
-            add(now, 100), // deadline is 100 seconds after this txn gets confirmed (i.e. no deadline)
-            getUniswapMKRExchange()
-        );
-    }
-
-    /**
-     * @dev handling stability fees payment
-     */
-    function handleGovFee(TubInterface tub, uint saiDebtFee) internal {
-        (bytes32 val, bool ok) = tub.pep().peek();
-        if (ok && val != 0) {
-            uint govAmt = wdiv(saiDebtFee, uint(val)); // Fees in MKR
-            uint saiGovAmt = getDAIRequired(govAmt); // get price
-            tub.sai().transferFrom(msg.sender, address(this), saiGovAmt);
-            swapMKR(tub, saiGovAmt); // swap DAI with MKR
-        }
+        PepInterface pep = tub.pep();
+        (bytes32 val, bool ok) = pep.peek();
+        mkrFee = wdiv(rmul(wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
     }
 
 }
@@ -273,21 +219,52 @@ contract CDPResolver is Helpers {
     }
 
     function wipe(uint cdpNum, uint wad) public {
+        require(wad > 0, "no-wipe-no-dai");
+
+        address _tub = getSaiTubAddress();
+        address _daiEx = getUniswapDAIExchange();
+        address _mkrEx = getUniswapMKRExchange();
+
+        TubInterface tub = TubInterface(_tub);
+        UniswapExchange daiEx = UniswapExchange(_daiEx);
+        UniswapExchange mkrEx = UniswapExchange(_mkrEx);
+        TokenInterface dai = tub.sai();
+        TokenInterface mkr = tub.gov();
+        PepInterface pep = tub.pep();
+
         bytes32 cup = bytes32(cdpNum);
-        address tubAddr = getSaiTubAddress();
-        if (wad > 0) {
-            TubInterface tub = TubInterface(tubAddr);
 
-            tub.sai().transferFrom(msg.sender, address(this), wad);
-            handleGovFee(tub, rmul(wad, rdiv(tub.rap(cup), tub.tab(cup))));
+        setAllowance(dai, _tub);
+        setAllowance(mkr, _tub);
+        setAllowance(dai, _daiEx);
 
-            if (tub.sai().allowance(address(this), tubAddr) != uint(-1)) {
-                tub.sai().approve(tubAddr, uint(-1));
-            }
-            if (tub.gov().allowance(address(this), tubAddr) != uint(-1)) {
-                tub.gov().approve(tubAddr, uint(-1));
-            }
-            tub.wipe(cup, wad);
+        (bytes32 val, bool ok) = pep.peek();
+
+        // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
+        uint mkrFee = wdiv(rmul(wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
+
+        uint ethAmt = mkrEx.getEthToTokenOutputPrice(mkrFee);
+        uint daiAmt = daiEx.getTokenToEthOutputPrice(ethAmt);
+
+        daiAmt = add(wad, daiAmt);
+        require(dai.transferFrom(msg.sender, address(this), daiAmt), "not-approved-yet");
+
+        if (ok && val != 0) {
+            daiEx.tokenToTokenSwapOutput(
+                mkrFee,
+                daiAmt,
+                uint(999000000000000000000),
+                uint(1899063809), // 6th March 2030 GMT // no logic
+                address(mkr)
+            );
+        }
+
+        tub.wipe(cup, wad);
+    }
+
+    function setAllowance(TokenInterface token_, address spender_) private {
+        if (token_.allowance(address(this), spender_) != uint(-1)) {
+            token_.approve(spender_, uint(-1));
         }
     }
 
