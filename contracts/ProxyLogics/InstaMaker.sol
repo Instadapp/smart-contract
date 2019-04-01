@@ -17,12 +17,11 @@ interface TubInterface {
     function skr() external view returns (TokenInterface);
     function sai() external view returns (TokenInterface);
     function ink(bytes32) external view returns (uint);
-    function tab(bytes32) external view returns (uint);
-    function rap(bytes32) external view returns (uint);
+    function tab(bytes32) external returns (uint);
+    function rap(bytes32) external returns (uint);
     function per() external view returns (uint);
     function pep() external view returns (PepInterface);
 }
-
 
 interface TokenInterface {
     function allowance(address, address) external view returns (uint);
@@ -34,15 +33,8 @@ interface TokenInterface {
     function withdraw(uint) external;
 }
 
-
 interface PepInterface {
     function peek() external returns (bytes32, bool);
-}
-
-
-interface WETHFace {
-    function deposit() external payable;
-    function withdraw(uint wad) external;
 }
 
 interface UniswapExchange {
@@ -188,11 +180,7 @@ contract CDPResolver is Helpers {
         }
     }
 
-    function wipe(
-        uint cdpNum,
-        uint _wad
-    ) public 
-    {
+    function wipe(uint cdpNum, uint _wad) public {
         require(_wad > 0, "no-wipe-no-dai");
 
         TubInterface tub = TubInterface(getSaiTubAddress());
