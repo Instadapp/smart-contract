@@ -165,6 +165,7 @@ contract CDPResolver is Helpers {
             
             TubInterface tub = TubInterface(tubAddr);
             TokenInterface peth = tub.skr();
+            TokenInterface weth = tub.gem();
 
             uint ink = rdiv(jam, tub.per());
             ink = rmul(ink, tub.per()) <= jam ? ink : ink - 1;
@@ -173,8 +174,8 @@ contract CDPResolver is Helpers {
             setAllowance(peth, tubAddr);
             
             tub.exit(ink);
-            uint freeJam = tub.gem().balanceOf(address(this)); // withdraw possible previous stuck WETH as well
-            tub.gem().withdraw(freeJam);
+            uint freeJam = weth.balanceOf(address(this)); // withdraw possible previous stuck WETH as well
+            weth.withdraw(freeJam);
             
             address(msg.sender).transfer(freeJam);
         }
@@ -196,22 +197,18 @@ contract CDPResolver is Helpers {
     function wipe(uint cdpNum, uint wad) public {
         require(wad > 0, "no-wipe-no-dai");
 
-        address tubAddr = getSaiTubAddress();
-        address _daiEx = getUniswapDAIExchange();
-        address _mkrEx = getUniswapMKRExchange();
-
-        TubInterface tub = TubInterface(tubAddr);
-        UniswapExchange daiEx = UniswapExchange(_daiEx);
-        UniswapExchange mkrEx = UniswapExchange(_mkrEx);
+        TubInterface tub = TubInterface(getSaiTubAddress());
+        UniswapExchange daiEx = UniswapExchange(getUniswapDAIExchange());
+        UniswapExchange mkrEx = UniswapExchange(getUniswapMKRExchange());
         TokenInterface dai = tub.sai();
         TokenInterface mkr = tub.gov();
         PepInterface pep = tub.pep();
 
         bytes32 cup = bytes32(cdpNum);
 
-        setAllowance(dai, tubAddr);
-        setAllowance(mkr, tubAddr);
-        setAllowance(dai, _daiEx);
+        setAllowance(dai, getSaiTubAddress());
+        setAllowance(mkr, getSaiTubAddress());
+        setAllowance(dai, getUniswapDAIExchange());
 
         (bytes32 val, bool ok) = pep.peek();
 
@@ -285,5 +282,7 @@ contract InstaMaker is CDPCluster {
     constructor(uint _version) public {
         version = _version;
     }
+
+    function() external payable {}
 
 }
