@@ -141,9 +141,6 @@ contract CDPResolver is Helpers {
             TokenInterface weth = tub.gem();
             TokenInterface peth = tub.skr();
 
-            (address lad,,,) = tub.cups(cup);
-            require(lad == address(this), "cup-not-owned");
-
             weth.deposit.value(msg.value)();
 
             uint ink = rdiv(msg.value, tub.per());
@@ -181,28 +178,28 @@ contract CDPResolver is Helpers {
         }
     }
 
-    function draw(uint cdpNum, uint wad) public {
+    function draw(uint cdpNum, uint _wad) public {
         bytes32 cup = bytes32(cdpNum);
-        if (wad > 0) {
+        if (_wad > 0) {
             TubInterface tub = TubInterface(getSaiTubAddress());
 
-            (address lad,,,) = tub.cups(cup);
-            require(lad == address(this), "cup-not-owned");
-
-            tub.draw(cup, wad);
-            tub.sai().transfer(msg.sender, wad);
+            tub.draw(cup, _wad);
+            tub.sai().transfer(msg.sender, _wad);
         }
     }
 
-    function wipe(uint cdpNum, uint wad) public {
-        require(wad > 0, "no-wipe-no-dai");
+    function wipe(
+        uint cdpNum,
+        uint _wad
+    ) public 
+    {
+        require(_wad > 0, "no-wipe-no-dai");
 
         TubInterface tub = TubInterface(getSaiTubAddress());
         UniswapExchange daiEx = UniswapExchange(getUniswapDAIExchange());
         UniswapExchange mkrEx = UniswapExchange(getUniswapMKRExchange());
         TokenInterface dai = tub.sai();
         TokenInterface mkr = tub.gov();
-        PepInterface pep = tub.pep();
 
         bytes32 cup = bytes32(cdpNum);
 
@@ -210,15 +207,13 @@ contract CDPResolver is Helpers {
         setAllowance(mkr, getSaiTubAddress());
         setAllowance(dai, getUniswapDAIExchange());
 
-        (bytes32 val, bool ok) = pep.peek();
+        (bytes32 val, bool ok) = tub.pep().peek();
 
         // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
-        uint mkrFee = wdiv(rmul(wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
+        uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
 
-        uint ethAmt = mkrEx.getEthToTokenOutputPrice(mkrFee);
-        uint daiAmt = daiEx.getTokenToEthOutputPrice(ethAmt);
-
-        daiAmt = add(wad, daiAmt);
+        uint daiAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
+        daiAmt = add(_wad, daiAmt);
         require(dai.transferFrom(msg.sender, address(this), daiAmt), "not-approved-yet");
 
         if (ok && val != 0) {
@@ -231,7 +226,7 @@ contract CDPResolver is Helpers {
             );
         }
 
-        tub.wipe(cup, wad);
+        tub.wipe(cup, _wad);
     }
 
     function setAllowance(TokenInterface token_, address spender_) private {
@@ -245,8 +240,8 @@ contract CDPResolver is Helpers {
 
 contract CDPCluster is CDPResolver {
 
-    function wipeAndFree(uint cdpNum, uint jam, uint wad) public payable {
-        wipe(cdpNum, wad);
+    function wipeAndFree(uint cdpNum, uint jam, uint _wad) public payable {
+        wipe(cdpNum, _wad);
         free(cdpNum, jam);
     }
 
