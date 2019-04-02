@@ -26,6 +26,14 @@ interface AddressRegistryInterface {
     function managerEnabled() external view returns (bool);
 }
 
+/**
+ * @title UserWallet Interface
+ */
+// interface UserWalletInterface {
+    // get the wallet address based on the owner of this wallet 
+    // and use execute interface from main UserWallet to call execute on this contract 
+// }
+
 
 /**
  * @title Address Registry Record
