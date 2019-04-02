@@ -33,13 +33,14 @@ contract AddressRecord {
     address public registry;
 
     /**
-     * @param logicAddr is the logic proxy contract address
-     * @return the true boolean for logic proxy if authorised otherwise false
+     * @dev Throws if the logic is not authorised
      */
-    function isLogicAuthorised(address logicAddr) public view returns (bool, bool) {
+    modifier logicAuth(address logicAddr) {
+        require(logicAddr != address(0), "logic-proxy-address-required");
         AddressRegistryInterface logicProxy = AddressRegistryInterface(registry);
-        (bool isLogic, bool isDefault) = logicProxy.isLogicAuth(logicAddr);
-        return (isLogic, isDefault);
+        (bool isLogicAuth, ) = logicProxy.isLogicAuth(logicAddr);
+        require(isLogicAuth, "logic-not-authorised");
+        _;
     }
 
     /**
@@ -135,7 +136,7 @@ contract UserNote {
 /**
  * @title User Owned Contract Wallet
  */
-contract InstaWallet is UserAuth, UserNote {
+contract UserWallet is UserAuth, UserNote {
 
     event LogExecute(address sender, address target, uint srcNum, uint sessionNum);
 
@@ -166,7 +167,7 @@ contract InstaWallet is UserAuth, UserNote {
         payable
         note
         auth
-        isExecutable(_target)
+        logicAuth(_target)
         returns (bytes memory response)
     {
         emit LogExecute(
@@ -192,18 +193,6 @@ contract InstaWallet is UserAuth, UserNote {
                     revert(add(response, 0x20), size)
                 }
         }
-    }
-
-    /**
-     * @dev checks if the proxy is authorised
-     * and if the sender is owner or contract itself or manager
-     * and if manager then Throws if target is default proxy address
-     */
-    modifier isExecutable(address proxyTarget) {
-        require(proxyTarget != address(0), "logic-proxy-address-required");
-        (bool isLogic, ) = isLogicAuthorised(proxyTarget);
-        require(isLogic, "logic-proxy-address-not-allowed");        
-        _;
     }
 
 }
