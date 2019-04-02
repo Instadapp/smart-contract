@@ -106,8 +106,6 @@ contract WalletRegistry is LogicRegistry {
     event Created(address indexed sender, address indexed owner, address proxy);
     
     mapping(address => InstaWallet) public proxies;
-    bool public guardianEnabled; // user guardian mechanism enabled in overall system
-    bool public managerEnabled; // user manager mechanism enabled in overall system
 
     /**
      * @dev deploys a new proxy instance and sets msg.sender as owner of proxy
@@ -123,7 +121,7 @@ contract WalletRegistry is LogicRegistry {
     function build(address owner) public returns (InstaWallet proxy) {
         require(proxies[owner] == InstaWallet(0), "multiple-proxy-per-user-not-allowed");
         proxy = new InstaWallet();
-        proxy.setOwnerOnce(owner);
+        proxy.setOwner(owner);
         emit Created(msg.sender, owner, address(proxy));
         proxies[owner] = proxy;
     }
@@ -136,34 +134,6 @@ contract WalletRegistry is LogicRegistry {
         require(msg.sender == address(proxies[currentOwner]), "invalid-proxy-or-owner");
         proxies[nextOwner] = proxies[currentOwner];
         proxies[currentOwner] = InstaWallet(0);
-    }
-
-    /**
-     * @dev enable guardian in overall system
-     */
-    function enableGuardian() public isAdmin {
-        guardianEnabled = true;
-    }
-
-    /**
-     * @dev disable guardian in overall system
-     */
-    function disableGuardian() public isAdmin {
-        guardianEnabled = false;     
-    }
-
-    /**
-     * @dev enable user manager in overall system
-     */
-    function enableManager() public isAdmin {
-        managerEnabled = true;
-    }
-
-    /**
-     * @dev disable user manager in overall system
-     */
-    function disableManager() public isAdmin {
-        managerEnabled = false;     
     }
 
 }
