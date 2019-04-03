@@ -139,12 +139,14 @@ contract WalletRegistry is LogicRegistry {
 }
 
 
+/**
+ * @title Initializing Registry
+ */
 contract InstaRegistry is WalletRegistry {
 
     constructor() public {
         registry[keccak256(abi.encodePacked("admin"))] = msg.sender;
         registry[keccak256(abi.encodePacked("owner"))] = msg.sender;
-        build();
     }
 
 }
