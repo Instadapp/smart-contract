@@ -14,11 +14,11 @@ library SafeMath {
 
 
 /**
- * @title AddressRegistryInterface Interface 
+ * @title RegistryInterface Interface 
  */
-interface AddressRegistryInterface {
-    function isLogicAuth(address logicAddr) external view returns (bool, bool);
-    function updateProxyRecord(address currentOwner, address nextOwner) external;
+interface RegistryInterface {
+    function logic(address logicAddr) external view returns (bool);
+    function record(address currentOwner, address nextOwner) external;
 }
 
 
@@ -37,20 +37,9 @@ contract AddressRecord {
      */
     modifier logicAuth(address logicAddr) {
         require(logicAddr != address(0), "logic-proxy-address-required");
-        AddressRegistryInterface logicProxy = AddressRegistryInterface(registry);
-        (bool isLogicAuth, ) = logicProxy.isLogicAuth(logicAddr);
-        require(isLogicAuth, "logic-not-authorised");
+        bool islogic = RegistryInterface(registry).logic(logicAddr);
+        require(islogic, "logic-not-authorised");
         _;
-    }
-
-    /**
-     * @dev this updates the internal proxy ownership on "registry" contract
-     * @param currentOwner is the current owner
-     * @param nextOwner is the new assigned owner
-     */
-    function setProxyRecordOwner(address currentOwner, address nextOwner) internal {
-        AddressRegistryInterface initCall = AddressRegistryInterface(registry);
-        initCall.updateProxyRecord(currentOwner, nextOwner);
     }
 
 }
@@ -78,7 +67,7 @@ contract UserAuth is AddressRecord {
      * @dev sets new owner
      */
     function setOwner(address nextOwner) public auth {
-        setProxyRecordOwner(owner, nextOwner);
+        RegistryInterface(registry).record(owner, nextOwner);
         owner = nextOwner;
         emit LogSetOwner(nextOwner);
     }

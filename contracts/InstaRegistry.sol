@@ -56,13 +56,11 @@ contract LogicRegistry is AddressRegistry {
      * @return bool logic proxy is authorised by system admin
      * @return bool logic proxy is default proxy 
      */
-    function isLogicAuth(address logicAddr) public view returns (bool, bool) {
-        if (defaultLogicProxies[logicAddr]) {
-            return (true, true);
-        } else if (logicProxies[logicAddr]) {
-            return (true, false);
+    function logic(address logicAddr) public view returns (bool) {
+        if (defaultLogicProxies[logicAddr] || logicProxies[logicAddr]) {
+            return true;
         } else {
-            return (false, false);
+            return false;
         }
     }
 
@@ -104,6 +102,7 @@ contract LogicRegistry is AddressRegistry {
 contract WalletRegistry is LogicRegistry {
     
     event Created(address indexed sender, address indexed owner, address proxy);
+    event LogRecord(address indexed currentOwner, address indexed nextOwner, address proxy);
     
     mapping(address => UserWallet) public proxies;
 
@@ -121,19 +120,21 @@ contract WalletRegistry is LogicRegistry {
     function build(address owner) public returns (UserWallet proxy) {
         require(proxies[owner] == UserWallet(0), "multiple-proxy-per-user-not-allowed");
         proxy = new UserWallet();
+        proxies[address(this)] = proxy; // will be changed via record() in next line execution
         proxy.setOwner(owner);
         emit Created(msg.sender, owner, address(proxy));
-        proxies[owner] = proxy;
     }
 
     /**
      * @dev update the proxy record whenever owner changed on any proxy
      * Throws if msg.sender is not a proxy contract created via this contract
      */
-    function updateProxyRecord(address currentOwner, address nextOwner) public {
+    function record(address currentOwner, address nextOwner) public {
         require(msg.sender == address(proxies[currentOwner]), "invalid-proxy-or-owner");
+        require(proxies[nextOwner] == UserWallet(0), "multiple-proxy-per-user-not-allowed");
         proxies[nextOwner] = proxies[currentOwner];
         proxies[currentOwner] = UserWallet(0);
+        emit LogRecord(currentOwner, nextOwner, address(proxies[nextOwner]));
     }
 
 }
