@@ -105,12 +105,12 @@ contract WalletRegistry is LogicRegistry {
     
     event Created(address indexed sender, address indexed owner, address proxy);
     
-    mapping(address => InstaWallet) public proxies;
+    mapping(address => UserWallet) public proxies;
 
     /**
      * @dev deploys a new proxy instance and sets msg.sender as owner of proxy
      */
-    function build() public returns (InstaWallet proxy) {
+    function build() public returns (UserWallet proxy) {
         proxy = build(msg.sender);
     }
 
@@ -118,9 +118,9 @@ contract WalletRegistry is LogicRegistry {
      * @dev deploys a new proxy instance and sets custom owner of proxy
      * Throws if the owner already have a UserWallet
      */
-    function build(address owner) public returns (InstaWallet proxy) {
-        require(proxies[owner] == InstaWallet(0), "multiple-proxy-per-user-not-allowed");
-        proxy = new InstaWallet();
+    function build(address owner) public returns (UserWallet proxy) {
+        require(proxies[owner] == UserWallet(0), "multiple-proxy-per-user-not-allowed");
+        proxy = new UserWallet();
         proxy.setOwner(owner);
         emit Created(msg.sender, owner, address(proxy));
         proxies[owner] = proxy;
@@ -133,7 +133,7 @@ contract WalletRegistry is LogicRegistry {
     function updateProxyRecord(address currentOwner, address nextOwner) public {
         require(msg.sender == address(proxies[currentOwner]), "invalid-proxy-or-owner");
         proxies[nextOwner] = proxies[currentOwner];
-        proxies[currentOwner] = InstaWallet(0);
+        proxies[currentOwner] = UserWallet(0);
     }
 
 }
