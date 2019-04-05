@@ -129,8 +129,8 @@ contract Helper {
      * @dev setting allowance to kyber for the "user proxy" if required
      * @param token is the token address
      */
-    function setApproval(address token) internal returns (uint) {
-        IERC20(token).approve(getAddressUniFactory(), 2**255);
+    function setApproval(address token, address exchangeAdd) internal returns (uint) {
+        IERC20(token).approve(getExchangeAddress(token), 2**255);
     }
 
     /**
@@ -138,11 +138,32 @@ contract Helper {
      * @param token is the token
      */
     function manageApproval(address token, uint srcAmt) internal returns (uint) {
-        uint tokenAllowance = IERC20(token).allowance(address(this), getAddressUniFactory());
+        address exchangeAdd = getExchangeAddress(token);
+        uint tokenAllowance = IERC20(token).allowance(address(this), exchangeAdd);
         if (srcAmt > tokenAllowance) {
-            setApproval(token);
+            setApproval(token, exchangeAdd);
         }
     }
     
 }
 
+
+contract InstaUniswapPool is Helper {
+
+    function addLiquidity(address token, uint maxDepositedTokens) public payable returns (uint256) {
+        address uniswapExchangeAdd = getExchangeAddress(token);
+        UniswapPool uniswapExchange = UniswapPool(uniswapExchangeAdd);
+        uint ethQty = msg.value;
+        (uint exchangeEthBal, uint exchangeTokenBal) = getBal(token, uniswapExchangeAdd);
+        uint tokenToDeposit = ethQty*(exchangeTokenBal/exchangeEthBal);
+        require(tokenToDeposit < maxDepositedTokens, "Token to deposit is greater than Max token to Deposit");
+        manageApproval(token, tokenToDeposit);
+        uint tokensMinted = uniswapExchange.addLiquidity.value(ethQty)(
+                uint(0),
+                tokenToDeposit,
+                uint(1899063809) // 6th March 2030 GMT // no logic
+            );
+        
+    }
+
+}
