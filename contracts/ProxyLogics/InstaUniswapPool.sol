@@ -153,8 +153,9 @@ contract InstaUniswapPool is Helper {
     function addLiquidity(address token, uint maxDepositedTokens) public payable returns (uint256 tokensMinted) {
         address exchangeAddr = getExchangeAddress(token);
         (uint exchangeEthBal, uint exchangeTokenBal) = getBal(token, exchangeAddr);
-        uint tokenToDeposit = msg.value * (exchangeTokenBal/exchangeEthBal);
+        uint tokenToDeposit = msg.value * exchangeTokenBal / exchangeEthBal + 1;
         require(tokenToDeposit < maxDepositedTokens, "Token to deposit is greater than Max token to Deposit");
+        IERC20(token).transferFrom(msg.sender, address(this), tokenToDeposit);
         manageApproval(token, tokenToDeposit);
         tokensMinted = UniswapPool(exchangeAddr).addLiquidity.value(msg.value)(
             uint(0),
@@ -162,5 +163,6 @@ contract InstaUniswapPool is Helper {
             uint(1899063809) // 6th March 2030 GMT // no logic
         );
     }
+
 
 }
