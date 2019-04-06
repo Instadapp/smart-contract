@@ -149,6 +149,12 @@ contract Helper {
 
 contract InstaUniswapPool is Helper {
 
+    /**
+     * @title to add liquidity in pool
+     * @dev payable function token qty to deposit is decided as per the ETH sent by the user
+     * @param token ERC20 address of Uniswap's pool (eg:- DAI address, MKR address, etc)
+     * @param maxDepositedTokens Max token to be deposited
+     */
     function addLiquidity(address token, uint maxDepositedTokens) public payable returns (uint256 tokensMinted) {
         address exchangeAddr = getExchangeAddress(token);
         (uint exchangeEthBal, uint exchangeTokenBal) = getBal(token, exchangeAddr);
@@ -163,12 +169,20 @@ contract InstaUniswapPool is Helper {
         );
     }
 
+    /**
+     * @title to remove liquidity from pool
+     * @dev ETH and token quantity is decided as per the exchange token qty to burn
+     * @param token ERC20 address of Uniswap's pool (eg:- DAI address, MKR address, etc)
+     * @param amount Uniswap pool's ERC20 token QTY to burn
+     * @param minEth Min ETH user to be returned
+     * @param minTokens Min Tokens to be returned
+     */
     function removeLiquidity(
         address token,
         uint amount,
         uint minEth,
         uint minTokens
-    ) public returns (uint ethReturned, uint tokenReturned) 
+    ) public returns (uint ethReturned, uint tokenReturned)
     {
         address exchangeAddr = getExchangeAddress(token);
         manageApproval(exchangeAddr, amount, exchangeAddr);
