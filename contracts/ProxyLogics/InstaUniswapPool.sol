@@ -49,11 +49,7 @@ contract UniswapPool {
     function name() external returns (bytes32);
     function symbol() external returns (bytes32);
     function decimals() external returns (uint256);
-    function transfer(address _to, uint256 _value) external returns (bool);
-    function transferFrom(address _from, address _to, uint256 value) external returns (bool);
-    function approve(address _spender, uint256 _value) external returns (bool);
-    function allowance(address _owner, address _spender) external view returns (uint256);
-    function balanceOf(address _owner) external view returns (uint256);
+    function totalSupply() external returns (uint256);
 }
 
 
@@ -63,13 +59,6 @@ contract Helper {
     using SafeMath for uint256;
 
     /**
-     * @dev get ethereum address for trade
-     */
-    function getAddressETH() public pure returns (address eth) {
-        eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-    }
-
-    /**
      * @dev get Uniswap Proxy address
      */
     function getAddressUniFactory() public pure returns (address factory) {
@@ -77,7 +66,7 @@ contract Helper {
     }
 
     // Get Uniswap's Exchange address from Factory Contract
-    function getExchangeAddress(address _token) public view returns (address) {
+    function getAddressPool(address _token) public view returns (address) {
         return UniswapFactory(getAddressUniFactory()).getExchange(_token);
     }
 
@@ -102,27 +91,8 @@ contract Helper {
      * @return tknBal - if not eth, erc20 balance
      */
     function getBal(address src, address _owner) public view returns (uint, uint) {
-        uint tknBal;
-        if (src != getAddressETH()) {
-            tknBal = IERC20(src).balanceOf(address(_owner));
-        }
+        uint tknBal = IERC20(src).balanceOf(address(_owner));
         return (address(_owner).balance, tknBal);
-    }
-
-    /**
-     * @dev fetching token from the trader if ERC20
-     * @param trader is the trader
-     * @param src is the token which is being sold
-     * @param srcAmt is the amount of token being sold
-     */
-    function getToken(address trader, address src, uint srcAmt) internal returns (uint ethQty) {
-        if (src == getAddressETH()) {
-            require(msg.value == srcAmt, "not-enough-src");
-            ethQty = srcAmt;
-        } else {
-            manageApproval(src, srcAmt);
-            IERC20(src).transferFrom(trader, address(this), srcAmt);
-        }
     }
 
     /**
@@ -150,19 +120,50 @@ contract Helper {
 contract InstaUniswapPool is Helper {
 
     /**
+     * @title Uniswap's pool basic details
+     * @param token token address to get pool. Eg:- DAI address, MKR address, etc
+     * @param poolAddress Uniswap pool's address
+     * @param name name of pool token
+     * @param symbol symbol of pool token
+     * @param decimals decimals of pool token
+     * @param totalSupply total supply of pool token
+     * @param ethReserve Total ETH balance of uniswap's pool
+     * @param tokenReserve Total Token balance of uniswap's pool
+     */
+    function poolDetails(
+        address token
+    ) public view returns (
+        address poolAddress,
+        bytes32 name,
+        bytes32 symbol,
+        uint256 decimals,
+        uint totalSupply,
+        uint ethReserve,
+        uint tokenReserve
+    ) 
+    {
+        poolAddress = getAddressPool(token);
+        name = UniswapPool(poolAddress).name();
+        symbol = UniswapPool(poolAddress).symbol();
+        decimals = UniswapPool(poolAddress).decimals();
+        totalSupply = UniswapPool(poolAddress).totalSupply();
+        (ethReserve, tokenReserve) = getBal(token, poolAddress);
+    }
+
+    /**
      * @title to add liquidity in pool
      * @dev payable function token qty to deposit is decided as per the ETH sent by the user
      * @param token ERC20 address of Uniswap's pool (eg:- DAI address, MKR address, etc)
      * @param maxDepositedTokens Max token to be deposited
      */
     function addLiquidity(address token, uint maxDepositedTokens) public payable returns (uint256 tokensMinted) {
-        address exchangeAddr = getExchangeAddress(token);
-        (uint exchangeEthBal, uint exchangeTokenBal) = getBal(token, exchangeAddr);
-        uint tokenToDeposit = msg.value * exchangeTokenBal / exchangeEthBal + 1;
+        address poolAddr = getAddressPool(token);
+        (uint ethReserve, uint tokenReserve) = getBal(token, poolAddr);
+        uint tokenToDeposit = msg.value * tokenReserve / ethReserve + 1;
         require(tokenToDeposit < maxDepositedTokens, "Token to deposit is greater than Max token to Deposit");
         IERC20(token).transferFrom(msg.sender, address(this), tokenToDeposit);
-        manageApproval(token, tokenToDeposit, exchangeAddr);
-        tokensMinted = UniswapPool(exchangeAddr).addLiquidity.value(msg.value)(
+        manageApproval(token, tokenToDeposit, poolAddr);
+        tokensMinted = UniswapPool(poolAddr).addLiquidity.value(msg.value)(
             uint(0),
             tokenToDeposit,
             uint(1899063809) // 6th March 2030 GMT // no logic
@@ -184,9 +185,9 @@ contract InstaUniswapPool is Helper {
         uint minTokens
     ) public returns (uint ethReturned, uint tokenReturned)
     {
-        address exchangeAddr = getExchangeAddress(token);
-        manageApproval(exchangeAddr, amount, exchangeAddr);
-        (ethReturned, tokenReturned) = UniswapPool(exchangeAddr).removeLiquidity(
+        address poolAddr = getAddressPool(token);
+        manageApproval(poolAddr, amount, poolAddr);
+        (ethReturned, tokenReturned) = UniswapPool(poolAddr).removeLiquidity(
             amount,
             minEth,
             minTokens,
