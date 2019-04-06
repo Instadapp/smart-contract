@@ -1,4 +1,4 @@
-const { assertRevert } = require('./helpers/general')
+const { shouldFail } = require('openzeppelin-test-helpers')
 
 const Ownable = artifacts.require('Ownable')
 
@@ -26,6 +26,9 @@ contract('Ownable', accounts => {
     const other = accounts[2]
     const owner = await ownable.owner.call()
     assert.isTrue(owner !== other)
-    await assertRevert(ownable.transferOwnership(other, { from: other }))
+    await shouldFail.reverting.withMessage(
+      ownable.transferOwnership(other, { from: other }),
+      "Only owner accessible"
+    );
   })
 })

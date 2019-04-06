@@ -1,25 +1,7 @@
 pragma solidity ^0.5.0;
 
-
-library SafeMath {
-    function mul(uint256 a, uint256 b) internal pure returns (uint256) {
-        if (a == 0) {
-            return 0;
-        }
-        uint256 c = a * b;
-        require(c / a == b, "Assertion Failed");
-        return c;
-    }
-}
-
-
-contract IERC20 {
-    function balanceOf(address who) public view returns (uint256);
-    function allowance(address _owner, address _spender) public view returns (uint256);
-    function transfer(address to, uint256 value) public returns (bool);
-    function approve(address spender, uint256 value) public returns (bool);
-    function transferFrom(address from, address to, uint256 value) public returns (bool);
-}
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 
 
 contract KyberInterface {

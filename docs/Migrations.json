@@ -1,0 +1,103 @@
+{
+	"schemaVersion": "2.0.0",
+	"contractName": "Migrations",
+	"compilerOutput": {
+		"abi": [
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "_newAddress",
+						"type": "address"
+					}
+				],
+				"name": "upgrade",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "last_completed_migration",
+				"outputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "owner",
+				"outputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "completed",
+						"type": "uint256"
+					}
+				],
+				"name": "setCompleted",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "constructor"
+			}
+		],
+		"devdoc": {
+			"methods": {}
+		}
+	},
+	"sources": {
+		"Migrations.sol": {
+			"id": 2
+		}
+	},
+	"sourceCodes": {
+		"Migrations.sol": "pragma solidity ^0.5.2;\n\n/* solium-disable mixedcase */\ncontract Migrations {\n    address public owner;\n    uint public last_completed_migration;\n\n    modifier restricted() {\n        if (msg.sender == owner) _;\n    }\n\n    constructor() public {\n        owner = msg.sender;\n    }\n\n    function setCompleted(uint completed) public restricted {\n        last_completed_migration = completed;\n    }\n\n    function upgrade(address _newAddress) public restricted {\n        Migrations upgraded = Migrations(_newAddress);\n        upgraded.setCompleted(last_completed_migration);\n    }\n}\n\n/* solium-enable mixedcase */\n\n"
+	},
+	"sourceTreeHashHex": "0x0f2d82013d4aed92814a1528a406877135ec86becc13d0656d0c375d2cee8715",
+	"compiler": {
+		"name": "solc",
+		"version": "soljson-v0.5.7+commit.6da8b019.js",
+		"settings": {
+			"optimizer": {
+				"enabled": false
+			},
+			"outputSelection": {
+				"*": {
+					"*": [
+						"abi",
+						"devdoc"
+					]
+				}
+			},
+			"remappings": [
+				"openzeppelin-solidity=/Users/ravindra/code/contract-v2/node_modules/openzeppelin-solidity"
+			]
+		}
+	},
+	"networks": {}
+}

@@ -1,26 +1,7 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.2;
 
-
-library SafeMath {
-    
-    function mul(uint256 a, uint256 b) internal pure returns (uint256) {
-        if (a == 0) {
-            return 0;
-        }
-        uint256 c = a * b;
-        require(c / a == b, "Assertion Failed");
-        return c;
-    }
-
-}
-
-interface IERC20 {
-    function balanceOf(address who) external view returns (uint256);
-    function allowance(address _owner, address _spender) external view returns (uint256);
-    function transfer(address to, uint256 value) external returns (bool);
-    function approve(address spender, uint256 value) external returns (bool);
-    function transferFrom(address from, address to, uint256 value) external returns (bool);
-}
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 
 interface AddressRegistry {
     function getAddr(string calldata name) external view returns (address);
@@ -28,11 +9,18 @@ interface AddressRegistry {
 
 interface Kyber {
     // Kyber's trade function
-    function trade(address src, uint srcAmount, address dest, address destAddress, uint maxDestAmount, uint minConversionRate, address walletId) external payable returns (uint);
+    function trade(
+        address src,
+        uint srcAmount,
+        address dest,
+        address destAddress,
+        uint maxDestAmount,
+        uint minConversionRate,
+        address walletId
+    ) external payable returns (uint);
     // Kyber's Get expected Rate function
     function getExpectedRate(address src, address dest, uint srcQty) external view returns (uint, uint);
 }
-
 
 contract Registry {
     address public addressRegistry;
@@ -47,16 +35,7 @@ contract Registry {
 }
 
 contract helper is Registry {
-
-    function _getToken(
-        address trader,
-        address src,
-        uint srcAmt,
-        address eth
-    )
-    internal
-    returns (uint ethQty)
-    {
+    function _getToken(address trader, address src, uint srcAmt, address eth) internal returns (uint ethQty) {
         if (src == eth) {
             require(msg.value == srcAmt, "Invalid Operation");
             ethQty = srcAmt;
@@ -71,7 +50,7 @@ contract helper is Registry {
     function _approveKyber(address token) internal returns (bool) {
         address kyberProxy = _getAddress("kyber");
         IERC20 tokenFunctions = IERC20(token);
-        return tokenFunctions.approve(kyberProxy, uint(0-1));
+        return tokenFunctions.approve(kyberProxy, uint(0 - 1));
     }
 
     // Check Allowance to Kyber Proxy contract
@@ -92,9 +71,7 @@ contract helper is Registry {
     }
 }
 
-
 contract Trade is helper {
-    
     using SafeMath for uint;
 
     event KyberTrade(address src, uint srcAmt, address dest, uint destAmt, address beneficiary, uint minConversionRate, address affiliate);
@@ -104,9 +81,8 @@ contract Trade is helper {
         return kyberFunctions.getExpectedRate(src, dest, srcAmt);
     }
 
-
     /**
-     * @title Kyber's trade when token to sell Amount fixed
+     * @dev Kyber's trade when token to sell Amount fixed
      * @param src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
      * @param srcAmt - amount of token for sell
      * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
@@ -119,12 +95,7 @@ contract Trade is helper {
         uint minDestAmt // minimum slippage rate
     ) public payable returns (uint tokensBought) {
         address eth = _getAddress("eth");
-        uint ethQty = _getToken(
-            msg.sender,
-            src,
-            srcAmt,
-            eth
-        );
+        uint ethQty = _getToken(msg.sender, src, srcAmt, eth);
 
         if (src != eth) {
             _allowanceApproveKyber(src);
@@ -132,23 +103,14 @@ contract Trade is helper {
 
         // Interacting with Kyber Proxy Contract
         Kyber kyberFunctions = Kyber(_getAddress("kyber"));
-        tokensBought = kyberFunctions.trade.value(ethQty)(
-            src,
-            srcAmt,
-            dest,
-            msg.sender,
-            uint(0-1),
-            minDestAmt,
-            _getAddress("admin")
-        );
+        tokensBought = kyberFunctions.trade.value(ethQty)(src, srcAmt, dest, msg.sender, uint(0 - 1), minDestAmt, _getAddress("admin"));
 
         emit KyberTrade(src, srcAmt, dest, tokensBought, msg.sender, minDestAmt, _getAddress("admin"));
 
     }
 
-
     /**
-     * @title Kyber's trade when token to sell Amount fixed
+     * @dev Kyber's trade when token to sell Amount fixed
      * @param src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
      * @param maxSrcAmt - max amount of token for sell (slippage)
      * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
@@ -160,14 +122,8 @@ contract Trade is helper {
         address dest, // token to buy
         uint destAmt // minimum slippage rate
     ) public payable returns (uint tokensBought) {
-
         address eth = _getAddress("eth");
-        uint ethQty = _getToken(
-            msg.sender,
-            src,
-            maxSrcAmt,
-            eth
-        );
+        uint ethQty = _getToken(msg.sender, src, maxSrcAmt, eth);
 
         if (src != eth) {
             _allowanceApproveKyber(src);
@@ -175,15 +131,7 @@ contract Trade is helper {
 
         // Interacting with Kyber Proxy Contract
         Kyber kyberFunctions = Kyber(_getAddress("kyber"));
-        tokensBought = kyberFunctions.trade.value(ethQty)(
-            src,
-            maxSrcAmt,
-            dest,
-            msg.sender,
-            destAmt,
-            destAmt - 1,
-            _getAddress("admin")
-        );
+        tokensBought = kyberFunctions.trade.value(ethQty)(src, maxSrcAmt, dest, msg.sender, destAmt, destAmt - 1, _getAddress("admin"));
 
         // maxDestAmt usecase implementated
         if (src == eth && address(this).balance > 0) {
@@ -205,11 +153,9 @@ contract Trade is helper {
 
 
 contract InstaKyber is Trade {
-
     constructor(address rAddr) public {
         addressRegistry = rAddr;
     }
 
     function() external payable {}
-
 }

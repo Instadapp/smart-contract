@@ -1,0 +1,326 @@
+{
+	"schemaVersion": "2.0.0",
+	"contractName": "Trade",
+	"compilerOutput": {
+		"abi": [
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "src",
+						"type": "address"
+					},
+					{
+						"name": "srcAmt",
+						"type": "uint256"
+					},
+					{
+						"name": "dest",
+						"type": "address"
+					},
+					{
+						"name": "minDestAmt",
+						"type": "uint256"
+					},
+					{
+						"name": "dexNum",
+						"type": "uint256"
+					}
+				],
+				"name": "tradeFromSrc",
+				"outputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"payable": true,
+				"stateMutability": "payable",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "src",
+						"type": "address"
+					},
+					{
+						"name": "maxSrcAmt",
+						"type": "uint256"
+					},
+					{
+						"name": "dest",
+						"type": "address"
+					},
+					{
+						"name": "destAmt",
+						"type": "uint256"
+					},
+					{
+						"name": "deadline",
+						"type": "uint256"
+					}
+				],
+				"name": "tradeDestUniswap",
+				"outputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"payable": true,
+				"stateMutability": "payable",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "src",
+						"type": "address"
+					},
+					{
+						"name": "dest",
+						"type": "address"
+					},
+					{
+						"name": "srcAmt",
+						"type": "uint256"
+					}
+				],
+				"name": "getRateFromSrc",
+				"outputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					},
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "src",
+						"type": "address"
+					},
+					{
+						"name": "maxSrcAmt",
+						"type": "uint256"
+					},
+					{
+						"name": "dest",
+						"type": "address"
+					},
+					{
+						"name": "destAmt",
+						"type": "uint256"
+					},
+					{
+						"name": "dexNum",
+						"type": "uint256"
+					}
+				],
+				"name": "tradeFromDest",
+				"outputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"payable": true,
+				"stateMutability": "payable",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "src",
+						"type": "address"
+					},
+					{
+						"name": "srcAmt",
+						"type": "uint256"
+					},
+					{
+						"name": "dest",
+						"type": "address"
+					},
+					{
+						"name": "minDestAmt",
+						"type": "uint256"
+					},
+					{
+						"name": "deadline",
+						"type": "uint256"
+					}
+				],
+				"name": "tradeSrcUniswap",
+				"outputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"payable": true,
+				"stateMutability": "payable",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "src",
+						"type": "address"
+					},
+					{
+						"name": "srcAmt",
+						"type": "uint256"
+					},
+					{
+						"name": "dest",
+						"type": "address"
+					},
+					{
+						"name": "minDestAmt",
+						"type": "uint256"
+					}
+				],
+				"name": "tradeSrcKyber",
+				"outputs": [
+					{
+						"name": "tokensBought",
+						"type": "uint256"
+					}
+				],
+				"payable": true,
+				"stateMutability": "payable",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "src",
+						"type": "address"
+					},
+					{
+						"name": "maxSrcAmt",
+						"type": "uint256"
+					},
+					{
+						"name": "dest",
+						"type": "address"
+					},
+					{
+						"name": "destAmt",
+						"type": "uint256"
+					}
+				],
+				"name": "tradeDestKyber",
+				"outputs": [
+					{
+						"name": "tokensBought",
+						"type": "uint256"
+					}
+				],
+				"payable": true,
+				"stateMutability": "payable",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "addressRegistry",
+				"outputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			}
+		],
+		"devdoc": {
+			"methods": {
+				"tradeDestUniswap(address,uint256,address,uint256,uint256)": {
+					"details": "Uniswap's trade when token to buy Amount fixed",
+					"params": {
+						"deadline": "- time for this transaction to be valid",
+						"dest": "- Token address to buy (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")",
+						"destAmt": "- amount of token to buy",
+						"maxSrcAmt": "- max amount of token for sell (slippage)",
+						"src": "- Token address to sell (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")"
+					}
+				},
+				"tradeSrcKyber(address,uint256,address,uint256)": {
+					"details": "Kyber's trade when token to sell Amount fixed",
+					"params": {
+						"dest": "- Token address to buy (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")",
+						"minDestAmt": "- min amount of token to buy (slippage)",
+						"src": "- Token address to sell (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")",
+						"srcAmt": "- amount of token for sell"
+					}
+				},
+				"tradeSrcUniswap(address,uint256,address,uint256,uint256)": {
+					"details": "Uniswap's trade when token to sell Amount fixed",
+					"params": {
+						"deadline": "- time for this transaction to be valid",
+						"dest": "- Token address to buy (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")",
+						"minDestAmt": "- min amount of token to buy (slippage)",
+						"src": "- Token address to sell (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")",
+						"srcAmt": "- amount of token for sell"
+					}
+				}
+			}
+		}
+	},
+	"sources": {
+		"Bin/Trade.sol": {
+			"id": 1
+		},
+		"openzeppelin-solidity/contracts/math/SafeMath.sol": {
+			"id": 8
+		},
+		"openzeppelin-solidity/contracts/token/ERC20/IERC20.sol": {
+			"id": 9
+		}
+	},
+	"sourceCodes": {
+		"Bin/Trade.sol": "pragma solidity ^0.5.2;\n\nimport \"openzeppelin-solidity/contracts/math/SafeMath.sol\";\nimport \"openzeppelin-solidity/contracts/token/ERC20/IERC20.sol\";\n\ninterface AddressRegistry {\n    function getAddr(string calldata name) external view returns (address);\n}\n\n// Kyber's contract Interface\ninterface KyberExchange {\n    // Kyber's trade function\n    function trade(\n        address src,\n        uint srcAmount,\n        address dest,\n        address destAddress,\n        uint maxDestAmount,\n        uint minConversionRate,\n        address walletId\n    ) external payable returns (uint);\n    // Kyber's Get expected Rate function\n    function getExpectedRate(address src, address dest, uint srcQty) external view returns (uint, uint);\n}\n\n// Uniswap's factory Interface\ninterface UniswapFactory {\n    // get exchange from token's address\n    function getExchange(address token) external view returns (address exchange);\n}\n\n// Uniswap's exchange Interface\ninterface UniswapExchange {\n    // Get Prices\n    function getEthToTokenInputPrice(uint256 eth_sold) external view returns (uint256 tokens_bought);\n    function getEthToTokenOutputPrice(uint256 tokens_bought) external view returns (uint256 eth_sold);\n    function getTokenToEthInputPrice(uint256 tokens_sold) external view returns (uint256 eth_bought);\n    function getTokenToEthOutputPrice(uint256 eth_bought) external view returns (uint256 tokens_sold);\n    // Trade ETH to ERC20\n    function ethToTokenTransferInput(uint256 min_tokens, uint256 deadline, address recipient)\n        external\n        payable\n        returns (uint256 tokens_bought);\n    function ethToTokenTransferOutput(uint256 tokens_bought, uint256 deadline, address recipient)\n        external\n        payable\n        returns (uint256 eth_sold);\n    // Trade ERC20 to ETH\n    function tokenToEthTransferInput(uint256 tokens_sold, uint256 min_eth, uint256 deadline, address recipient)\n        external\n        returns (uint256 eth_bought);\n    function tokenToEthTransferOutput(uint256 eth_bought, uint256 max_tokens, uint256 deadline, address recipient)\n        external\n        returns (uint256 tokens_sold);\n    // Trade ERC20 to ERC20\n    function tokenToTokenTransferInput(\n        uint256 tokens_sold,\n        uint256 min_tokens_bought,\n        uint256 min_eth_bought,\n        uint256 deadline,\n        address recipient,\n        address token_addr\n    ) external returns (uint256 tokens_bought);\n    function tokenToTokenTransferOutput(\n        uint256 tokens_bought,\n        uint256 max_tokens_sold,\n        uint256 max_eth_sold,\n        uint256 deadline,\n        address recipient,\n        address token_addr\n    ) external returns (uint256 tokens_sold);\n}\n\ncontract Registry {\n    address public addressRegistry;\n    modifier onlyAdmin() {\n        require(msg.sender == _getAddress(\"admin\"), \"Permission Denied\");\n        _;\n    }\n    function _getAddress(string memory name) internal view returns (address) {\n        AddressRegistry addrReg = AddressRegistry(addressRegistry);\n        return addrReg.getAddr(name);\n    }\n}\n\n// common stuffs in Kyber and Uniswap's trade\ncontract CommonStuffs {\n    using SafeMath for uint;\n\n    // Check required ETH Quantity to execute code\n    function _getToken(address trader, address src, uint srcAmt, address eth) internal returns (uint ethQty) {\n        if (src == eth) {\n            require(msg.value == srcAmt, \"Invalid Operation\");\n            ethQty = srcAmt;\n        } else {\n            IERC20 tokenFunctions = IERC20(src);\n            tokenFunctions.transferFrom(trader, address(this), srcAmt);\n            ethQty = 0;\n        }\n    }\n\n    function _approveDexes(address token, address dexToApprove) internal returns (bool) {\n        IERC20 tokenFunctions = IERC20(token);\n        return tokenFunctions.approve(dexToApprove, uint(0 - 1));\n    }\n\n    function _allowance(address token, address spender) internal view returns (uint) {\n        IERC20 tokenFunctions = IERC20(token);\n        return tokenFunctions.allowance(address(this), spender);\n    }\n\n}\n\n// Kyber's dex functions\ncontract Kyber is Registry, CommonStuffs {\n    function getExpectedRateKyber(address src, address dest, uint srcAmt) internal view returns (uint) {\n        KyberExchange kyberFunctions = KyberExchange(_getAddress(\"kyber\"));\n        uint expectedRate;\n        (expectedRate, ) = kyberFunctions.getExpectedRate(src, dest, srcAmt);\n        uint kyberRate = expectedRate.mul(srcAmt);\n        return kyberRate;\n    }\n\n    // approve to Kyber Proxy contract\n    function _approveKyber(address token) internal returns (bool) {\n        address kyberProxy = _getAddress(\"kyber\");\n        return _approveDexes(token, kyberProxy);\n    }\n\n    // Check Allowance to Kyber Proxy contract\n    function _allowanceKyber(address token) internal view returns (uint) {\n        address kyberProxy = _getAddress(\"kyber\");\n        return _allowance(token, kyberProxy);\n    }\n\n    function _allowanceApproveKyber(address token) internal returns (bool) {\n        uint allowanceGiven = _allowanceKyber(token);\n        if (allowanceGiven == 0) {\n            return _approveKyber(token);\n        } else {\n            return true;\n        }\n    }\n\n    /**\n     * @dev Kyber's trade when token to sell Amount fixed\n     * @param src - Token address to sell (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param srcAmt - amount of token for sell\n     * @param dest - Token address to buy (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param minDestAmt - min amount of token to buy (slippage)\n    */\n    function tradeSrcKyber(\n        address src, // token to sell\n        uint srcAmt, // amount of token for sell\n        address dest, // token to buy\n        uint minDestAmt // minimum slippage rate\n    ) public payable returns (uint tokensBought) {\n        address eth = _getAddress(\"eth\");\n        uint ethQty = _getToken(msg.sender, src, srcAmt, eth);\n\n        // Interacting with Kyber Proxy Contract\n        KyberExchange kyberFunctions = KyberExchange(_getAddress(\"kyber\"));\n        tokensBought = kyberFunctions.trade.value(ethQty)(src, srcAmt, dest, msg.sender, uint(0 - 1), minDestAmt, _getAddress(\"admin\"));\n\n    }\n\n    function tradeDestKyber(\n        address src, // token to sell\n        uint maxSrcAmt, // amount of token for sell\n        address dest, // token to buy\n        uint destAmt // minimum slippage rate\n    ) public payable returns (uint tokensBought) {\n        address eth = _getAddress(\"eth\");\n        uint ethQty = _getToken(msg.sender, src, maxSrcAmt, eth);\n\n        // Interacting with Kyber Proxy Contract\n        KyberExchange kyberFunctions = KyberExchange(_getAddress(\"kyber\"));\n        tokensBought = kyberFunctions.trade.value(ethQty)(src, maxSrcAmt, dest, msg.sender, destAmt, destAmt, _getAddress(\"admin\"));\n\n        // maxDestAmt usecase implementated\n        if (src == eth && address(this).balance > 0) {\n            msg.sender.transfer(address(this).balance);\n        } else if (src != eth) {\n            // as there is no balanceOf of eth\n            IERC20 srcTkn = IERC20(src);\n            uint srcBal = srcTkn.balanceOf(address(this));\n            if (srcBal > 0) {\n                srcTkn.transfer(msg.sender, srcBal);\n            }\n        }\n\n    }\n\n}\n\n// Uinswap's dex functions\ncontract Uniswap is Registry, CommonStuffs {\n    // Get Uniswap's Exchange address from Factory Contract\n    function _getExchangeAddress(address _token) internal view returns (address) {\n        UniswapFactory uniswapMain = UniswapFactory(_getAddress(\"uniswap\"));\n        return uniswapMain.getExchange(_token);\n    }\n\n    // Approve Uniswap's Exchanges\n    function _approveUniswapExchange(address token) internal returns (bool) {\n        address uniswapExchange = _getExchangeAddress(token);\n        return _approveDexes(token, uniswapExchange);\n    }\n\n    // Check Allowance to Uniswap's Exchanges\n    function _allowanceUniswapExchange(address token) internal view returns (uint) {\n        address uniswapExchange = _getExchangeAddress(token);\n        return _allowance(token, uniswapExchange);\n    }\n\n    function _allowanceApproveUniswap(address token) internal returns (bool) {\n        uint allowanceGiven = _allowanceUniswapExchange(token);\n        if (allowanceGiven == 0) {\n            return _approveUniswapExchange(token);\n        } else {\n            return true;\n        }\n    }\n\n    /**\n     * @dev Uniswap's get expected rate from source\n     * @param src - Token address to sell (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param dest - Token address to buy (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param srcAmt - source token amount\n    */\n    function getExpectedRateSrcUniswap(address src, address dest, uint srcAmt) internal view returns (uint256) {\n        address eth = _getAddress(\"eth\");\n        if (src == eth) {\n            // define uniswap exchange with dest address\n            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));\n            return exchangeContract.getEthToTokenInputPrice(srcAmt);\n        } else if (dest == eth) {\n            // define uniswap exchange with src address\n            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));\n            return exchangeContract.getTokenToEthInputPrice(srcAmt);\n        } else {\n            UniswapExchange exchangeContractSrc = UniswapExchange(_getExchangeAddress(src));\n            UniswapExchange exchangeContractDest = UniswapExchange(_getExchangeAddress(dest));\n            uint ethQty = exchangeContractSrc.getTokenToEthInputPrice(srcAmt);\n            return exchangeContractDest.getEthToTokenInputPrice(ethQty);\n        }\n    }\n\n    /**\n     * @dev Uniswap's get expected rate from dest\n     * @param src - Token address to sell (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param dest - Token address to buy (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param destAmt - dest token amount\n    */\n    function getExpectedRateDestUniswap(address src, address dest, uint destAmt) internal view returns (uint256) {\n        address eth = _getAddress(\"eth\");\n        if (src == eth) {\n            // define uniswap exchange with dest address\n            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));\n            return exchangeContract.getEthToTokenOutputPrice(destAmt);\n        } else if (dest == eth) {\n            // define uniswap exchange with src address\n            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));\n            return exchangeContract.getTokenToEthOutputPrice(destAmt);\n        } else {\n            UniswapExchange exchangeContractSrc = UniswapExchange(_getExchangeAddress(src));\n            UniswapExchange exchangeContractDest = UniswapExchange(_getExchangeAddress(dest));\n            uint ethQty = exchangeContractDest.getTokenToEthInputPrice(destAmt);\n            return exchangeContractSrc.getEthToTokenInputPrice(ethQty);\n        }\n    }\n\n    /**\n     * @dev Uniswap's trade when token to sell Amount fixed\n     * @param src - Token address to sell (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param srcAmt - amount of token for sell\n     * @param dest - Token address to buy (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param minDestAmt - min amount of token to buy (slippage)\n     * @param deadline - time for this transaction to be valid\n    */\n    function tradeSrcUniswap(address src, uint srcAmt, address dest, uint minDestAmt, uint deadline) public payable returns (uint) {\n        address eth = _getAddress(\"eth\");\n        uint ethQty = _getToken(msg.sender, src, srcAmt, eth);\n\n        if (src == eth) {\n            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));\n            uint tokensBought = exchangeContract.ethToTokenTransferInput.value(ethQty)(minDestAmt, deadline, msg.sender);\n            return tokensBought;\n        } else if (dest == eth) {\n            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));\n            uint ethBought = exchangeContract.tokenToEthTransferInput(srcAmt, minDestAmt, deadline, msg.sender);\n            return ethBought;\n        } else {\n            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));\n            uint tokensBought = exchangeContract.tokenToTokenTransferInput(srcAmt, minDestAmt, uint(0), deadline, msg.sender, dest);\n            return tokensBought;\n        }\n    }\n\n    /**\n     * @dev Uniswap's trade when token to buy Amount fixed\n     * @param src - Token address to sell (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param maxSrcAmt - max amount of token for sell (slippage)\n     * @param dest - Token address to buy (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param destAmt - amount of token to buy\n     * @param deadline - time for this transaction to be valid\n    */\n    function tradeDestUniswap(address src, uint maxSrcAmt, address dest, uint destAmt, uint deadline) public payable returns (uint) {\n        address eth = _getAddress(\"eth\");\n        uint ethQty = _getToken(msg.sender, src, maxSrcAmt, eth);\n\n        if (src == eth) {\n            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));\n            uint ethSold = exchangeContract.ethToTokenTransferOutput.value(ethQty)(destAmt, deadline, msg.sender);\n            if (ethSold < ethQty) {\n                uint srcToReturn = ethQty - ethSold;\n                msg.sender.transfer(srcToReturn);\n            }\n            return ethSold;\n        } else if (dest == eth) {\n            UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(src));\n            uint tokensSold = exchangeContract.tokenToEthTransferOutput(destAmt, maxSrcAmt, deadline, msg.sender);\n            if (tokensSold < maxSrcAmt) {\n                IERC20 srcTkn = IERC20(src);\n                uint srcToReturn = maxSrcAmt - tokensSold;\n                srcTkn.transfer(msg.sender, srcToReturn);\n            }\n            return tokensSold;\n        } else {\n            UniswapExchange exchangeContractSrc = UniswapExchange(_getExchangeAddress(src));\n            uint tokensSold = exchangeContractSrc.tokenToTokenTransferOutput(destAmt, maxSrcAmt, uint(0 - 1), deadline, msg.sender, dest);\n            if (tokensSold < maxSrcAmt) {\n                IERC20 srcTkn = IERC20(src);\n                uint srcToReturn = maxSrcAmt - tokensSold;\n                srcTkn.transfer(msg.sender, srcToReturn);\n            }\n            return tokensSold;\n        }\n\n    }\n\n}\n\n\ncontract Trade is Kyber, Uniswap {\n    function getRateFromSrc(address src, address dest, uint srcAmt) public view returns (uint, uint) {\n        uint uniswapRate = getExpectedRateSrcUniswap(src, dest, srcAmt);\n        uint kyberRate = getExpectedRateKyber(src, dest, srcAmt);\n        if (uniswapRate > kyberRate) {\n            return (uniswapRate, 1);\n        } else {\n            return (kyberRate, 2);\n        }\n    }\n\n    function tradeFromSrc(address src, uint srcAmt, address dest, uint minDestAmt, uint dexNum) public payable returns (uint) {\n        address eth = _getAddress(\"eth\");\n        if (dexNum == 1) {\n            if (src == eth) {\n                return tradeSrcUniswap(src, srcAmt, dest, minDestAmt, now + 10000000);\n            } else {\n                _allowanceApproveUniswap(src);\n                return tradeSrcUniswap(src, srcAmt, dest, minDestAmt, now + 10000000);\n            }\n        } else {\n            if (src == eth) {\n                return tradeSrcKyber(src, srcAmt, dest, minDestAmt);\n            } else {\n                _allowanceApproveKyber(src);\n                return tradeSrcKyber(src, srcAmt, dest, minDestAmt);\n            }\n        }\n    }\n\n    function tradeFromDest(address src, uint maxSrcAmt, address dest, uint destAmt, uint dexNum) public payable returns (uint) {\n        address eth = _getAddress(\"eth\");\n        if (dexNum == 1) {\n            if (src == eth) {\n                return tradeDestUniswap(src, maxSrcAmt, dest, destAmt, now + 10000000);\n            } else {\n                _allowanceApproveUniswap(src);\n                return tradeDestUniswap(src, maxSrcAmt, dest, destAmt, now + 10000000);\n            }\n        } else {\n            if (src == eth) {\n                return tradeDestKyber(src, maxSrcAmt, dest, destAmt);\n            } else {\n                _allowanceApproveKyber(src);\n                return tradeDestKyber(src, maxSrcAmt, dest, destAmt);\n            }\n        }\n    }\n}",
+		"openzeppelin-solidity/contracts/math/SafeMath.sol": "pragma solidity ^0.5.2;\n\n/**\n * @title SafeMath\n * @dev Unsigned math operations with safety checks that revert on error\n */\nlibrary SafeMath {\n    /**\n     * @dev Multiplies two unsigned integers, reverts on overflow.\n     */\n    function mul(uint256 a, uint256 b) internal pure returns (uint256) {\n        // Gas optimization: this is cheaper than requiring 'a' not being zero, but the\n        // benefit is lost if 'b' is also tested.\n        // See: https://github.com/OpenZeppelin/openzeppelin-solidity/pull/522\n        if (a == 0) {\n            return 0;\n        }\n\n        uint256 c = a * b;\n        require(c / a == b);\n\n        return c;\n    }\n\n    /**\n     * @dev Integer division of two unsigned integers truncating the quotient, reverts on division by zero.\n     */\n    function div(uint256 a, uint256 b) internal pure returns (uint256) {\n        // Solidity only automatically asserts when dividing by 0\n        require(b > 0);\n        uint256 c = a / b;\n        // assert(a == b * c + a % b); // There is no case in which this doesn't hold\n\n        return c;\n    }\n\n    /**\n     * @dev Subtracts two unsigned integers, reverts on overflow (i.e. if subtrahend is greater than minuend).\n     */\n    function sub(uint256 a, uint256 b) internal pure returns (uint256) {\n        require(b <= a);\n        uint256 c = a - b;\n\n        return c;\n    }\n\n    /**\n     * @dev Adds two unsigned integers, reverts on overflow.\n     */\n    function add(uint256 a, uint256 b) internal pure returns (uint256) {\n        uint256 c = a + b;\n        require(c >= a);\n\n        return c;\n    }\n\n    /**\n     * @dev Divides two unsigned integers and returns the remainder (unsigned integer modulo),\n     * reverts when dividing by zero.\n     */\n    function mod(uint256 a, uint256 b) internal pure returns (uint256) {\n        require(b != 0);\n        return a % b;\n    }\n}\n",
+		"openzeppelin-solidity/contracts/token/ERC20/IERC20.sol": "pragma solidity ^0.5.2;\n\n/**\n * @title ERC20 interface\n * @dev see https://eips.ethereum.org/EIPS/eip-20\n */\ninterface IERC20 {\n    function transfer(address to, uint256 value) external returns (bool);\n\n    function approve(address spender, uint256 value) external returns (bool);\n\n    function transferFrom(address from, address to, uint256 value) external returns (bool);\n\n    function totalSupply() external view returns (uint256);\n\n    function balanceOf(address who) external view returns (uint256);\n\n    function allowance(address owner, address spender) external view returns (uint256);\n\n    event Transfer(address indexed from, address indexed to, uint256 value);\n\n    event Approval(address indexed owner, address indexed spender, uint256 value);\n}\n"
+	},
+	"sourceTreeHashHex": "0xbee8534ae72caa346db64d4228c956f28b5b6e5bde284b56c91ae92e3a6fa1e2",
+	"compiler": {
+		"name": "solc",
+		"version": "soljson-v0.5.7+commit.6da8b019.js",
+		"settings": {
+			"optimizer": {
+				"enabled": false
+			},
+			"outputSelection": {
+				"*": {
+					"*": [
+						"abi",
+						"devdoc"
+					]
+				}
+			},
+			"remappings": [
+				"openzeppelin-solidity=/Users/ravindra/code/contract-v2/node_modules/openzeppelin-solidity"
+			]
+		}
+	},
+	"networks": {}
+}

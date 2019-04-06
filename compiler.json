@@ -1,0 +1,13 @@
+{
+    "contractsDir": "contracts",
+    "artifactsDir": "docs",
+    "contracts": "*",
+    "compilerSettings": {
+        "optimizer": { "enabled": false },
+        "outputSelection": {
+            "*": {
+                "*": ["abi","devdoc"]
+            }
+        }
+    }
+}
