@@ -83,7 +83,7 @@ contract Helper {
 }
 
 
-contract InstaUniswapPool is Helper {
+contract Pool is Helper {
 
     /**
      * @dev Uniswap's pool basic details
@@ -102,9 +102,8 @@ contract InstaUniswapPool is Helper {
         uint tokenReserve
     )
     {
-        UniswapPool uniswapExchange = UniswapPool(poolAddress);
         poolAddress = getAddressPool(token);
-        totalSupply = uniswapExchange.totalSupply();
+        totalSupply = IERC20(poolAddress).totalSupply();
         (ethReserve, tokenReserve) = getBal(token, poolAddress);
     }
 
@@ -154,5 +153,22 @@ contract InstaUniswapPool is Helper {
         address(msg.sender).transfer(ethReturned);
         IERC20(token).transfer(msg.sender, tokenReturned);
     }
+
+}
+
+
+contract InstaUniswapPool is Pool {
+
+    uint public version;
+    
+    /**
+     * @dev setting up variables on deployment
+     * 1...2...3 versioning in each subsequent deployments
+     */
+    constructor(uint _version) public {
+        version = _version;
+    }
+
+    function() external payable {}
 
 }
