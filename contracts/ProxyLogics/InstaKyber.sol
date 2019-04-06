@@ -1,6 +1,5 @@
 pragma solidity ^0.5.0;
 
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 
 
@@ -25,9 +24,6 @@ contract KyberInterface {
 
 contract Helper {
 
-    using SafeMath for uint;
-    using SafeMath for uint256;
-
     /**
      * @dev get ethereum address for trade
      */
@@ -47,13 +43,6 @@ contract Helper {
      */
     function getAddressAdmin() public pure returns (address admin) {
         admin = 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638;
-    }
-
-    /**
-     * @dev get fees to trade // 200 => 0.2%
-     */
-    function getUintFees() public pure returns (uint fees) {
-        fees = 200;
     }
 
     /**

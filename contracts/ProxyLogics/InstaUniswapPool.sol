@@ -1,18 +1,14 @@
 pragma solidity ^0.5.0;
 
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 
-
-contract UniswapFactory {
+interface UniswapFactory {
     // Get Exchange and Token Info
     function getExchange(address token) external view returns (address exchange);
     function getToken(address exchange) external view returns (address token);
 }
 
-
-// Solidity Interface
-contract UniswapPool {
+interface UniswapPool {
     // Address of ERC20 token sold on this exchange
     function tokenAddress() external view returns (address token);
     // Address of Uniswap Factory
@@ -36,9 +32,6 @@ contract UniswapPool {
 
 
 contract Helper {
-
-    using SafeMath for uint;
-    using SafeMath for uint256;
 
     /**
      * @dev get Uniswap Proxy address
@@ -81,18 +74,10 @@ contract Helper {
      * @dev setting allowance to kyber for the "user proxy" if required
      * @param token is the token address
      */
-    function setApproval(address token, address to) internal {
-        IERC20(token).approve(to, 2**255);
-    }
-
-    /**
-     * @dev configuring token approval with user proxy
-     * @param token is the token
-     */
-    function manageApproval(address token, uint srcAmt, address to) internal returns (uint) {
+    function setApproval(address token, uint srcAmt, address to) internal {
         uint tokenAllowance = IERC20(token).allowance(address(this), to);
         if (srcAmt > tokenAllowance) {
-            setApproval(token, to);
+            IERC20(token).approve(to, 2**255);
         }
     }
     
@@ -144,7 +129,7 @@ contract InstaUniswapPool is Helper {
         uint tokenToDeposit = msg.value * tokenReserve / ethReserve + 1;
         require(tokenToDeposit < maxDepositedTokens, "Token to deposit is greater than Max token to Deposit");
         IERC20(token).transferFrom(msg.sender, address(this), tokenToDeposit);
-        manageApproval(token, tokenToDeposit, poolAddr);
+        setApproval(token, tokenToDeposit, poolAddr);
         tokensMinted = UniswapPool(poolAddr).addLiquidity.value(msg.value)(
             uint(0),
             tokenToDeposit,
@@ -168,7 +153,7 @@ contract InstaUniswapPool is Helper {
     ) public returns (uint ethReturned, uint tokenReturned)
     {
         address poolAddr = getAddressPool(token);
-        manageApproval(poolAddr, amount, poolAddr);
+        setApproval(poolAddr, amount, poolAddr);
         (ethReturned, tokenReturned) = UniswapPool(poolAddr).removeLiquidity(
             amount,
             minEth,
