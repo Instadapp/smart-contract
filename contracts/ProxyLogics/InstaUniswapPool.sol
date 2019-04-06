@@ -44,6 +44,7 @@ contract UniswapPool {
         uint256 minTokens,
         uint256 deadline
         ) external returns (uint256, uint256);
+
     // ERC20 comaptibility for liquidity tokens
     function name() external returns (bytes32);
     function symbol() external returns (bytes32);
@@ -77,8 +78,7 @@ contract Helper {
 
     // Get Uniswap's Exchange address from Factory Contract
     function getExchangeAddress(address _token) public view returns (address) {
-        UniswapFactory uniswapMain = UniswapFactory(getAddressUniFactory());
-        return uniswapMain.getExchange(_token);
+        return UniswapFactory(getAddressUniFactory()).getExchange(_token);
     }
 
     /**
@@ -129,8 +129,8 @@ contract Helper {
      * @dev setting allowance to kyber for the "user proxy" if required
      * @param token is the token address
      */
-    function setApproval(address token, address exchangeAdd) internal returns (uint) {
-        IERC20(token).approve(getExchangeAddress(token), 2**255);
+    function setApproval(address token, address exchangeAddr) internal {
+        IERC20(token).approve(exchangeAddr, 2**255);
     }
 
     /**
@@ -138,10 +138,10 @@ contract Helper {
      * @param token is the token
      */
     function manageApproval(address token, uint srcAmt) internal returns (uint) {
-        address exchangeAdd = getExchangeAddress(token);
-        uint tokenAllowance = IERC20(token).allowance(address(this), exchangeAdd);
+        address exchangeAddr = getExchangeAddress(token);
+        uint tokenAllowance = IERC20(token).allowance(address(this), exchangeAddr);
         if (srcAmt > tokenAllowance) {
-            setApproval(token, exchangeAdd);
+            setApproval(token, exchangeAddr);
         }
     }
     
@@ -150,20 +150,17 @@ contract Helper {
 
 contract InstaUniswapPool is Helper {
 
-    function addLiquidity(address token, uint maxDepositedTokens) public payable returns (uint256) {
-        address uniswapExchangeAdd = getExchangeAddress(token);
-        UniswapPool uniswapExchange = UniswapPool(uniswapExchangeAdd);
-        uint ethQty = msg.value;
-        (uint exchangeEthBal, uint exchangeTokenBal) = getBal(token, uniswapExchangeAdd);
-        uint tokenToDeposit = ethQty*(exchangeTokenBal/exchangeEthBal);
+    function addLiquidity(address token, uint maxDepositedTokens) public payable returns (uint256 tokensMinted) {
+        address exchangeAddr = getExchangeAddress(token);
+        (uint exchangeEthBal, uint exchangeTokenBal) = getBal(token, exchangeAddr);
+        uint tokenToDeposit = msg.value * (exchangeTokenBal/exchangeEthBal);
         require(tokenToDeposit < maxDepositedTokens, "Token to deposit is greater than Max token to Deposit");
         manageApproval(token, tokenToDeposit);
-        uint tokensMinted = uniswapExchange.addLiquidity.value(ethQty)(
-                uint(0),
-                tokenToDeposit,
-                uint(1899063809) // 6th March 2030 GMT // no logic
-            );
-        
+        tokensMinted = UniswapPool(exchangeAddr).addLiquidity.value(msg.value)(
+            uint(0),
+            tokenToDeposit,
+            uint(1899063809) // 6th March 2030 GMT // no logic
+        );
     }
 
 }
