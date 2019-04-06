@@ -1,0 +1,653 @@
+{
+	"schemaVersion": "2.0.0",
+	"contractName": "InstaWallet",
+	"compilerOutput": {
+		"abi": [
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "activePeriod",
+				"outputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "_guardian",
+						"type": "address"
+					}
+				],
+				"name": "isGuardian",
+				"outputs": [
+					{
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "src",
+						"type": "address"
+					}
+				],
+				"name": "isAuth",
+				"outputs": [
+					{
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "num",
+						"type": "uint256"
+					},
+					{
+						"name": "_manager",
+						"type": "address"
+					}
+				],
+				"name": "setManager",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"name": "managers",
+				"outputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [],
+				"name": "setOwner",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "_activePeriod",
+						"type": "uint256"
+					}
+				],
+				"name": "updateActivePeriod",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "logicAddr",
+						"type": "address"
+					}
+				],
+				"name": "isLogicAuthorised",
+				"outputs": [
+					{
+						"name": "",
+						"type": "bool"
+					},
+					{
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "lastActivity",
+				"outputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "registry",
+				"outputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "claimOnwershipTime",
+				"outputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "owner",
+				"outputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "gracePeriod",
+				"outputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "_owner",
+						"type": "address"
+					}
+				],
+				"name": "setOwnerOnce",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "num",
+						"type": "uint256"
+					},
+					{
+						"name": "_guardian",
+						"type": "address"
+					}
+				],
+				"name": "setGuardian",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "nextOwner",
+						"type": "address"
+					}
+				],
+				"name": "setPendingOwner",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "nextOwner",
+						"type": "address"
+					},
+					{
+						"name": "num",
+						"type": "uint256"
+					}
+				],
+				"name": "setOwnerViaGuardian",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "pendingOwner",
+				"outputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "_target",
+						"type": "address"
+					},
+					{
+						"name": "_data",
+						"type": "bytes"
+					},
+					{
+						"name": "srcNum",
+						"type": "uint256"
+					},
+					{
+						"name": "sessionNum",
+						"type": "uint256"
+					}
+				],
+				"name": "execute",
+				"outputs": [
+					{
+						"name": "response",
+						"type": "bytes"
+					}
+				],
+				"payable": true,
+				"stateMutability": "payable",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "_manager",
+						"type": "address"
+					}
+				],
+				"name": "isManager",
+				"outputs": [
+					{
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"name": "guardians",
+				"outputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "constructor"
+			},
+			{
+				"payable": true,
+				"stateMutability": "payable",
+				"type": "fallback"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"name": "sender",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"name": "target",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"name": "srcNum",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"name": "sessionNum",
+						"type": "uint256"
+					}
+				],
+				"name": "LogExecute",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"name": "sig",
+						"type": "bytes4"
+					},
+					{
+						"indexed": true,
+						"name": "guy",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"name": "foo",
+						"type": "bytes32"
+					},
+					{
+						"indexed": false,
+						"name": "bar",
+						"type": "bytes32"
+					},
+					{
+						"indexed": false,
+						"name": "wad",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"name": "fax",
+						"type": "bytes"
+					}
+				],
+				"name": "LogNote",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"name": "num",
+						"type": "uint256"
+					},
+					{
+						"indexed": true,
+						"name": "prevManager",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"name": "newManager",
+						"type": "address"
+					}
+				],
+				"name": "LogSetManager",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"name": "num",
+						"type": "uint256"
+					},
+					{
+						"indexed": true,
+						"name": "prevGuardian",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"name": "newGuardian",
+						"type": "address"
+					}
+				],
+				"name": "LogSetGuardian",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"name": "newActivePeriod",
+						"type": "uint256"
+					}
+				],
+				"name": "LogNewActivePeriod",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"name": "nextOwner",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"name": "guardian",
+						"type": "address"
+					}
+				],
+				"name": "LogSetOwnerViaGuardian",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"name": "owner",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"name": "setter",
+						"type": "address"
+					}
+				],
+				"name": "LogSetOwner",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"name": "pendingOwner",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"name": "setter",
+						"type": "address"
+					}
+				],
+				"name": "LogSetPendingOwner",
+				"type": "event"
+			}
+		],
+		"devdoc": {
+			"methods": {
+				"constructor": {
+					"details": "sets the \"address registry\", owner's last activity, owner's active period and initial owner"
+				},
+				"execute(address,bytes,uint256,uint256)": {
+					"details": "execute authorised calls via delegate call",
+					"params": {
+						"_data": "delegate call data",
+						"_target": "logic proxy address",
+						"sessionNum": "to find the session",
+						"srcNum": "to find the source"
+					}
+				},
+				"isAuth(address)": {
+					"details": "checks if called by owner or contract itself",
+					"params": {
+						"src": "is the address initiating the call"
+					}
+				},
+				"isGuardian(address)": {
+					"details": "Throws if the msg.sender is not guardian"
+				},
+				"isLogicAuthorised(address)": {
+					"params": {
+						"logicAddr": "is the logic proxy contract address"
+					},
+					"return": "the true boolean for logic proxy if authorised otherwise false"
+				},
+				"isManager(address)": {
+					"details": "Throws if the msg.sender is not manager"
+				},
+				"setGuardian(uint256,address)": {
+					"details": "sets the guardian with assigned number (upto 5)",
+					"params": {
+						"_guardian": "is the new guardian address",
+						"num": "is the guardian assigned number"
+					}
+				},
+				"setManager(uint256,address)": {
+					"details": "sets the manager with assigned number (upto 5)",
+					"params": {
+						"_manager": "is the new admin address",
+						"num": "is the assigned number of manager"
+					}
+				},
+				"setOwner()": {
+					"details": "sets \"pending owner\" as real owner Throws if no \"pending owner\" Throws if called before 7 day after assigning \"pending owner\""
+				},
+				"setOwnerOnce(address)": {
+					"details": "sets owner and function is only be called once by registry on build() and this hack verifiy the contract on etherscan automatically as no dynamic owner address is sent in the constructor",
+					"params": {
+						"_owner": "is the new owner of this contract wallet"
+					}
+				},
+				"setOwnerViaGuardian(address,uint256)": {
+					"details": "guardians can set \"owner\" after owner stay inactive for minimum \"activePeriod\"",
+					"params": {
+						"nextOwner": "is the new owner",
+						"num": "is the assigned guardian number"
+					}
+				},
+				"setPendingOwner(address)": {
+					"details": "sets the \"pending owner\" and provide 3 days grace period to set the new owner via setOwner() Throws if called before 10 (i.e. 7 + 3) day after assigning \"pending owner\"",
+					"params": {
+						"nextOwner": "is the assigned \"pending owner\""
+					}
+				},
+				"updateActivePeriod(uint256)": {
+					"details": "sets the guardian with assigned number (upto 5)",
+					"params": {
+						"_activePeriod": "is the period when guardians have no rights to dethrone the owner"
+					}
+				}
+			},
+			"title": "User Owned Contract Wallet"
+		}
+	},
+	"sources": {
+		"Reference/InstaWallet.sol": {
+			"id": 0
+		},
+		"openzeppelin-solidity/contracts/math/SafeMath.sol": {
+			"id": 2
+		}
+	},
+	"sourceCodes": {
+		"Reference/InstaWallet.sol": "// This Auth Model also includes UserWallet Logics\n// TODO => make it single Auth code for future launch where this Auth Contract will be the owner of UserWallet\n\npragma solidity ^0.5.2;\n\nimport \"openzeppelin-solidity/contracts/math/SafeMath.sol\";\n\n/**\n * @title AddressRegistryInterface Interface \n */\ninterface AddressRegistryInterface {\n    function isLogicAuth(address logicAddr) external view returns (bool, bool);\n    function updateProxyRecord(address currentOwner, address nextOwner) external;\n    function guardianEnabled() external view returns (bool);\n    function managerEnabled() external view returns (bool);\n}\n\n/**\n * @title UserWallet Interface\n */\n// interface UserWalletInterface {\n// get the wallet address based on the owner of this wallet\n// and use execute interface from main UserWallet to call execute on this contract\n// }\n\n\n/**\n * @title Address Registry Record\n */\ncontract AddressRecord {\n    /**\n     * @dev address registry of system, logic and wallet addresses\n     */\n    address public registry;\n\n    /**\n     * @param logicAddr is the logic proxy contract address\n     * @return the true boolean for logic proxy if authorised otherwise false\n     */\n    function isLogicAuthorised(address logicAddr) public view returns (bool, bool) {\n        AddressRegistryInterface logicProxy = AddressRegistryInterface(registry);\n        (bool isLogic, bool isDefault) = logicProxy.isLogicAuth(logicAddr);\n        return (isLogic, isDefault);\n    }\n\n    /**\n     * @dev this updates the internal proxy ownership on \"registry\" contract\n     * @param currentOwner is the current owner\n     * @param nextOwner is the new assigned owner\n     */\n    function setProxyRecordOwner(address currentOwner, address nextOwner) internal {\n        AddressRegistryInterface initCall = AddressRegistryInterface(registry);\n        initCall.updateProxyRecord(currentOwner, nextOwner);\n    }\n\n}\n\n\n/**\n * @title User Auth\n */\ncontract UserAuth is AddressRecord {\n    using SafeMath for uint;\n    using SafeMath for uint256;\n\n    event LogSetOwner(address indexed owner, address setter);\n    event LogSetPendingOwner(address indexed pendingOwner, address setter);\n    address public owner;\n    address public pendingOwner;\n    uint public claimOnwershipTime; // now + 7 days\n    uint public gracePeriod; // to set the new owner - defaults to 3 days\n\n    /**\n     * @dev defines the \"proxy registry\" contract and sets the owner\n     */\n    constructor() public {\n        gracePeriod = 3 days;\n    }\n\n    /**\n     * @dev Throws if not called by owner or contract itself\n     */\n    modifier auth {\n        require(isAuth(msg.sender), \"permission-denied\");\n        _;\n    }\n\n    /**\n     * @dev sets the \"pending owner\" and provide 3 days grace period to set the new owner via setOwner()\n     * Throws if called before 10 (i.e. 7 + 3) day after assigning \"pending owner\"\n     * @param nextOwner is the assigned \"pending owner\"\n     */\n    function setPendingOwner(address nextOwner) public auth {\n        require(block.timestamp > claimOnwershipTime.add(gracePeriod), \"owner-is-still-pending\");\n        pendingOwner = nextOwner;\n        claimOnwershipTime = block.timestamp.add(7 days);\n        emit LogSetPendingOwner(nextOwner, msg.sender);\n    }\n\n    /**\n     * @dev sets \"pending owner\" as real owner\n     * Throws if no \"pending owner\"\n     * Throws if called before 7 day after assigning \"pending owner\"\n     */\n    function setOwner() public {\n        require(pendingOwner != address(0), \"no-pending-address\");\n        require(block.timestamp > claimOnwershipTime, \"owner-is-still-pending\");\n        setProxyRecordOwner(owner, pendingOwner);\n        owner = pendingOwner;\n        pendingOwner = address(0);\n        emit LogSetOwner(owner, msg.sender);\n    }\n\n    /**\n     * @dev sets owner and function is only be called once by registry on build()\n     * and this hack verifiy the contract on etherscan automatically\n     * as no dynamic owner address is sent in the constructor\n     * @param _owner is the new owner of this contract wallet\n     */\n    function setOwnerOnce(address _owner) public auth {\n        require(msg.sender == registry, \"permission-denied\");\n        owner = _owner;\n        emit LogSetOwner(owner, msg.sender);\n    }\n\n    /**\n     * @dev checks if called by owner or contract itself\n     * @param src is the address initiating the call\n     */\n    function isAuth(address src) public view returns (bool) {\n        if (src == address(this)) {\n            return true;\n        } else if (src == owner) {\n            return true;\n        } else {\n            return false;\n        }\n    }\n\n}\n\n/**\n * @title User Guardians\n * @dev the assigned guardian addresses (upto 3) can set new owners\n * but only after certain period of owner's inactivity (i.e. activePeriod)\n */\ncontract UserGuardian is UserAuth {\n    event LogSetGuardian(uint num, address indexed prevGuardian, address indexed newGuardian);\n    event LogNewActivePeriod(uint newActivePeriod);\n    event LogSetOwnerViaGuardian(address nextOwner, address indexed guardian);\n\n    mapping(uint => address) public guardians;\n    uint public lastActivity; // time when called \"execute\" last time\n    uint public activePeriod; // the period over lastActivity when guardians have no rights\n\n    /**\n     * @dev Throws if guardians not enabled by system admin\n     */\n    modifier isGuardianEnabled() {\n        AddressRegistryInterface initCall = AddressRegistryInterface(registry);\n        require(initCall.guardianEnabled(), \"guardian-not-enabled\");\n        _;\n    }\n\n    /**\n     * @dev guardians can set \"owner\" after owner stay inactive for minimum \"activePeriod\"\n     * @param nextOwner is the new owner\n     * @param num is the assigned guardian number\n     */\n    function setOwnerViaGuardian(address nextOwner, uint num) public isGuardianEnabled {\n        require(isGuardian(msg.sender), \"not-guardian\");\n        require(msg.sender == guardians[num], \"permission-denied\");\n        require(block.timestamp > lastActivity.add(activePeriod), \"active-period-not-over\");\n        owner = nextOwner;\n        emit LogSetOwnerViaGuardian(nextOwner, guardians[num]);\n    }\n\n    /**\n     * @dev sets the guardian with assigned number (upto 5)\n     * @param num is the guardian assigned number\n     * @param _guardian is the new guardian address\n     */\n    function setGuardian(uint num, address _guardian) public auth isGuardianEnabled {\n        require(num > 0 && num < 6, \"guardians-cant-exceed-three\");\n        emit LogSetGuardian(num, guardians[num], _guardian);\n        guardians[num] = _guardian;\n    }\n\n    /**\n     * @dev sets the guardian with assigned number (upto 5)\n     * @param _activePeriod is the period when guardians have no rights to dethrone the owner\n     */\n    function updateActivePeriod(uint _activePeriod) public auth isGuardianEnabled {\n        activePeriod = _activePeriod;\n        emit LogNewActivePeriod(_activePeriod);\n    }\n\n    /**\n     * @dev Throws if the msg.sender is not guardian\n     */\n    function isGuardian(address _guardian) public view returns (bool) {\n        if (_guardian == guardians[1] || _guardian == guardians[2] || _guardian == guardians[3] || _guardian == guardians[4] || _guardian == guardians[5]) {\n            return true;\n        } else {\n            return false;\n        }\n    }\n\n}\n\n/**\n * @title User Manager\n * @dev the assigned manager addresses (upto 3) can manage the wealth in contract to contract fashion\n * but can't withdraw the assets on their personal address\n */\ncontract UserManager is UserGuardian {\n    event LogSetManager(uint num, address indexed prevManager, address indexed newManager);\n\n    mapping(uint => address) public managers;\n\n    /**\n     * @dev Throws if manager not enabled by system admin\n     */\n    modifier isManagerEnabled() {\n        AddressRegistryInterface initCall = AddressRegistryInterface(registry);\n        require(initCall.managerEnabled(), \"admin-not-enabled\");\n        _;\n    }\n\n    /**\n     * @dev sets the manager with assigned number (upto 5)\n     * @param num is the assigned number of manager\n     * @param _manager is the new admin address\n     */\n    function setManager(uint num, address _manager) public auth isManagerEnabled {\n        require(num > 0 && num < 6, \"guardians-cant-exceed-three\");\n        emit LogSetManager(num, managers[num], _manager);\n        managers[num] = _manager;\n    }\n\n    /**\n     * @dev Throws if the msg.sender is not manager\n     */\n    function isManager(address _manager) public view returns (bool) {\n        if (_manager == managers[1] || _manager == managers[2] || _manager == managers[3] || _manager == managers[4] || _manager == managers[5]) {\n            return true;\n        } else {\n            return false;\n        }\n    }\n\n}\n\n/**\n * @dev logging the execute events\n */\ncontract UserNote {\n    event LogNote(bytes4 indexed sig, address indexed guy, bytes32 indexed foo, bytes32 bar, uint wad, bytes fax);\n\n    modifier note {\n        bytes32 foo;\n        bytes32 bar;\n        assembly {\n            foo := calldataload(4)\n            bar := calldataload(36)\n        }\n        emit LogNote(msg.sig, msg.sender, foo, bar, msg.value, msg.data);\n        _;\n    }\n}\n\n/**\n * @title User Owned Contract Wallet\n */\ncontract InstaWallet is UserManager, UserNote {\n    event LogExecute(address sender, address target, uint srcNum, uint sessionNum);\n\n    /**\n     * @dev sets the \"address registry\", owner's last activity, owner's active period and initial owner\n     */\n    constructor() public {\n        registry = msg.sender;\n        owner = msg.sender; // will be changed in initial call itself\n        lastActivity = block.timestamp;\n        activePeriod = 30 days; // default on deployment and changeable afterwards\n    }\n\n    function() external payable {}\n\n    /**\n     * @dev execute authorised calls via delegate call\n     * @param _target logic proxy address\n     * @param _data delegate call data\n     * @param srcNum to find the source\n     * @param sessionNum to find the session\n     */\n    function execute(address _target, bytes memory _data, uint srcNum, uint sessionNum)\n        public\n        payable\n        note\n        isExecutable(_target)\n        returns (bytes memory response)\n    {\n        lastActivity = block.timestamp;\n        emit LogExecute(msg.sender, _target, srcNum, sessionNum);\n\n        // call contract in current context\n        assembly {\n            let succeeded := delegatecall(sub(gas, 5000), _target, add(_data, 0x20), mload(_data), 0, 0)\n            let size := returndatasize\n\n            response := mload(0x40)\n            mstore(0x40, add(response, and(add(add(size, 0x20), 0x1f), not(0x1f))))\n            mstore(response, size)\n            returndatacopy(add(response, 0x20), 0, size)\n\n            switch iszero(succeeded)\n                case 1 {\n                    // throw if delegatecall failed\n                    revert(add(response, 0x20), size)\n                }\n        }\n    }\n\n    /**\n     * @dev checks if the proxy is authorised\n     * and if the sender is owner or contract itself or manager\n     * and if manager then Throws if target is default proxy address\n     */\n    modifier isExecutable(address proxyTarget) {\n        require(proxyTarget != address(0), \"logic-proxy-address-required\");\n\n        (bool isLogic, bool isDefault) = isLogicAuthorised(proxyTarget);\n        require(isLogic, \"logic-proxy-address-not-allowed\");\n\n        bool enact = false;\n        if (isAuth(msg.sender)) {\n            enact = true;\n        } else if (isManager(msg.sender) && !isDefault) {\n            enact = true;\n        }\n\n        require(enact, \"not-executable\");\n        _;\n    }\n\n}\n",
+		"openzeppelin-solidity/contracts/math/SafeMath.sol": "pragma solidity ^0.5.2;\n\n/**\n * @title SafeMath\n * @dev Unsigned math operations with safety checks that revert on error\n */\nlibrary SafeMath {\n    /**\n     * @dev Multiplies two unsigned integers, reverts on overflow.\n     */\n    function mul(uint256 a, uint256 b) internal pure returns (uint256) {\n        // Gas optimization: this is cheaper than requiring 'a' not being zero, but the\n        // benefit is lost if 'b' is also tested.\n        // See: https://github.com/OpenZeppelin/openzeppelin-solidity/pull/522\n        if (a == 0) {\n            return 0;\n        }\n\n        uint256 c = a * b;\n        require(c / a == b);\n\n        return c;\n    }\n\n    /**\n     * @dev Integer division of two unsigned integers truncating the quotient, reverts on division by zero.\n     */\n    function div(uint256 a, uint256 b) internal pure returns (uint256) {\n        // Solidity only automatically asserts when dividing by 0\n        require(b > 0);\n        uint256 c = a / b;\n        // assert(a == b * c + a % b); // There is no case in which this doesn't hold\n\n        return c;\n    }\n\n    /**\n     * @dev Subtracts two unsigned integers, reverts on overflow (i.e. if subtrahend is greater than minuend).\n     */\n    function sub(uint256 a, uint256 b) internal pure returns (uint256) {\n        require(b <= a);\n        uint256 c = a - b;\n\n        return c;\n    }\n\n    /**\n     * @dev Adds two unsigned integers, reverts on overflow.\n     */\n    function add(uint256 a, uint256 b) internal pure returns (uint256) {\n        uint256 c = a + b;\n        require(c >= a);\n\n        return c;\n    }\n\n    /**\n     * @dev Divides two unsigned integers and returns the remainder (unsigned integer modulo),\n     * reverts when dividing by zero.\n     */\n    function mod(uint256 a, uint256 b) internal pure returns (uint256) {\n        require(b != 0);\n        return a % b;\n    }\n}\n"
+	},
+	"sourceTreeHashHex": "0x10f370d45ab729caa91aca6feb8c7efd3fd8cd0d3df7fe0c19b3eca939b6fd82",
+	"compiler": {
+		"name": "solc",
+		"version": "soljson-v0.5.7+commit.6da8b019.js",
+		"settings": {
+			"optimizer": {
+				"enabled": false
+			},
+			"outputSelection": {
+				"*": {
+					"*": [
+						"abi",
+						"devdoc"
+					]
+				}
+			},
+			"remappings": [
+				"openzeppelin-solidity=/Users/ravindra/code/contract-v2/node_modules/openzeppelin-solidity"
+			]
+		}
+	},
+	"networks": {}
+}

@@ -1,16 +1,20 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.2;
 
 import "./UserWallet.sol";
 
 
-/**
- * @title Address Registry
- */
+/// @title AddressRegistry
+/// @notice 
+/// @dev 
 contract AddressRegistry {
     event LogSetAddress(string name, address addr);
 
+    /// @notice Registry of role and address
     mapping(bytes32 => address) registry;
 
+    /**
+     * @dev Check if msg.sender is admin or owner.
+     */
     modifier isAdmin() {
         require(
             msg.sender == getAddress("admin") || 
@@ -20,103 +24,95 @@ contract AddressRegistry {
         _;
     }
 
-    /**
-     * @dev get the address from system registry 
-     */
-    function getAddress(string memory name) public view returns(address) {
-        return registry[keccak256(abi.encodePacked(name))];
+    /// @dev Get the address from system registry 
+    /// @param _name (string)
+    /// @return  (address) Returns address based on role
+    function getAddress(string memory _name) public view returns(address) {
+        return registry[keccak256(abi.encodePacked(_name))];
     }
 
-    /**
-     * @dev set new address in system registry 
-     */
-    function setAddress(string memory name, address addr) public isAdmin {
-        registry[keccak256(abi.encodePacked(name))] = addr;
-        emit LogSetAddress(name, addr);
+    /// @dev Set new address in system registry 
+    /// @param _name (string) Role name
+    /// @param _userAddress (string) User Address
+    function setAddress(string memory _name, address _userAddress) public isAdmin {
+        registry[keccak256(abi.encodePacked(_name))] = _userAddress;
+        emit LogSetAddress(_name, _userAddress);
     }
-
 }
 
 
-/**
- * @title Logic Registry
- */
+/// @title LogicRegistry
+/// @notice
+/// @dev LogicRegistry 
 contract LogicRegistry is AddressRegistry {
 
-    event LogEnableDefaultLogic(address logicAddr);
-    event LogEnableLogic(address logicAddr);
-    event LogDisableLogic(address logicAddr);
+    event LogEnableDefaultLogic(address logicAddress);
+    event LogEnableLogic(address logicAddress);
+    event LogDisableLogic(address logicAddress);
 
+    /// @notice Map of default proxy state
     mapping(address => bool) public defaultLogicProxies;
+    
+    /// @notice Map of logic proxy state
     mapping(address => bool) public logicProxies;
 
-    /**
-     * @dev get the boolean of the logic contract
-     * @param logicAddr is the logic proxy address
-     * @return bool logic proxy is authorised by system admin
-     * @return bool logic proxy is default proxy 
-     */
-    function logic(address logicAddr) public view returns (bool) {
-        if (defaultLogicProxies[logicAddr] || logicProxies[logicAddr]) {
+    /// @dev 
+    /// @param _logicAddress (address)
+    /// @return  (bool)
+    function logic(address _logicAddress) public view returns (bool) {
+        if (defaultLogicProxies[_logicAddress] || logicProxies[_logicAddress]) {
             return true;
         } else {
             return false;
         }
     }
 
-    /**
-     * @dev this sets the default logic proxy to true
-     * default proxies mostly contains the logic for withdrawal of assets
-     * and can never be false to freely let user withdraw their assets
-     * @param logicAddr is the default logic proxy address
-     */
-    function enableDefaultLogic(address logicAddr) public isAdmin {
-        defaultLogicProxies[logicAddr] = true;
-        emit LogEnableDefaultLogic(logicAddr);
+    /// @dev Sets the default logic proxy to true
+    /// default proxies mostly contains the logic for withdrawal of assets
+    /// and can never be false to freely let user withdraw their assets
+    /// @param _logicAddress (address)
+    function enableDefaultLogic(address _logicAddress) public isAdmin {
+        defaultLogicProxies[_logicAddress] = true;
+        emit LogEnableDefaultLogic(_logicAddress);
     }
 
-    /**
-     * @dev enable logic proxy address and sets true
-     * @param logicAddr is the logic proxy address
-     */
-    function enableLogic(address logicAddr) public isAdmin {
-        logicProxies[logicAddr] = true;
-        emit LogEnableLogic(logicAddr);
+    /// @dev Enable logic proxy address
+    /// @param _logicAddress (address)
+    function enableLogic(address _logicAddress) public isAdmin {
+        logicProxies[_logicAddress] = true;
+        emit LogEnableLogic(_logicAddress);
     }
 
-    /**
-     * @dev enable logic proxy address and sets false
-     * @param logicAddr is the logic proxy address
-     */
-    function disableLogic(address logicAddr) public isAdmin {
-        logicProxies[logicAddr] = false;
-        emit LogDisableLogic(logicAddr);
+    /// @dev Disable logic proxy address
+    /// @param _logicAddress (address)
+    function disableLogic(address _logicAddress) public isAdmin {
+        logicProxies[_logicAddress] = false;
+        emit LogDisableLogic(_logicAddress);
     }
 
 }
 
-
 /**
- * @title User Wallet Registry
+ * @dev Deploys a new proxy instance and sets msg.sender as owner of proxy
  */
 contract WalletRegistry is LogicRegistry {
     
     event Created(address indexed sender, address indexed owner, address proxy);
     event LogRecord(address indexed currentOwner, address indexed nextOwner, address proxy);
     
+    /// @notice Address to UserWallet proxy map
     mapping(address => UserWallet) public proxies;
-
-    /**
-     * @dev deploys a new proxy instance and sets msg.sender as owner of proxy
-     */
+    
+    /// @dev Deploys a new proxy instance and sets custom owner of proxy
+    /// Throws if the owner already have a UserWallet
+    /// @return proxy ()
     function build() public returns (UserWallet proxy) {
         proxy = build(msg.sender);
     }
 
-    /**
-     * @dev deploys a new proxy instance and sets custom owner of proxy
-     * Throws if the owner already have a UserWallet
-     */
+    /// @dev update the proxy record whenever owner changed on any proxy
+    /// Throws if msg.sender is not a proxy contract created via this contract
+    /// @return proxy () UserWallet
     function build(address owner) public returns (UserWallet proxy) {
         require(proxies[owner] == UserWallet(0), "multiple-proxy-per-user-not-allowed");
         proxy = new UserWallet();
@@ -125,29 +121,25 @@ contract WalletRegistry is LogicRegistry {
         emit Created(msg.sender, owner, address(proxy));
     }
 
-    /**
-     * @dev update the proxy record whenever owner changed on any proxy
-     * Throws if msg.sender is not a proxy contract created via this contract
-     */
-    function record(address currentOwner, address nextOwner) public {
-        require(msg.sender == address(proxies[currentOwner]), "invalid-proxy-or-owner");
-        require(proxies[nextOwner] == UserWallet(0), "multiple-proxy-per-user-not-allowed");
-        proxies[nextOwner] = proxies[currentOwner];
-        proxies[currentOwner] = UserWallet(0);
-        emit LogRecord(currentOwner, nextOwner, address(proxies[nextOwner]));
+    /// @dev Transafers ownership
+    /// @param _currentOwner (address) Current Owner
+    /// @param _nextOwner (address) Next Owner
+    function record(address _currentOwner, address _nextOwner) public {
+        require(msg.sender == address(proxies[_currentOwner]), "invalid-proxy-or-owner");
+        require(proxies[_nextOwner] == UserWallet(0), "multiple-proxy-per-user-not-allowed");
+        proxies[_nextOwner] = proxies[_currentOwner];
+        proxies[_currentOwner] = UserWallet(0);
+        emit LogRecord(_currentOwner, _nextOwner, address(proxies[_nextOwner]));
     }
 
 }
 
-
-/**
- * @title Initializing Registry
- */
+/// @title InstaRegistry
+/// @dev Initializing Registry
 contract InstaRegistry is WalletRegistry {
 
     constructor() public {
         registry[keccak256(abi.encodePacked("admin"))] = msg.sender;
         registry[keccak256(abi.encodePacked("owner"))] = msg.sender;
     }
-
 }

@@ -1,14 +1,7 @@
-pragma solidity 0.5.0;
+pragma solidity ^0.5.2;
 
-
-import "./Safemath.sol";
-
-interface IERC20 {
-    function balanceOf(address who) external view returns (uint256);
-    function transfer(address to, uint256 value) external returns (bool);
-    function approve(address spender, uint256 value) external returns (bool);
-    function transferFrom(address from, address to, uint256 value) external returns (bool);
-}
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 
 interface AddressRegistry {
     function getAddr(string calldata name) external view returns (address);
@@ -28,16 +21,39 @@ interface UniswapExchange {
     function getTokenToEthInputPrice(uint256 tokens_sold) external view returns (uint256 eth_bought);
     function getTokenToEthOutputPrice(uint256 eth_bought) external view returns (uint256 tokens_sold);
     // Trade ETH to ERC20
-    function ethToTokenTransferInput(uint256 min_tokens, uint256 deadline, address recipient) external payable returns (uint256  tokens_bought);
-    function ethToTokenTransferOutput(uint256 tokens_bought, uint256 deadline, address recipient) external payable returns (uint256  eth_sold);
+    function ethToTokenTransferInput(uint256 min_tokens, uint256 deadline, address recipient)
+        external
+        payable
+        returns (uint256 tokens_bought);
+    function ethToTokenTransferOutput(uint256 tokens_bought, uint256 deadline, address recipient)
+        external
+        payable
+        returns (uint256 eth_sold);
     // Trade ERC20 to ETH
-    function tokenToEthTransferInput(uint256 tokens_sold, uint256 min_tokens, uint256 deadline, address recipient) external returns (uint256  eth_bought);
-    function tokenToEthTransferOutput(uint256 eth_bought, uint256 max_tokens, uint256 deadline, address recipient) external returns (uint256  tokens_sold);
+    function tokenToEthTransferInput(uint256 tokens_sold, uint256 min_tokens, uint256 deadline, address recipient)
+        external
+        returns (uint256 eth_bought);
+    function tokenToEthTransferOutput(uint256 eth_bought, uint256 max_tokens, uint256 deadline, address recipient)
+        external
+        returns (uint256 tokens_sold);
     // Trade ERC20 to ERC20
-    function tokenToTokenTransferInput(uint256 tokens_sold, uint256 min_tokens_bought, uint256 min_eth_bought, uint256 deadline, address recipient, address token_addr) external returns (uint256  tokens_bought);
-    function tokenToTokenTransferOutput(uint256 tokens_bought, uint256 max_tokens_sold, uint256 max_eth_sold, uint256 deadline, address recipient, address token_addr) external returns (uint256  tokens_sold);
+    function tokenToTokenTransferInput(
+        uint256 tokens_sold,
+        uint256 min_tokens_bought,
+        uint256 min_eth_bought,
+        uint256 deadline,
+        address recipient,
+        address token_addr
+    ) external returns (uint256 tokens_bought);
+    function tokenToTokenTransferOutput(
+        uint256 tokens_bought,
+        uint256 max_tokens_sold,
+        uint256 max_eth_sold,
+        uint256 deadline,
+        address recipient,
+        address token_addr
+    ) external returns (uint256 tokens_sold);
 }
-
 
 contract Registry {
     address public addressRegistry;
@@ -51,9 +67,7 @@ contract Registry {
     }
 }
 
-
-contract Trade is Registry {
-    
+contract UniswapTrade is Registry {
     using SafeMath for uint;
 
     // Get Uniswap's Exchange address from Factory Contract
@@ -62,16 +76,8 @@ contract Trade is Registry {
         return uniswapMain.getExchange(_token);
     }
 
-    // Check required ETH Quantity to execute code 
-    function _getToken(
-        address trader,
-        address src,
-        uint srcAmt,
-        address eth
-    )
-    internal
-    returns (uint ethQty)
-    {
+    // Check required ETH Quantity to execute code
+    function _getToken(address trader, address src, uint srcAmt, address eth) internal returns (uint ethQty) {
         if (src == eth) {
             require(msg.value == srcAmt, "Invalid Operation");
             ethQty = srcAmt;
@@ -82,18 +88,13 @@ contract Trade is Registry {
         }
     }
 
-
     /**
-     * @title Uniswap's get expected rate from source
+     * @dev Uniswap's get expected rate from source
      * @param src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
      * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
      * @param srcAmt - source token amount
     */
-    function getExpectedRateSrcUniswap(
-        address src,
-        address dest,
-        uint srcAmt
-    ) external view returns (uint256) {
+    function getExpectedRateSrcUniswap(address src, address dest, uint srcAmt) external view returns (uint256) {
         if (src == getAddress("eth")) {
             // define uniswap exchange with dest address
             UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
@@ -111,16 +112,12 @@ contract Trade is Registry {
     }
 
     /**
-     * @title Uniswap's get expected rate from dest
+     * @dev Uniswap's get expected rate from dest
      * @param src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
      * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
      * @param destAmt - dest token amount
     */
-    function getExpectedRateDestUniswap(
-        address src,
-        address dest,
-        uint destAmt
-    ) external view returns (uint256) {
+    function getExpectedRateDestUniswap(address src, address dest, uint destAmt) external view returns (uint256) {
         address eth = getAddress("eth");
         if (src == eth) {
             // define uniswap exchange with dest address
@@ -138,30 +135,17 @@ contract Trade is Registry {
         }
     }
 
-
     /**
-     * @title Uniswap's trade when token to sell Amount fixed
+     * @dev Uniswap's trade when token to sell Amount fixed
      * @param src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
      * @param srcAmt - amount of token for sell
      * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
      * @param minDestAmt - min amount of token to buy (slippage)
      * @param deadline - time for this transaction to be valid
     */
-    function tradeSrcUniswap(
-        address src,
-        uint srcAmt,
-        address dest,
-        uint minDestAmt,
-        uint deadline
-    ) public payable returns (uint) {
-
+    function tradeSrcUniswap(address src, uint srcAmt, address dest, uint minDestAmt, uint deadline) public payable returns (uint) {
         address eth = getAddress("eth");
-        uint ethQty = _getToken(
-            msg.sender,
-            src,
-            srcAmt,
-            eth
-        );
+        uint ethQty = _getToken(msg.sender, src, srcAmt, eth);
 
         if (src == eth) {
             UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
@@ -178,30 +162,17 @@ contract Trade is Registry {
         }
     }
 
-
     /**
-     * @title Uniswap's trade when token to buy Amount fixed
+     * @dev Uniswap's trade when token to buy Amount fixed
      * @param src - Token address to sell (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
      * @param maxSrcAmt - max amount of token for sell (slippage)
      * @param dest - Token address to buy (for ETH it's "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
      * @param destAmt - amount of token to buy
      * @param deadline - time for this transaction to be valid
     */
-    function tradeDestUniswap(
-        address src,
-        uint maxSrcAmt,
-        address dest,
-        uint destAmt,
-        uint deadline
-    ) public payable returns (uint) {
-
+    function tradeDestUniswap(address src, uint maxSrcAmt, address dest, uint destAmt, uint deadline) public payable returns (uint) {
         address eth = getAddress("eth");
-        uint ethQty = _getToken(
-            msg.sender,
-            src,
-            maxSrcAmt,
-            eth
-        );
+        uint ethQty = _getToken(msg.sender, src, maxSrcAmt, eth);
 
         if (src == eth) {
             UniswapExchange exchangeContract = UniswapExchange(_getExchangeAddress(dest));
@@ -222,7 +193,7 @@ contract Trade is Registry {
             return tokensSold;
         } else {
             UniswapExchange exchangeContractSrc = UniswapExchange(_getExchangeAddress(src));
-            uint tokensSold = exchangeContractSrc.tokenToTokenTransferOutput(destAmt, maxSrcAmt, uint(0-1), deadline, msg.sender, dest);
+            uint tokensSold = exchangeContractSrc.tokenToTokenTransferOutput(destAmt, maxSrcAmt, uint(0 - 1), deadline, msg.sender, dest);
             if (tokensSold < maxSrcAmt) {
                 IERC20 srcTkn = IERC20(src);
                 uint srcToReturn = maxSrcAmt - tokensSold;

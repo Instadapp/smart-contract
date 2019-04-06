@@ -1,0 +1,243 @@
+{
+	"schemaVersion": "2.0.0",
+	"contractName": "UserWallet",
+	"compilerOutput": {
+		"abi": [
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "nextOwner",
+						"type": "address"
+					}
+				],
+				"name": "setOwner",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "src",
+						"type": "address"
+					}
+				],
+				"name": "isAuth",
+				"outputs": [
+					{
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "registry",
+				"outputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "owner",
+				"outputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "_target",
+						"type": "address"
+					},
+					{
+						"name": "_data",
+						"type": "bytes"
+					},
+					{
+						"name": "_srcNum",
+						"type": "uint256"
+					},
+					{
+						"name": "_sessionNum",
+						"type": "uint256"
+					}
+				],
+				"name": "execute",
+				"outputs": [
+					{
+						"name": "response",
+						"type": "bytes"
+					}
+				],
+				"payable": true,
+				"stateMutability": "payable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "constructor"
+			},
+			{
+				"payable": true,
+				"stateMutability": "payable",
+				"type": "fallback"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"name": "sender",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"name": "target",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"name": "srcNum",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"name": "sessionNum",
+						"type": "uint256"
+					}
+				],
+				"name": "LogExecute",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"name": "sig",
+						"type": "bytes4"
+					},
+					{
+						"indexed": true,
+						"name": "guy",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"name": "foo",
+						"type": "bytes32"
+					},
+					{
+						"indexed": false,
+						"name": "bar",
+						"type": "bytes32"
+					},
+					{
+						"indexed": false,
+						"name": "wad",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"name": "fax",
+						"type": "bytes"
+					}
+				],
+				"name": "LogNote",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"name": "owner",
+						"type": "address"
+					}
+				],
+				"name": "LogSetOwner",
+				"type": "event"
+			}
+		],
+		"devdoc": {
+			"methods": {
+				"constructor": {
+					"details": "sets the \"address registry\", owner's last activity, owner's active period and initial owner"
+				},
+				"execute(address,bytes,uint256,uint256)": {
+					"details": "Execute authorised calls via delegate call",
+					"params": {
+						"_data": "delegate call data",
+						"_sessionNum": "to find the session",
+						"_srcNum": "to find the source",
+						"_target": "logic proxy address"
+					}
+				},
+				"isAuth(address)": {
+					"details": "checks if called by owner or contract itself",
+					"params": {
+						"src": "is the address initiating the call"
+					}
+				},
+				"setOwner(address)": {
+					"details": "sets new owner"
+				}
+			},
+			"title": "User Owned Contract Wallet"
+		}
+	},
+	"sources": {
+		"UserWallet.sol": {
+			"id": 1
+		}
+	},
+	"sourceCodes": {
+		"UserWallet.sol": "pragma solidity ^0.5.2;\n\n\n/**\n * @dev because math is not safe \n */\nlibrary SafeMath {\n    function add(uint256 a, uint256 b) internal pure returns (uint256) {\n        uint256 c = a + b;\n        require(c >= a, \"math-not-safe\");\n        return c;\n    }\n}\n\n\n/**\n * @title RegistryInterface Interface \n */\ninterface RegistryInterface {\n    function logic(address logicAddr) external view returns (bool);\n    function record(address currentOwner, address nextOwner) external;\n}\n\n\n/**\n * @title Address Registry Record\n */\ncontract AddressRecord {\n\n    /**\n     * @dev address registry of system, logic and wallet addresses\n     */\n    address public registry;\n\n    /**\n     * @dev Throws if the logic is not authorised\n     */\n    modifier logicAuth(address logicAddr) {\n        require(logicAddr != address(0), \"logic-proxy-address-required\");\n        bool islogic = RegistryInterface(registry).logic(logicAddr);\n        require(islogic, \"logic-not-authorised\");\n        _;\n    }\n\n}\n\n\n/**\n * @title User Auth\n */\ncontract UserAuth is AddressRecord {\n    using SafeMath for uint;\n    using SafeMath for uint256;\n\n    event LogSetOwner(address indexed owner);\n    address public owner;\n\n    /**\n     * @dev Throws if not called by owner or contract itself\n     */\n    modifier auth {\n        require(isAuth(msg.sender), \"permission-denied\");\n        _;\n    }\n\n    /**\n     * @dev sets new owner\n     */\n    function setOwner(address nextOwner) public auth {\n        RegistryInterface(registry).record(owner, nextOwner);\n        owner = nextOwner;\n        emit LogSetOwner(nextOwner);\n    }\n\n    /**\n     * @dev checks if called by owner or contract itself\n     * @param src is the address initiating the call\n     */\n    function isAuth(address src) public view returns (bool) {\n        if (src == owner) {\n            return true;\n        } else if (src == address(this)) {\n            return true;\n        } else {\n            return false;\n        }\n    }\n}\n\n\n/**\n * @dev logging the execute events\n */\ncontract UserNote {\n    event LogNote(\n        bytes4 indexed sig,\n        address indexed guy,\n        bytes32 indexed foo,\n        bytes32 bar,\n        uint wad,\n        bytes fax\n    );\n\n    modifier note {\n        bytes32 foo;\n        bytes32 bar;\n        assembly {\n            foo := calldataload(4)\n            bar := calldataload(36)\n        }\n        emit LogNote(\n            msg.sig, \n            msg.sender, \n            foo, \n            bar, \n            msg.value,\n            msg.data\n        );\n        _;\n    }\n}\n\n\n/**\n * @title User Owned Contract Wallet\n */\ncontract UserWallet is UserAuth, UserNote {\n\n    event LogExecute(address sender, address target, uint srcNum, uint sessionNum);\n\n    /**\n     * @dev sets the \"address registry\", owner's last activity, owner's active period and initial owner\n     */\n    constructor() public {\n        registry = msg.sender;\n        owner = msg.sender;\n    }\n\n    function() external payable {}\n\n    /**\n     * @dev Execute authorised calls via delegate call\n     * @param _target logic proxy address\n     * @param _data delegate call data\n     * @param _srcNum to find the source\n     * @param _sessionNum to find the session\n     */\n    function execute(\n        address _target,\n        bytes memory _data,\n        uint _srcNum,\n        uint _sessionNum\n    ) \n        public\n        payable\n        note\n        auth\n        logicAuth(_target)\n        returns (bytes memory response)\n    {\n        emit LogExecute(\n            msg.sender,\n            _target,\n            _srcNum,\n            _sessionNum\n        );\n        \n        // call contract in current context\n        assembly {\n            let succeeded := delegatecall(sub(gas, 5000), _target, add(_data, 0x20), mload(_data), 0, 0)\n            let size := returndatasize\n\n            response := mload(0x40)\n            mstore(0x40, add(response, and(add(add(size, 0x20), 0x1f), not(0x1f))))\n            mstore(response, size)\n            returndatacopy(add(response, 0x20), 0, size)\n\n            switch iszero(succeeded)\n                case 1 {\n                    // throw if delegatecall failed\n                    revert(add(response, 0x20), size)\n                }\n        }\n    }\n\n}"
+	},
+	"sourceTreeHashHex": "0x6c8771a0594acf5f4a7381dae9cf00c28b9cc899151276a8b989eb2edb21c22e",
+	"compiler": {
+		"name": "solc",
+		"version": "soljson-v0.5.7+commit.6da8b019.js",
+		"settings": {
+			"optimizer": {
+				"enabled": false
+			},
+			"outputSelection": {
+				"*": {
+					"*": [
+						"abi",
+						"devdoc"
+					]
+				}
+			},
+			"remappings": [
+				"openzeppelin-solidity=/Users/ravindra/code/contract-v2/node_modules/openzeppelin-solidity"
+			]
+		}
+	},
+	"networks": {}
+}

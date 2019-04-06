@@ -1,0 +1,414 @@
+{
+	"schemaVersion": "2.0.0",
+	"contractName": "InstaRegistry",
+	"compilerOutput": {
+		"abi": [
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "_logicAddress",
+						"type": "address"
+					}
+				],
+				"name": "logic",
+				"outputs": [
+					{
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "logicProxies",
+				"outputs": [
+					{
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "_currentOwner",
+						"type": "address"
+					},
+					{
+						"name": "_nextOwner",
+						"type": "address"
+					}
+				],
+				"name": "record",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "_logicAddress",
+						"type": "address"
+					}
+				],
+				"name": "enableLogic",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [],
+				"name": "build",
+				"outputs": [
+					{
+						"name": "proxy",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "_name",
+						"type": "string"
+					},
+					{
+						"name": "_userAddress",
+						"type": "address"
+					}
+				],
+				"name": "setAddress",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "defaultLogicProxies",
+				"outputs": [
+					{
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "_name",
+						"type": "string"
+					}
+				],
+				"name": "getAddress",
+				"outputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "proxies",
+				"outputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "_logicAddress",
+						"type": "address"
+					}
+				],
+				"name": "disableLogic",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "_logicAddress",
+						"type": "address"
+					}
+				],
+				"name": "enableDefaultLogic",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "owner",
+						"type": "address"
+					}
+				],
+				"name": "build",
+				"outputs": [
+					{
+						"name": "proxy",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "constructor"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"name": "sender",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"name": "owner",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"name": "proxy",
+						"type": "address"
+					}
+				],
+				"name": "Created",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"name": "currentOwner",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"name": "nextOwner",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"name": "proxy",
+						"type": "address"
+					}
+				],
+				"name": "LogRecord",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"name": "logicAddress",
+						"type": "address"
+					}
+				],
+				"name": "LogEnableDefaultLogic",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"name": "logicAddress",
+						"type": "address"
+					}
+				],
+				"name": "LogEnableLogic",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"name": "logicAddress",
+						"type": "address"
+					}
+				],
+				"name": "LogDisableLogic",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"name": "name",
+						"type": "string"
+					},
+					{
+						"indexed": false,
+						"name": "addr",
+						"type": "address"
+					}
+				],
+				"name": "LogSetAddress",
+				"type": "event"
+			}
+		],
+		"devdoc": {
+			"details": "Initializing Registry",
+			"methods": {
+				"build()": {
+					"details": "Deploys a new proxy instance and sets custom owner of proxy Throws if the owner already have a UserWallet",
+					"return": "proxy ()"
+				},
+				"build(address)": {
+					"details": "update the proxy record whenever owner changed on any proxy Throws if msg.sender is not a proxy contract created via this contract",
+					"return": "proxy () UserWallet"
+				},
+				"disableLogic(address)": {
+					"details": "Disable logic proxy address",
+					"params": {
+						"_logicAddress": "(address)"
+					}
+				},
+				"enableDefaultLogic(address)": {
+					"details": "Sets the default logic proxy to true default proxies mostly contains the logic for withdrawal of assets and can never be false to freely let user withdraw their assets",
+					"params": {
+						"_logicAddress": "(address)"
+					}
+				},
+				"enableLogic(address)": {
+					"details": "Enable logic proxy address",
+					"params": {
+						"_logicAddress": "(address)"
+					}
+				},
+				"getAddress(string)": {
+					"details": "Get the address from system registry ",
+					"params": {
+						"_name": "(string)"
+					},
+					"return": "(address) Returns address based on role"
+				},
+				"logic(address)": {
+					"params": {
+						"_logicAddress": "(address)"
+					},
+					"return": "(bool)"
+				},
+				"record(address,address)": {
+					"details": "Transafers ownership",
+					"params": {
+						"_currentOwner": "(address) Current Owner",
+						"_nextOwner": "(address) Next Owner"
+					}
+				},
+				"setAddress(string,address)": {
+					"details": "Set new address in system registry ",
+					"params": {
+						"_name": "(string) Role name",
+						"_userAddress": "(string) User Address"
+					}
+				}
+			},
+			"title": "InstaRegistry"
+		}
+	},
+	"sources": {
+		"InstaRegistry.sol": {
+			"id": 2
+		},
+		"UserWallet.sol": {
+			"id": 7
+		},
+		"openzeppelin-solidity/contracts/math/SafeMath.sol": {
+			"id": 8
+		}
+	},
+	"sourceCodes": {
+		"InstaRegistry.sol": "pragma solidity ^0.5.2;\n\nimport \"./UserWallet.sol\";\n\n\n/// @title AddressRegistry\n/// @notice \n/// @dev \ncontract AddressRegistry {\n    event LogSetAddress(string name, address addr);\n\n    /// @notice Registry of role and address\n    mapping(bytes32 => address) registry;\n\n    /**\n     * @dev Check if msg.sender is admin or owner.\n     */\n    modifier isAdmin() {\n        require(\n            msg.sender == getAddress(\"admin\") || \n            msg.sender == getAddress(\"owner\"),\n            \"permission-denied\"\n        );\n        _;\n    }\n\n    /// @dev Get the address from system registry \n    /// @param _name (string)\n    /// @return  (address) Returns address based on role\n    function getAddress(string memory _name) public view returns(address) {\n        return registry[keccak256(abi.encodePacked(_name))];\n    }\n\n    /// @dev Set new address in system registry \n    /// @param _name (string) Role name\n    /// @param _userAddress (string) User Address\n    function setAddress(string memory _name, address _userAddress) public isAdmin {\n        registry[keccak256(abi.encodePacked(_name))] = _userAddress;\n        emit LogSetAddress(_name, _userAddress);\n    }\n}\n\n\n/// @title LogicRegistry\n/// @notice\n/// @dev LogicRegistry \ncontract LogicRegistry is AddressRegistry {\n\n    event LogEnableDefaultLogic(address logicAddress);\n    event LogEnableLogic(address logicAddress);\n    event LogDisableLogic(address logicAddress);\n\n    /// @notice Map of default proxy state\n    mapping(address => bool) public defaultLogicProxies;\n    \n    /// @notice Map of logic proxy state\n    mapping(address => bool) public logicProxies;\n\n    /// @dev \n    /// @param _logicAddress (address)\n    /// @return  (bool)\n    function logic(address _logicAddress) public view returns (bool) {\n        if (defaultLogicProxies[_logicAddress] || logicProxies[_logicAddress]) {\n            return true;\n        } else {\n            return false;\n        }\n    }\n\n    /// @dev Sets the default logic proxy to true\n    /// default proxies mostly contains the logic for withdrawal of assets\n    /// and can never be false to freely let user withdraw their assets\n    /// @param _logicAddress (address)\n    function enableDefaultLogic(address _logicAddress) public isAdmin {\n        defaultLogicProxies[_logicAddress] = true;\n        emit LogEnableDefaultLogic(_logicAddress);\n    }\n\n    /// @dev Enable logic proxy address\n    /// @param _logicAddress (address)\n    function enableLogic(address _logicAddress) public isAdmin {\n        logicProxies[_logicAddress] = true;\n        emit LogEnableLogic(_logicAddress);\n    }\n\n    /// @dev Disable logic proxy address\n    /// @param _logicAddress (address)\n    function disableLogic(address _logicAddress) public isAdmin {\n        logicProxies[_logicAddress] = false;\n        emit LogDisableLogic(_logicAddress);\n    }\n\n}\n\n/**\n * @dev Deploys a new proxy instance and sets msg.sender as owner of proxy\n */\ncontract WalletRegistry is LogicRegistry {\n    \n    event Created(address indexed sender, address indexed owner, address proxy);\n    event LogRecord(address indexed currentOwner, address indexed nextOwner, address proxy);\n    \n    /// @notice Address to UserWallet proxy map\n    mapping(address => UserWallet) public proxies;\n    \n    /// @dev Deploys a new proxy instance and sets custom owner of proxy\n    /// Throws if the owner already have a UserWallet\n    /// @return proxy ()\n    function build() public returns (UserWallet proxy) {\n        proxy = build(msg.sender);\n    }\n\n    /// @dev update the proxy record whenever owner changed on any proxy\n    /// Throws if msg.sender is not a proxy contract created via this contract\n    /// @return proxy () UserWallet\n    function build(address owner) public returns (UserWallet proxy) {\n        require(proxies[owner] == UserWallet(0), \"multiple-proxy-per-user-not-allowed\");\n        proxy = new UserWallet();\n        proxies[address(this)] = proxy; // will be changed via record() in next line execution\n        proxy.setOwner(owner);\n        emit Created(msg.sender, owner, address(proxy));\n    }\n\n    /// @dev Transafers ownership\n    /// @param _currentOwner (address) Current Owner\n    /// @param _nextOwner (address) Next Owner\n    function record(address _currentOwner, address _nextOwner) public {\n        require(msg.sender == address(proxies[_currentOwner]), \"invalid-proxy-or-owner\");\n        require(proxies[_nextOwner] == UserWallet(0), \"multiple-proxy-per-user-not-allowed\");\n        proxies[_nextOwner] = proxies[_currentOwner];\n        proxies[_currentOwner] = UserWallet(0);\n        emit LogRecord(_currentOwner, _nextOwner, address(proxies[_nextOwner]));\n    }\n\n}\n\n/// @title InstaRegistry\n/// @dev Initializing Registry\ncontract InstaRegistry is WalletRegistry {\n\n    constructor() public {\n        registry[keccak256(abi.encodePacked(\"admin\"))] = msg.sender;\n        registry[keccak256(abi.encodePacked(\"owner\"))] = msg.sender;\n    }\n}\n",
+		"UserWallet.sol": "pragma solidity ^0.5.2;\n\nimport \"openzeppelin-solidity/contracts/math/SafeMath.sol\";\n\n/**\n * @title RegistryInterface Interface \n */\ninterface RegistryInterface {\n    function logic(address logicAddr) external view returns (bool);\n    function record(address currentOwner, address nextOwner) external;\n}\n\n/**\n * @title Address Registry Record\n */\ncontract AddressRecord {\n\n    /**\n     * @dev address registry of system, logic and wallet addresses\n     */\n    address public registry;\n\n    /**\n     * @dev Throws if the logic is not authorised\n     */\n    modifier logicAuth(address logicAddr) {\n        require(logicAddr != address(0), \"logic-proxy-address-required\");\n        bool islogic = RegistryInterface(registry).logic(logicAddr);\n        require(islogic, \"logic-not-authorised\");\n        _;\n    }\n\n}\n\n\n/**\n * @title User Auth\n */\ncontract UserAuth is AddressRecord {\n    using SafeMath for uint;\n    using SafeMath for uint256;\n\n    event LogSetOwner(address indexed owner);\n    address public owner;\n\n    /**\n     * @dev Throws if not called by owner or contract itself\n     */\n    modifier auth {\n        require(isAuth(msg.sender), \"permission-denied\");\n        _;\n    }\n\n    /**\n     * @dev sets new owner\n     */\n    function setOwner(address nextOwner) public auth {\n        RegistryInterface(registry).record(owner, nextOwner);\n        owner = nextOwner;\n        emit LogSetOwner(nextOwner);\n    }\n\n    /**\n     * @dev checks if called by owner or contract itself\n     * @param src is the address initiating the call\n     */\n    function isAuth(address src) public view returns (bool) {\n        if (src == owner) {\n            return true;\n        } else if (src == address(this)) {\n            return true;\n        } else {\n            return false;\n        }\n    }\n}\n\n\n/**\n * @dev logging the execute events\n */\ncontract UserNote {\n    event LogNote(\n        bytes4 indexed sig,\n        address indexed guy,\n        bytes32 indexed foo,\n        bytes32 bar,\n        uint wad,\n        bytes fax\n    );\n\n    modifier note {\n        bytes32 foo;\n        bytes32 bar;\n        assembly {\n            foo := calldataload(4)\n            bar := calldataload(36)\n        }\n        emit LogNote(\n            msg.sig, \n            msg.sender, \n            foo, \n            bar, \n            msg.value,\n            msg.data\n        );\n        _;\n    }\n}\n\n\n/**\n * @title User Owned Contract Wallet\n */\ncontract UserWallet is UserAuth, UserNote {\n\n    event LogExecute(address sender, address target, uint srcNum, uint sessionNum);\n\n    /**\n     * @dev sets the \"address registry\", owner's last activity, owner's active period and initial owner\n     */\n    constructor() public {\n        registry = msg.sender;\n        owner = msg.sender;\n    }\n\n    function() external payable {}\n\n    /**\n     * @dev Execute authorised calls via delegate call\n     * @param _target logic proxy address\n     * @param _data delegate call data\n     * @param _srcNum to find the source\n     * @param _sessionNum to find the session\n     */\n    function execute(\n        address _target,\n        bytes memory _data,\n        uint _srcNum,\n        uint _sessionNum\n    ) \n        public\n        payable\n        note\n        auth\n        logicAuth(_target)\n        returns (bytes memory response)\n    {\n        emit LogExecute(\n            msg.sender,\n            _target,\n            _srcNum,\n            _sessionNum\n        );\n        \n        // call contract in current context\n        assembly {\n            let succeeded := delegatecall(sub(gas, 5000), _target, add(_data, 0x20), mload(_data), 0, 0)\n            let size := returndatasize\n\n            response := mload(0x40)\n            mstore(0x40, add(response, and(add(add(size, 0x20), 0x1f), not(0x1f))))\n            mstore(response, size)\n            returndatacopy(add(response, 0x20), 0, size)\n\n            switch iszero(succeeded)\n                case 1 {\n                    // throw if delegatecall failed\n                    revert(add(response, 0x20), size)\n                }\n        }\n    }\n\n}",
+		"openzeppelin-solidity/contracts/math/SafeMath.sol": "pragma solidity ^0.5.2;\n\n/**\n * @title SafeMath\n * @dev Unsigned math operations with safety checks that revert on error\n */\nlibrary SafeMath {\n    /**\n     * @dev Multiplies two unsigned integers, reverts on overflow.\n     */\n    function mul(uint256 a, uint256 b) internal pure returns (uint256) {\n        // Gas optimization: this is cheaper than requiring 'a' not being zero, but the\n        // benefit is lost if 'b' is also tested.\n        // See: https://github.com/OpenZeppelin/openzeppelin-solidity/pull/522\n        if (a == 0) {\n            return 0;\n        }\n\n        uint256 c = a * b;\n        require(c / a == b);\n\n        return c;\n    }\n\n    /**\n     * @dev Integer division of two unsigned integers truncating the quotient, reverts on division by zero.\n     */\n    function div(uint256 a, uint256 b) internal pure returns (uint256) {\n        // Solidity only automatically asserts when dividing by 0\n        require(b > 0);\n        uint256 c = a / b;\n        // assert(a == b * c + a % b); // There is no case in which this doesn't hold\n\n        return c;\n    }\n\n    /**\n     * @dev Subtracts two unsigned integers, reverts on overflow (i.e. if subtrahend is greater than minuend).\n     */\n    function sub(uint256 a, uint256 b) internal pure returns (uint256) {\n        require(b <= a);\n        uint256 c = a - b;\n\n        return c;\n    }\n\n    /**\n     * @dev Adds two unsigned integers, reverts on overflow.\n     */\n    function add(uint256 a, uint256 b) internal pure returns (uint256) {\n        uint256 c = a + b;\n        require(c >= a);\n\n        return c;\n    }\n\n    /**\n     * @dev Divides two unsigned integers and returns the remainder (unsigned integer modulo),\n     * reverts when dividing by zero.\n     */\n    function mod(uint256 a, uint256 b) internal pure returns (uint256) {\n        require(b != 0);\n        return a % b;\n    }\n}\n"
+	},
+	"sourceTreeHashHex": "0xecdf79176b1e2561a89c76017fe06a755e8ab43349a64295e51f6317f5878a73",
+	"compiler": {
+		"name": "solc",
+		"version": "soljson-v0.5.7+commit.6da8b019.js",
+		"settings": {
+			"optimizer": {
+				"enabled": false
+			},
+			"outputSelection": {
+				"*": {
+					"*": [
+						"abi",
+						"devdoc"
+					]
+				}
+			},
+			"remappings": [
+				"openzeppelin-solidity=/Users/ravindra/code/contract-v2/node_modules/openzeppelin-solidity"
+			]
+		}
+	},
+	"networks": {}
+}

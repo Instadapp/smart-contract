@@ -1,0 +1,123 @@
+{
+	"schemaVersion": "2.0.0",
+	"contractName": "Kyber",
+	"compilerOutput": {
+		"abi": [
+			{
+				"constant": true,
+				"inputs": [
+					{
+						"name": "src",
+						"type": "address"
+					},
+					{
+						"name": "dest",
+						"type": "address"
+					},
+					{
+						"name": "srcQty",
+						"type": "uint256"
+					}
+				],
+				"name": "getExpectedRate",
+				"outputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					},
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "src",
+						"type": "address"
+					},
+					{
+						"name": "srcAmount",
+						"type": "uint256"
+					},
+					{
+						"name": "dest",
+						"type": "address"
+					},
+					{
+						"name": "destAddress",
+						"type": "address"
+					},
+					{
+						"name": "maxDestAmount",
+						"type": "uint256"
+					},
+					{
+						"name": "minConversionRate",
+						"type": "uint256"
+					},
+					{
+						"name": "walletId",
+						"type": "address"
+					}
+				],
+				"name": "trade",
+				"outputs": [
+					{
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"payable": true,
+				"stateMutability": "payable",
+				"type": "function"
+			}
+		],
+		"devdoc": {
+			"methods": {}
+		}
+	},
+	"sources": {
+		"Bin/Kyber.sol": {
+			"id": 0
+		},
+		"openzeppelin-solidity/contracts/math/SafeMath.sol": {
+			"id": 8
+		},
+		"openzeppelin-solidity/contracts/token/ERC20/IERC20.sol": {
+			"id": 9
+		}
+	},
+	"sourceCodes": {
+		"Bin/Kyber.sol": "pragma solidity ^0.5.2;\n\nimport \"openzeppelin-solidity/contracts/math/SafeMath.sol\";\nimport \"openzeppelin-solidity/contracts/token/ERC20/IERC20.sol\";\n\ninterface AddressRegistry {\n    function getAddr(string calldata name) external view returns (address);\n}\n\ninterface Kyber {\n    // Kyber's trade function\n    function trade(\n        address src,\n        uint srcAmount,\n        address dest,\n        address destAddress,\n        uint maxDestAmount,\n        uint minConversionRate,\n        address walletId\n    ) external payable returns (uint);\n    // Kyber's Get expected Rate function\n    function getExpectedRate(address src, address dest, uint srcQty) external view returns (uint, uint);\n}\n\ncontract Registry {\n    address public addressRegistry;\n    modifier onlyAdmin() {\n        require(msg.sender == _getAddress(\"admin\"), \"Permission Denied\");\n        _;\n    }\n    function _getAddress(string memory name) internal view returns (address) {\n        AddressRegistry addrReg = AddressRegistry(addressRegistry);\n        return addrReg.getAddr(name);\n    }\n}\n\ncontract helper is Registry {\n    function _getToken(address trader, address src, uint srcAmt, address eth) internal returns (uint ethQty) {\n        if (src == eth) {\n            require(msg.value == srcAmt, \"Invalid Operation\");\n            ethQty = srcAmt;\n        } else {\n            IERC20 tokenFunctions = IERC20(src);\n            tokenFunctions.transferFrom(trader, address(this), srcAmt);\n            ethQty = 0;\n        }\n    }\n\n    // approve to Kyber Proxy contract\n    function _approveKyber(address token) internal returns (bool) {\n        address kyberProxy = _getAddress(\"kyber\");\n        IERC20 tokenFunctions = IERC20(token);\n        return tokenFunctions.approve(kyberProxy, uint(0 - 1));\n    }\n\n    // Check Allowance to Kyber Proxy contract\n    function _allowanceKyber(address token) internal view returns (uint) {\n        address kyberProxy = _getAddress(\"kyber\");\n        IERC20 tokenFunctions = IERC20(token);\n        return tokenFunctions.allowance(address(this), kyberProxy);\n    }\n\n    // Check allowance, if not approve\n    function _allowanceApproveKyber(address token) internal returns (bool) {\n        uint allowanceGiven = _allowanceKyber(token);\n        if (allowanceGiven == 0) {\n            return _approveKyber(token);\n        } else {\n            return true;\n        }\n    }\n}\n\ncontract Trade is helper {\n    using SafeMath for uint;\n\n    event KyberTrade(address src, uint srcAmt, address dest, uint destAmt, address beneficiary, uint minConversionRate, address affiliate);\n\n    function getExpectedRateKyber(address src, address dest, uint srcAmt) public view returns (uint, uint) {\n        Kyber kyberFunctions = Kyber(_getAddress(\"kyber\"));\n        return kyberFunctions.getExpectedRate(src, dest, srcAmt);\n    }\n\n    /**\n     * @dev Kyber's trade when token to sell Amount fixed\n     * @param src - Token address to sell (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param srcAmt - amount of token for sell\n     * @param dest - Token address to buy (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param minDestAmt - min amount of token to buy (slippage)\n    */\n    function tradeSrcKyber(\n        address src, // token to sell\n        uint srcAmt, // amount of token for sell\n        address dest, // token to buy\n        uint minDestAmt // minimum slippage rate\n    ) public payable returns (uint tokensBought) {\n        address eth = _getAddress(\"eth\");\n        uint ethQty = _getToken(msg.sender, src, srcAmt, eth);\n\n        if (src != eth) {\n            _allowanceApproveKyber(src);\n        }\n\n        // Interacting with Kyber Proxy Contract\n        Kyber kyberFunctions = Kyber(_getAddress(\"kyber\"));\n        tokensBought = kyberFunctions.trade.value(ethQty)(src, srcAmt, dest, msg.sender, uint(0 - 1), minDestAmt, _getAddress(\"admin\"));\n\n        emit KyberTrade(src, srcAmt, dest, tokensBought, msg.sender, minDestAmt, _getAddress(\"admin\"));\n\n    }\n\n    /**\n     * @dev Kyber's trade when token to sell Amount fixed\n     * @param src - Token address to sell (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param maxSrcAmt - max amount of token for sell (slippage)\n     * @param dest - Token address to buy (for ETH it's \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\")\n     * @param destAmt - amount of token to buy\n    */\n    function tradeDestKyber(\n        address src, // token to sell\n        uint maxSrcAmt, // amount of token for sell\n        address dest, // token to buy\n        uint destAmt // minimum slippage rate\n    ) public payable returns (uint tokensBought) {\n        address eth = _getAddress(\"eth\");\n        uint ethQty = _getToken(msg.sender, src, maxSrcAmt, eth);\n\n        if (src != eth) {\n            _allowanceApproveKyber(src);\n        }\n\n        // Interacting with Kyber Proxy Contract\n        Kyber kyberFunctions = Kyber(_getAddress(\"kyber\"));\n        tokensBought = kyberFunctions.trade.value(ethQty)(src, maxSrcAmt, dest, msg.sender, destAmt, destAmt - 1, _getAddress(\"admin\"));\n\n        // maxDestAmt usecase implementated\n        if (src == eth && address(this).balance > 0) {\n            msg.sender.transfer(address(this).balance);\n        } else if (src != eth) {\n            // as there is no balanceOf of eth\n            IERC20 srcTkn = IERC20(src);\n            uint srcBal = srcTkn.balanceOf(address(this));\n            if (srcBal > 0) {\n                srcTkn.transfer(msg.sender, srcBal);\n            }\n        }\n\n        emit KyberTrade(src, maxSrcAmt, dest, tokensBought, msg.sender, destAmt, _getAddress(\"admin\"));\n\n    }\n\n}\n\n\ncontract InstaKyber is Trade {\n    constructor(address rAddr) public {\n        addressRegistry = rAddr;\n    }\n\n    function() external payable {}\n}\n",
+		"openzeppelin-solidity/contracts/math/SafeMath.sol": "pragma solidity ^0.5.2;\n\n/**\n * @title SafeMath\n * @dev Unsigned math operations with safety checks that revert on error\n */\nlibrary SafeMath {\n    /**\n     * @dev Multiplies two unsigned integers, reverts on overflow.\n     */\n    function mul(uint256 a, uint256 b) internal pure returns (uint256) {\n        // Gas optimization: this is cheaper than requiring 'a' not being zero, but the\n        // benefit is lost if 'b' is also tested.\n        // See: https://github.com/OpenZeppelin/openzeppelin-solidity/pull/522\n        if (a == 0) {\n            return 0;\n        }\n\n        uint256 c = a * b;\n        require(c / a == b);\n\n        return c;\n    }\n\n    /**\n     * @dev Integer division of two unsigned integers truncating the quotient, reverts on division by zero.\n     */\n    function div(uint256 a, uint256 b) internal pure returns (uint256) {\n        // Solidity only automatically asserts when dividing by 0\n        require(b > 0);\n        uint256 c = a / b;\n        // assert(a == b * c + a % b); // There is no case in which this doesn't hold\n\n        return c;\n    }\n\n    /**\n     * @dev Subtracts two unsigned integers, reverts on overflow (i.e. if subtrahend is greater than minuend).\n     */\n    function sub(uint256 a, uint256 b) internal pure returns (uint256) {\n        require(b <= a);\n        uint256 c = a - b;\n\n        return c;\n    }\n\n    /**\n     * @dev Adds two unsigned integers, reverts on overflow.\n     */\n    function add(uint256 a, uint256 b) internal pure returns (uint256) {\n        uint256 c = a + b;\n        require(c >= a);\n\n        return c;\n    }\n\n    /**\n     * @dev Divides two unsigned integers and returns the remainder (unsigned integer modulo),\n     * reverts when dividing by zero.\n     */\n    function mod(uint256 a, uint256 b) internal pure returns (uint256) {\n        require(b != 0);\n        return a % b;\n    }\n}\n",
+		"openzeppelin-solidity/contracts/token/ERC20/IERC20.sol": "pragma solidity ^0.5.2;\n\n/**\n * @title ERC20 interface\n * @dev see https://eips.ethereum.org/EIPS/eip-20\n */\ninterface IERC20 {\n    function transfer(address to, uint256 value) external returns (bool);\n\n    function approve(address spender, uint256 value) external returns (bool);\n\n    function transferFrom(address from, address to, uint256 value) external returns (bool);\n\n    function totalSupply() external view returns (uint256);\n\n    function balanceOf(address who) external view returns (uint256);\n\n    function allowance(address owner, address spender) external view returns (uint256);\n\n    event Transfer(address indexed from, address indexed to, uint256 value);\n\n    event Approval(address indexed owner, address indexed spender, uint256 value);\n}\n"
+	},
+	"sourceTreeHashHex": "0xaa360f8e2c65e34e3697c5f348f1f27a6f75e94c847cf9c08035c8bdd04eb43f",
+	"compiler": {
+		"name": "solc",
+		"version": "soljson-v0.5.7+commit.6da8b019.js",
+		"settings": {
+			"optimizer": {
+				"enabled": false
+			},
+			"outputSelection": {
+				"*": {
+					"*": [
+						"abi",
+						"devdoc"
+					]
+				}
+			},
+			"remappings": [
+				"openzeppelin-solidity=/Users/ravindra/code/contract-v2/node_modules/openzeppelin-solidity"
+			]
+		}
+	},
+	"networks": {}
+}

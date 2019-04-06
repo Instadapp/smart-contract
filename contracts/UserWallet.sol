@@ -1,17 +1,6 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.2;
 
-
-/**
- * @dev because math is not safe 
- */
-library SafeMath {
-    function add(uint256 a, uint256 b) internal pure returns (uint256) {
-        uint256 c = a + b;
-        require(c >= a, "math-not-safe");
-        return c;
-    }
-}
-
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
 /**
  * @title RegistryInterface Interface 
@@ -20,7 +9,6 @@ interface RegistryInterface {
     function logic(address logicAddr) external view returns (bool);
     function record(address currentOwner, address nextOwner) external;
 }
-
 
 /**
  * @title Address Registry Record
@@ -85,7 +73,6 @@ contract UserAuth is AddressRecord {
             return false;
         }
     }
-
 }
 
 
@@ -140,17 +127,17 @@ contract UserWallet is UserAuth, UserNote {
     function() external payable {}
 
     /**
-     * @dev execute authorised calls via delegate call
+     * @dev Execute authorised calls via delegate call
      * @param _target logic proxy address
      * @param _data delegate call data
-     * @param srcNum to find the source
-     * @param sessionNum to find the session
+     * @param _srcNum to find the source
+     * @param _sessionNum to find the session
      */
     function execute(
         address _target,
         bytes memory _data,
-        uint srcNum,
-        uint sessionNum
+        uint _srcNum,
+        uint _sessionNum
     ) 
         public
         payable
@@ -162,8 +149,8 @@ contract UserWallet is UserAuth, UserNote {
         emit LogExecute(
             msg.sender,
             _target,
-            srcNum,
-            sessionNum
+            _srcNum,
+            _sessionNum
         );
         
         // call contract in current context

@@ -1,20 +1,9 @@
 // This Auth Model also includes UserWallet Logics
 // TODO => make it single Auth code for future launch where this Auth Contract will be the owner of UserWallet
 
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.2;
 
-
-/**
- * @dev because math is not safe 
- */
-library SafeMath {
-    function add(uint256 a, uint256 b) internal pure returns (uint256) {
-        uint256 c = a + b;
-        require(c >= a, "math-not-safe");
-        return c;
-    }
-}
-
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
 /**
  * @title AddressRegistryInterface Interface 
@@ -30,8 +19,8 @@ interface AddressRegistryInterface {
  * @title UserWallet Interface
  */
 // interface UserWalletInterface {
-    // get the wallet address based on the owner of this wallet 
-    // and use execute interface from main UserWallet to call execute on this contract 
+// get the wallet address based on the owner of this wallet
+// and use execute interface from main UserWallet to call execute on this contract
 // }
 
 
@@ -39,7 +28,6 @@ interface AddressRegistryInterface {
  * @title Address Registry Record
  */
 contract AddressRecord {
-
     /**
      * @dev address registry of system, logic and wallet addresses
      */
@@ -151,14 +139,12 @@ contract UserAuth is AddressRecord {
 
 }
 
-
 /**
  * @title User Guardians
  * @dev the assigned guardian addresses (upto 3) can set new owners
  * but only after certain period of owner's inactivity (i.e. activePeriod)
  */
 contract UserGuardian is UserAuth {
-
     event LogSetGuardian(uint num, address indexed prevGuardian, address indexed newGuardian);
     event LogNewActivePeriod(uint newActivePeriod);
     event LogSetOwnerViaGuardian(address nextOwner, address indexed guardian);
@@ -213,12 +199,7 @@ contract UserGuardian is UserAuth {
      * @dev Throws if the msg.sender is not guardian
      */
     function isGuardian(address _guardian) public view returns (bool) {
-        if (
-            _guardian == guardians[1] || _guardian == guardians[2] || 
-            _guardian == guardians[3] || _guardian == guardians[4] || 
-            _guardian == guardians[5]
-            )
-        {
+        if (_guardian == guardians[1] || _guardian == guardians[2] || _guardian == guardians[3] || _guardian == guardians[4] || _guardian == guardians[5]) {
             return true;
         } else {
             return false;
@@ -227,14 +208,12 @@ contract UserGuardian is UserAuth {
 
 }
 
-
 /**
  * @title User Manager
  * @dev the assigned manager addresses (upto 3) can manage the wealth in contract to contract fashion
  * but can't withdraw the assets on their personal address
  */
 contract UserManager is UserGuardian {
-
     event LogSetManager(uint num, address indexed prevManager, address indexed newManager);
 
     mapping(uint => address) public managers;
@@ -263,12 +242,7 @@ contract UserManager is UserGuardian {
      * @dev Throws if the msg.sender is not manager
      */
     function isManager(address _manager) public view returns (bool) {
-        if (
-            _manager == managers[1] || _manager == managers[2] || 
-            _manager == managers[3] || _manager == managers[4] || 
-            _manager == managers[5]
-            )
-        {
+        if (_manager == managers[1] || _manager == managers[2] || _manager == managers[3] || _manager == managers[4] || _manager == managers[5]) {
             return true;
         } else {
             return false;
@@ -277,19 +251,11 @@ contract UserManager is UserGuardian {
 
 }
 
-
 /**
  * @dev logging the execute events
  */
 contract UserNote {
-    event LogNote(
-        bytes4 indexed sig,
-        address indexed guy,
-        bytes32 indexed foo,
-        bytes32 bar,
-        uint wad,
-        bytes fax
-    );
+    event LogNote(bytes4 indexed sig, address indexed guy, bytes32 indexed foo, bytes32 bar, uint wad, bytes fax);
 
     modifier note {
         bytes32 foo;
@@ -298,24 +264,15 @@ contract UserNote {
             foo := calldataload(4)
             bar := calldataload(36)
         }
-        emit LogNote(
-            msg.sig, 
-            msg.sender, 
-            foo, 
-            bar, 
-            msg.value,
-            msg.data
-        );
+        emit LogNote(msg.sig, msg.sender, foo, bar, msg.value, msg.data);
         _;
     }
 }
-
 
 /**
  * @title User Owned Contract Wallet
  */
 contract InstaWallet is UserManager, UserNote {
-
     event LogExecute(address sender, address target, uint srcNum, uint sessionNum);
 
     /**
@@ -337,12 +294,7 @@ contract InstaWallet is UserManager, UserNote {
      * @param srcNum to find the source
      * @param sessionNum to find the session
      */
-    function execute(
-        address _target,
-        bytes memory _data,
-        uint srcNum,
-        uint sessionNum
-    ) 
+    function execute(address _target, bytes memory _data, uint srcNum, uint sessionNum)
         public
         payable
         note
@@ -350,13 +302,8 @@ contract InstaWallet is UserManager, UserNote {
         returns (bytes memory response)
     {
         lastActivity = block.timestamp;
-        emit LogExecute(
-            msg.sender,
-            _target,
-            srcNum,
-            sessionNum
-        );
-        
+        emit LogExecute(msg.sender, _target, srcNum, sessionNum);
+
         // call contract in current context
         assembly {
             let succeeded := delegatecall(sub(gas, 5000), _target, add(_data, 0x20), mload(_data), 0, 0)
@@ -385,14 +332,14 @@ contract InstaWallet is UserManager, UserNote {
 
         (bool isLogic, bool isDefault) = isLogicAuthorised(proxyTarget);
         require(isLogic, "logic-proxy-address-not-allowed");
-        
+
         bool enact = false;
         if (isAuth(msg.sender)) {
             enact = true;
         } else if (isManager(msg.sender) && !isDefault) {
             enact = true;
         }
-        
+
         require(enact, "not-executable");
         _;
     }

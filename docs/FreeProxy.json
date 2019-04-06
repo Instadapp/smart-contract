@@ -1,0 +1,120 @@
+{
+	"schemaVersion": "2.0.0",
+	"contractName": "FreeProxy",
+	"compilerOutput": {
+		"abi": [
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "getAddressWETH",
+				"outputs": [
+					{
+						"name": "weth",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "pure",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "getWETHBal",
+				"outputs": [
+					{
+						"name": "freeJam",
+						"type": "uint256"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [],
+				"name": "withdrawWETH",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "getSaiWETH",
+				"outputs": [
+					{
+						"name": "",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"constant": false,
+				"inputs": [
+					{
+						"name": "wamt",
+						"type": "uint256"
+					}
+				],
+				"name": "freeWETH",
+				"outputs": [],
+				"payable": false,
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"constant": true,
+				"inputs": [],
+				"name": "getSaiTubAddress",
+				"outputs": [
+					{
+						"name": "sai",
+						"type": "address"
+					}
+				],
+				"payable": false,
+				"stateMutability": "pure",
+				"type": "function"
+			}
+		],
+		"devdoc": {
+			"methods": {}
+		}
+	},
+	"sources": {
+		"Bin/FreeProxy.sol": {
+			"id": 0
+		}
+	},
+	"sourceCodes": {
+		"Bin/FreeProxy.sol": "pragma solidity ^0.5.2;\n\n\ninterface TubInterface {\n    function gem() external view returns (TokenInterface);\n}\n\n\ninterface TokenInterface {\n    function allowance(address, address) external view returns (uint);\n    function balanceOf(address) external view returns (uint);\n    function transfer(address, uint) external returns (bool);\n    function approve(address, uint) external;\n    function withdraw(uint) external;\n}\n\n\ncontract FreeProxy {\n\n    function getSaiTubAddress() public pure returns (address sai) {\n        sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;\n    }\n\n    function getAddressWETH() public pure returns (address weth) {\n        weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;\n    }\n\n    function freeWETH(uint wamt) public {\n        TubInterface tub = TubInterface(getSaiTubAddress());\n        TokenInterface weth = tub.gem();\n\n        uint freeJam = wamt;\n        if (freeJam == 0) {\n            freeJam = weth.balanceOf(address(this));\n        }\n\n        weth.withdraw(freeJam);\n        msg.sender.transfer(freeJam);\n    }\n\n    function withdrawWETH() public {\n        TubInterface tub = TubInterface(getSaiTubAddress());\n        TokenInterface weth = tub.gem();\n        uint freeJam = weth.balanceOf(address(this));\n        weth.transfer(msg.sender, freeJam);\n    }\n\n    function getWETHBal() public view returns (uint freeJam) {\n        TubInterface tub = TubInterface(getSaiTubAddress());\n        TokenInterface weth = tub.gem();\n        freeJam = weth.balanceOf(address(this));\n    }\n\n    function getSaiWETH() public view returns (address) {\n        TubInterface tub = TubInterface(getSaiTubAddress());\n        return address(tub.gem());\n    }\n\n    function setAllowance(TokenInterface token_, address spender_) private {\n        if (token_.allowance(address(this), spender_) != uint(-1)) {\n            token_.approve(spender_, uint(-1));\n        }\n    }\n\n}"
+	},
+	"sourceTreeHashHex": "0xa7b0a10e45beb64aec3d940e4bc0933e5908591468fdd83a5c8e0ec82332600f",
+	"compiler": {
+		"name": "solc",
+		"version": "soljson-v0.5.7+commit.6da8b019.js",
+		"settings": {
+			"optimizer": {
+				"enabled": false
+			},
+			"outputSelection": {
+				"*": {
+					"*": [
+						"abi",
+						"devdoc"
+					]
+				}
+			},
+			"remappings": [
+				"openzeppelin-solidity=/Users/ravindra/code/contract-v2/node_modules/openzeppelin-solidity"
+			]
+		}
+	},
+	"networks": {}
+}

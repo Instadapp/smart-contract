@@ -8,6 +8,13 @@ const rinkebyProvider = new HDWalletProvider(
   'https://rinkeby.infura.io/'
 )
 
+const kovanWallet =
+  'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat'
+const kovanProvider = new HDWalletProvider(
+  kovanWallet,
+  'https://kovan.infura.io/'
+)
+
 const ropstenWallet =
   'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat'
 const ropstenProvider = new HDWalletProvider(
@@ -16,6 +23,7 @@ const ropstenProvider = new HDWalletProvider(
 )
 
 module.exports = {
+  plugins: ['truffle-security'],
   migrations_directory: './migrations',
   networks: {
     test: {
@@ -32,6 +40,12 @@ module.exports = {
       gasPrice: 5e9,
       provider: () => ropstenProvider
     },
+    kovan: {
+      network_id: 42,
+      gas: 6.5e6,
+      gasPrice: 5e9,
+      provider: () => kovanProvider
+    },
     rinkeby: {
       network_id: 4,
       gas: 6.5e6,
@@ -39,10 +53,15 @@ module.exports = {
       provider: () => rinkebyProvider
     }
   },
-  solc: {
-    optimizer: {
-      enabled: true,
-      runs: 500
+  compilers: {
+    solc: {
+      version: '^0.5.2',
+      settings: {
+        optimizer: {
+          enabled: false,
+          runs: 500
+        }
+      }
     }
   },
   mocha: {
