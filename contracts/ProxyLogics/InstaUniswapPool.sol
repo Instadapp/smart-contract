@@ -107,13 +107,14 @@ contract InstaUniswapPool is Helper {
         uint totalSupply,
         uint ethReserve,
         uint tokenReserve
-    ) 
+    )
     {
+        UniswapPool uniswapExchange = UniswapPool(poolAddress);
         poolAddress = getAddressPool(token);
-        name = UniswapPool(poolAddress).name();
-        symbol = UniswapPool(poolAddress).symbol();
-        decimals = UniswapPool(poolAddress).decimals();
-        totalSupply = UniswapPool(poolAddress).totalSupply();
+        name = uniswapExchange.name();
+        symbol = uniswapExchange.symbol();
+        decimals = uniswapExchange.decimals();
+        totalSupply = uniswapExchange.totalSupply();
         (ethReserve, tokenReserve) = getBal(token, poolAddress);
     }
 
