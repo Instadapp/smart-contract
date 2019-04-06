@@ -129,19 +129,18 @@ contract Helper {
      * @dev setting allowance to kyber for the "user proxy" if required
      * @param token is the token address
      */
-    function setApproval(address token, address exchangeAddr) internal {
-        IERC20(token).approve(exchangeAddr, 2**255);
+    function setApproval(address token, address to) internal {
+        IERC20(token).approve(to, 2**255);
     }
 
     /**
      * @dev configuring token approval with user proxy
      * @param token is the token
      */
-    function manageApproval(address token, uint srcAmt) internal returns (uint) {
-        address exchangeAddr = getExchangeAddress(token);
-        uint tokenAllowance = IERC20(token).allowance(address(this), exchangeAddr);
+    function manageApproval(address token, uint srcAmt, address to) internal returns (uint) {
+        uint tokenAllowance = IERC20(token).allowance(address(this), to);
         if (srcAmt > tokenAllowance) {
-            setApproval(token, exchangeAddr);
+            setApproval(token, to);
         }
     }
     
@@ -156,7 +155,7 @@ contract InstaUniswapPool is Helper {
         uint tokenToDeposit = msg.value * exchangeTokenBal / exchangeEthBal + 1;
         require(tokenToDeposit < maxDepositedTokens, "Token to deposit is greater than Max token to Deposit");
         IERC20(token).transferFrom(msg.sender, address(this), tokenToDeposit);
-        manageApproval(token, tokenToDeposit);
+        manageApproval(token, tokenToDeposit, exchangeAddr);
         tokensMinted = UniswapPool(exchangeAddr).addLiquidity.value(msg.value)(
             uint(0),
             tokenToDeposit,
@@ -164,5 +163,23 @@ contract InstaUniswapPool is Helper {
         );
     }
 
+    function removeLiquidity(
+        address token,
+        uint amount,
+        uint minEth,
+        uint minTokens
+    ) public returns (uint ethReturned, uint tokenReturned) 
+    {
+        address exchangeAddr = getExchangeAddress(token);
+        manageApproval(exchangeAddr, amount, exchangeAddr);
+        (ethReturned, tokenReturned) = UniswapPool(exchangeAddr).removeLiquidity(
+            amount,
+            minEth,
+            minTokens,
+            uint(1899063809) // 6th March 2030 GMT // no logic
+        );
+        address(msg.sender).transfer(ethReturned);
+        IERC20(token).transfer(msg.sender, tokenReturned);
+    }
 
 }
