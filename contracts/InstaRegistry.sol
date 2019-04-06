@@ -92,6 +92,7 @@ contract LogicRegistry is AddressRegistry {
 
 }
 
+
 /**
  * @dev Deploys a new proxy instance and sets msg.sender as owner of proxy
  */
@@ -133,6 +134,7 @@ contract WalletRegistry is LogicRegistry {
     }
 
 }
+
 
 /// @title InstaRegistry
 /// @dev Initializing Registry

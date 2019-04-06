@@ -1,7 +1,5 @@
 pragma solidity ^0.5.2;
 
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
-
 /**
  * @title RegistryInterface Interface 
  */
@@ -9,6 +7,7 @@ interface RegistryInterface {
     function logic(address logicAddr) external view returns (bool);
     function record(address currentOwner, address nextOwner) external;
 }
+
 
 /**
  * @title Address Registry Record
@@ -37,8 +36,6 @@ contract AddressRecord {
  * @title User Auth
  */
 contract UserAuth is AddressRecord {
-    using SafeMath for uint;
-    using SafeMath for uint256;
 
     event LogSetOwner(address indexed owner);
     address public owner;
