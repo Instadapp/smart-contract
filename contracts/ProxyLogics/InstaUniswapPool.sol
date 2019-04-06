@@ -37,7 +37,8 @@ contract Helper {
      * @dev get Uniswap Proxy address
      */
     function getAddressUniFactory() public pure returns (address factory) {
-        factory = 0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95;
+        // factory = 0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95;
+        factory = 0xf5D915570BC477f9B8D6C0E980aA81757A3AaC36; // Rinkeby
     }
 
     // Get Uniswap's Exchange address from Factory Contract
@@ -75,9 +76,10 @@ contract Helper {
      * @param token is the token address
      */
     function setApproval(address token, uint srcAmt, address to) internal {
-        uint tokenAllowance = IERC20(token).allowance(address(this), to);
+        IERC20 erc20Contract = IERC20(token);
+        uint tokenAllowance = erc20Contract.allowance(address(this), to);
         if (srcAmt > tokenAllowance) {
-            IERC20(token).approve(to, 2**255);
+            erc20Contract.approve(to, 2**255);
         }
     }
     
