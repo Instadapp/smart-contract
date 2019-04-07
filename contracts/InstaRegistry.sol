@@ -62,9 +62,18 @@ contract LogicRegistry is AddressRegistry {
     function logic(address _logicAddress) public view returns (bool) {
         if (defaultLogicProxies[_logicAddress] || logicProxies[_logicAddress]) {
             return true;
-        } else {
-            return false;
         }
+        return false;
+    }
+
+    /// @dev 
+    /// @param _logicAddress (address)
+    /// @return  (bool)
+    function defaultLogic(address _logicAddress) public view returns (bool) {
+        if (defaultLogicProxies[_logicAddress]) {
+            return true;
+        }
+        return false;
     }
 
     /// @dev Sets the default logic proxy to true
@@ -114,12 +123,12 @@ contract WalletRegistry is LogicRegistry {
     /// @dev update the proxy record whenever owner changed on any proxy
     /// Throws if msg.sender is not a proxy contract created via this contract
     /// @return proxy () UserWallet
-    function build(address owner) public returns (UserWallet proxy) {
-        require(proxies[owner] == UserWallet(0), "multiple-proxy-per-user-not-allowed");
+    function build(address _owner) public returns (UserWallet proxy) {
+        require(proxies[_owner] == UserWallet(0), "multiple-proxy-per-user-not-allowed");
         proxy = new UserWallet();
         proxies[address(this)] = proxy; // will be changed via record() in next line execution
-        proxy.setOwner(owner);
-        emit Created(msg.sender, owner, address(proxy));
+        proxy.setOwner(_owner);
+        emit Created(msg.sender, _owner, address(proxy));
     }
 
     /// @dev Transafers ownership

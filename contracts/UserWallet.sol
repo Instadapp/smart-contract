@@ -66,9 +66,8 @@ contract UserAuth is AddressRecord {
             return true;
         } else if (src == address(this)) {
             return true;
-        } else {
-            return false;
         }
+        return false;
     }
 }
 
