@@ -46,12 +46,12 @@ contract AddressRegistry {
 /// @dev LogicRegistry 
 contract LogicRegistry is AddressRegistry {
 
-    event LogEnableDefaultLogic(address logicAddress);
+    event LogEnableStaticLogic(address logicAddress);
     event LogEnableLogic(address logicAddress);
     event LogDisableLogic(address logicAddress);
 
-    /// @notice Map of default proxy state
-    mapping(address => bool) public defaultLogicProxies;
+    /// @notice Map of static proxy state
+    mapping(address => bool) public logicProxiesStatic;
     
     /// @notice Map of logic proxy state
     mapping(address => bool) public logicProxies;
@@ -60,7 +60,7 @@ contract LogicRegistry is AddressRegistry {
     /// @param _logicAddress (address)
     /// @return  (bool)
     function logic(address _logicAddress) public view returns (bool) {
-        if (defaultLogicProxies[_logicAddress] || logicProxies[_logicAddress]) {
+        if (logicProxiesStatic[_logicAddress] || logicProxies[_logicAddress]) {
             return true;
         }
         return false;
@@ -69,20 +69,20 @@ contract LogicRegistry is AddressRegistry {
     /// @dev 
     /// @param _logicAddress (address)
     /// @return  (bool)
-    function defaultLogic(address _logicAddress) public view returns (bool) {
-        if (defaultLogicProxies[_logicAddress]) {
+    function logicStatic(address _logicAddress) public view returns (bool) {
+        if (logicProxiesStatic[_logicAddress]) {
             return true;
         }
         return false;
     }
 
-    /// @dev Sets the default logic proxy to true
-    /// default proxies mostly contains the logic for withdrawal of assets
+    /// @dev Sets the static logic proxy to true
+    /// static proxies mostly contains the logic for withdrawal of assets
     /// and can never be false to freely let user withdraw their assets
     /// @param _logicAddress (address)
-    function enableDefaultLogic(address _logicAddress) public isAdmin {
-        defaultLogicProxies[_logicAddress] = true;
-        emit LogEnableDefaultLogic(_logicAddress);
+    function enableStaticLogic(address _logicAddress) public isAdmin {
+        logicProxiesStatic[_logicAddress] = true;
+        emit LogEnableStaticLogic(_logicAddress);
     }
 
     /// @dev Enable logic proxy address
