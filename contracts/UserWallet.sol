@@ -24,8 +24,7 @@ contract AddressRecord {
      */
     modifier logicAuth(address logicAddr) {
         require(logicAddr != address(0), "logic-proxy-address-required");
-        bool islogic = RegistryInterface(registry).logic(logicAddr);
-        require(islogic, "logic-not-authorised");
+        require(RegistryInterface(registry).logic(logicAddr), "logic-not-authorised");
         _;
     }
 
@@ -110,7 +109,7 @@ contract UserNote {
  */
 contract UserWallet is UserAuth, UserNote {
 
-    event LogExecute(address sender, address target, uint srcNum, uint sessionNum);
+    event LogExecute(address target, uint srcNum, uint sessionNum);
 
     /**
      * @dev sets the "address registry", owner's last activity, owner's active period and initial owner
@@ -126,14 +125,14 @@ contract UserWallet is UserAuth, UserNote {
      * @dev Execute authorised calls via delegate call
      * @param _target logic proxy address
      * @param _data delegate call data
-     * @param _srcNum to find the source
-     * @param _sessionNum to find the session
+     * @param _src to find the source
+     * @param _session to find the session
      */
     function execute(
         address _target,
         bytes memory _data,
-        uint _srcNum,
-        uint _sessionNum
+        uint _src,
+        uint _session
     ) 
         public
         payable
@@ -143,10 +142,9 @@ contract UserWallet is UserAuth, UserNote {
         returns (bytes memory response)
     {
         emit LogExecute(
-            msg.sender,
             _target,
-            _srcNum,
-            _sessionNum
+            _src,
+            _session
         );
         
         // call contract in current context
