@@ -108,8 +108,7 @@ contract Pool is Helper {
     }
 
     /**
-     * @dev to add liquidity in pool
-     * @dev payable function token qty to deposit is decided as per the ETH sent by the user
+     * @dev to add liquidity in pool. Payable function token qty to deposit is decided as per the ETH sent by the user
      * @param token ERC20 address of Uniswap's pool (eg:- DAI address, MKR address, etc)
      * @param maxDepositedTokens Max token to be deposited
      */
@@ -128,8 +127,7 @@ contract Pool is Helper {
     }
 
     /**
-     * @dev to remove liquidity from pool
-     * @dev ETH and token quantity is decided as per the exchange token qty to burn
+     * @dev to remove liquidity from pool. ETH and token quantity is decided as per the exchange token qty to burn
      * @param token ERC20 address of Uniswap's pool (eg:- DAI address, MKR address, etc)
      * @param amount Uniswap pool's ERC20 token QTY to burn
      * @param minEth Min ETH user to be returned
