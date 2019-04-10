@@ -5,7 +5,6 @@ import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 interface UniswapFactory {
     // Get Exchange and Token Info
     function getExchange(address token) external view returns (address exchange);
-    function getToken(address exchange) external view returns (address token);
 }
 
 interface UniswapPool {
