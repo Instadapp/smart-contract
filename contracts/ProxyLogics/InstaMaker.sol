@@ -146,11 +146,10 @@ contract CDPResolver is Helpers {
     }
 
     function free(uint cdpNum, uint jam) public {
-        bytes32 cup = bytes32(cdpNum);
-        address tubAddr = getSaiTubAddress();
-        
         if (jam > 0) {
-            
+            bytes32 cup = bytes32(cdpNum);
+            address tubAddr = getSaiTubAddress();
+
             TubInterface tub = TubInterface(tubAddr);
             TokenInterface peth = tub.skr();
             TokenInterface weth = tub.gem();
@@ -180,40 +179,40 @@ contract CDPResolver is Helpers {
     }
 
     function wipe(uint cdpNum, uint _wad) public {
-        require(_wad > 0, "no-wipe-no-dai");
+        if (_wad > 0) {
+            TubInterface tub = TubInterface(getSaiTubAddress());
+            UniswapExchange daiEx = UniswapExchange(getUniswapDAIExchange());
+            UniswapExchange mkrEx = UniswapExchange(getUniswapMKRExchange());
+            TokenInterface dai = tub.sai();
+            TokenInterface mkr = tub.gov();
 
-        TubInterface tub = TubInterface(getSaiTubAddress());
-        UniswapExchange daiEx = UniswapExchange(getUniswapDAIExchange());
-        UniswapExchange mkrEx = UniswapExchange(getUniswapMKRExchange());
-        TokenInterface dai = tub.sai();
-        TokenInterface mkr = tub.gov();
+            bytes32 cup = bytes32(cdpNum);
 
-        bytes32 cup = bytes32(cdpNum);
+            setAllowance(dai, getSaiTubAddress());
+            setAllowance(mkr, getSaiTubAddress());
+            setAllowance(dai, getUniswapDAIExchange());
 
-        setAllowance(dai, getSaiTubAddress());
-        setAllowance(mkr, getSaiTubAddress());
-        setAllowance(dai, getUniswapDAIExchange());
+            (bytes32 val, bool ok) = tub.pep().peek();
 
-        (bytes32 val, bool ok) = tub.pep().peek();
+            // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
+            uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
 
-        // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
-        uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
+            uint daiAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
+            daiAmt = add(_wad, daiAmt);
+            require(dai.transferFrom(msg.sender, address(this), daiAmt), "not-approved-yet");
 
-        uint daiAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
-        daiAmt = add(_wad, daiAmt);
-        require(dai.transferFrom(msg.sender, address(this), daiAmt), "not-approved-yet");
+            if (ok && val != 0) {
+                daiEx.tokenToTokenSwapOutput(
+                    mkrFee,
+                    daiAmt,
+                    uint(999000000000000000000),
+                    uint(1899063809), // 6th March 2030 GMT // no logic
+                    address(mkr)
+                );
+            }
 
-        if (ok && val != 0) {
-            daiEx.tokenToTokenSwapOutput(
-                mkrFee,
-                daiAmt,
-                uint(999000000000000000000),
-                uint(1899063809), // 6th March 2030 GMT // no logic
-                address(mkr)
-            );
+            tub.wipe(cup, _wad);
         }
-
-        tub.wipe(cup, _wad);
     }
 
     function setAllowance(TokenInterface token_, address spender_) private {
