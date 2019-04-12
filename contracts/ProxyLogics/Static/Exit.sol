@@ -10,7 +10,7 @@ interface ICDP {
 }
 
 
-contract ProxyTest {
+contract Exit {
 
     event LogTransferETH(address dest, uint amount);
     event LogTransferERC20(address token, address dest, uint amount);
