@@ -112,8 +112,17 @@ contract Helpers is DSMath {
 
 contract CDPResolver is Helpers {
 
+    event LogOpen(uint cdpNum, address owner);
+    event LogGive(uint cdpNum, address owner, address nextOwner);
+    event LogLock(uint cdpNum, uint amtETH, uint amtPETH, address owner);
+    event LogFree(uint cdpNum, uint amtETH, uint amtPETH, address owner);
+    event LogDraw(uint cdpNum, uint amtDAI, address owner);
+    event LogWipe(uint cdpNum, uint daiAmt, uint mkrFee, uint daiFee, address owner);
+    event LogShut(uint cdpNum);
+
     function open() public returns (uint) {
         bytes32 cup = TubInterface(getSaiTubAddress()).open();
+        emit LogOpen(uint(cup), address(this));
         return uint(cup);
     }
 
@@ -122,6 +131,7 @@ contract CDPResolver is Helpers {
      */
     function give(uint cdpNum, address nextOwner) public {
         TubInterface(getSaiTubAddress()).give(bytes32(cdpNum), nextOwner);
+        emit LogGive(cdpNum, address(this), nextOwner);
     }
 
     function lock(uint cdpNum) public payable {
@@ -146,6 +156,13 @@ contract CDPResolver is Helpers {
 
             setAllowance(peth, tubAddr);
             tub.lock(cup, ink);
+
+            emit LogLock(
+                cdpNum,
+                msg.value,
+                ink,
+                address(this)
+            );
         }
     }
 
@@ -169,6 +186,13 @@ contract CDPResolver is Helpers {
             weth.withdraw(freeJam);
             
             address(msg.sender).transfer(freeJam);
+            
+            emit LogFree(
+                cdpNum,
+                freeJam,
+                ink,
+                address(this)
+            );
         }
     }
 
@@ -179,6 +203,8 @@ contract CDPResolver is Helpers {
 
             tub.draw(cup, _wad);
             tub.sai().transfer(msg.sender, _wad);
+            
+            emit LogDraw(cdpNum, _wad, address(this));
         }
     }
 
@@ -204,8 +230,8 @@ contract CDPResolver is Helpers {
             // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
             uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
 
-            uint daiAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
-            daiAmt = add(_wad, daiAmt);
+            uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
+            uint daiAmt = add(_wad, daiFeeAmt);
             require(dai.transferFrom(msg.sender, address(this), daiAmt), "not-approved-yet");
 
             if (ok && val != 0) {
@@ -219,6 +245,15 @@ contract CDPResolver is Helpers {
             }
 
             tub.wipe(cup, _wad);
+
+            emit LogWipe(
+                cdpNum,
+                daiAmt,
+                mkrFee,
+                daiFeeAmt,
+                address(this)
+            );
+
         }
     }
 
@@ -246,6 +281,7 @@ contract CDPCluster is CDPResolver {
         TubInterface tub = TubInterface(getSaiTubAddress());
         wipeAndFree(cdpNum, rmul(tub.ink(cup), tub.per()), tub.tab(cup));
         tub.shut(cup);
+        emit LogShut(cdpNum); // fetch remaining data from WIPE & FREE events
     }
 
     /**
