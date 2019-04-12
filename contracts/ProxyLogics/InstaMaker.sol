@@ -125,12 +125,16 @@ contract CDPResolver is Helpers {
     }
 
     function lock(uint cdpNum) public payable {
-        bytes32 cup = bytes32(cdpNum);
-        address tubAddr = getSaiTubAddress();
         if (msg.value > 0) {
+            bytes32 cup = bytes32(cdpNum);
+            address tubAddr = getSaiTubAddress();
+
             TubInterface tub = TubInterface(tubAddr);
             TokenInterface weth = tub.gem();
             TokenInterface peth = tub.skr();
+
+            (address lad,,,) = tub.cups(cup);
+            require(lad == address(this), "cup-not-owned");
 
             weth.deposit.value(msg.value)();
 
@@ -187,6 +191,9 @@ contract CDPResolver is Helpers {
             TokenInterface mkr = tub.gov();
 
             bytes32 cup = bytes32(cdpNum);
+
+            (address lad,,,) = tub.cups(cup);
+            require(lad == address(this), "cup-not-owned");
 
             setAllowance(dai, getSaiTubAddress());
             setAllowance(mkr, getSaiTubAddress());
