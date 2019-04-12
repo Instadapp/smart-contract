@@ -222,9 +222,9 @@ contract CDPResolver is Helpers {
         }
     }
 
-    function setAllowance(TokenInterface token_, address spender_) private {
-        if (token_.allowance(address(this), spender_) != uint(-1)) {
-            token_.approve(spender_, uint(-1));
+    function setAllowance(TokenInterface _token, address _spender) private {
+        if (_token.allowance(address(this), _spender) != uint(-1)) {
+            _token.approve(_spender, uint(-1));
         }
     }
 

@@ -1,6 +1,12 @@
 pragma solidity ^0.5.0;
 
-import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
+interface IERC20 {
+    function transfer(address to, uint256 value) external returns (bool);
+    function approve(address spender, uint256 value) external returns (bool);
+    function transferFrom(address from, address to, uint256 value) external returns (bool);
+    function balanceOf(address who) external view returns (uint256);
+    function allowance(address owner, address spender) external view returns (uint256);
+}
 
 
 contract KyberInterface {
@@ -91,27 +97,21 @@ contract Helper {
             require(msg.value == srcAmt, "not-enough-src");
             ethQty = srcAmt;
         } else {
-            manageApproval(src, srcAmt);
-            IERC20(src).transferFrom(trader, address(this), srcAmt);
+            IERC20 tknContract = IERC20(src);
+            setApproval(tknContract, srcAmt);
+            tknContract.transferFrom(trader, address(this), srcAmt);
         }
     }
 
     /**
      * @dev setting allowance to kyber for the "user proxy" if required
-     * @param token is the token address
-     */
-    function setApproval(address token) internal returns (uint) {
-        IERC20(token).approve(getAddressKyber(), 2**255);
-    }
-
-    /**
-     * @dev configuring token approval with user proxy
      * @param token is the token
+     * @param srcAmt is the amount of token to sell
      */
-    function manageApproval(address token, uint srcAmt) internal returns (uint) {
-        uint tokenAllowance = IERC20(token).allowance(address(this), getAddressKyber());
+    function setApproval(IERC20 tknContract, uint srcAmt) internal returns (uint) {
+        uint tokenAllowance = tknContract.allowance(address(this), getAddressKyber());
         if (srcAmt > tokenAllowance) {
-            setApproval(token);
+            tknContract.approve(getAddressKyber(), 2**255);
         }
     }
     
