@@ -26,9 +26,9 @@ contract Exit {
     /**
      * @dev withdrawing ETH
      */
-    function transferETH(address payable dest) public payable {
-        dest.transfer(address(this).balance);
-        emit LogTransferETH(dest, address(this).balance);
+    function transferETH() public payable {
+        msg.sender.transfer(address(this).balance);
+        emit LogTransferETH(msg.sender, address(this).balance);
     }
 
     /**
