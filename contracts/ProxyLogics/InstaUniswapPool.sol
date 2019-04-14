@@ -30,7 +30,7 @@ interface UniswapPool {
         ) external returns (uint256, uint256);
 
     // ERC20 comaptibility for liquidity tokens
-    uint256 public totalSupply;
+    function totalSupply() external view returns (uint);
 }
 
 
