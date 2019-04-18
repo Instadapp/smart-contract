@@ -91,6 +91,22 @@ contract Helper {
 
 contract Pool is Helper {
 
+    event LogAddLiquidity(
+        address token,
+        uint tokenAmt,
+        uint ethAmt,
+        uint poolTokenMinted,
+        address beneficiary
+    );
+
+    event LogRemoveLiquidity(
+        address token,
+        uint tokenReturned,
+        uint ethReturned,
+        uint poolTokenBurned,
+        address beneficiary
+    );
+
     /**
      * @dev Uniswap's pool basic details
      * @param token token address to get pool. Eg:- DAI address, MKR address, etc
@@ -130,6 +146,13 @@ contract Pool is Helper {
             tokenToDeposit,
             uint(1899063809) // 6th March 2030 GMT // no logic
         );
+        emit LogAddLiquidity(
+            token,
+            tokenToDeposit,
+            msg.value,
+            tokensMinted,
+            msg.sender
+        );
     }
 
     /**
@@ -156,6 +179,13 @@ contract Pool is Helper {
         );
         address(msg.sender).transfer(ethReturned);
         IERC20(token).transfer(msg.sender, tokenReturned);
+        emit LogRemoveLiquidity(
+            token,
+            tokenReturned,
+            ethReturned,
+            amount,
+            msg.sender
+        );
     }
 
 }
