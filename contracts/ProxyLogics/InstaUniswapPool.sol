@@ -57,19 +57,12 @@ contract Helper {
     }
 
     /**
-     * @dev get fees to trade // 200 => 0.2%
-     */
-    function getUintFees() public pure returns (uint fees) {
-        fees = 200;
-    }
-
-    /**
      * @dev gets ETH & token balance
      * @param src is the token being sold
      * @return ethBal - if not erc20, eth balance
      * @return tknBal - if not eth, erc20 balance
      */
-    function getBal(address src, address _owner) public view returns (uint, uint) {
+    function getBal(address src, address _owner) internal view returns (uint, uint) {
         uint tknBal = IERC20(src).balanceOf(address(_owner));
         return (address(_owner).balance, tknBal);
     }
