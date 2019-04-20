@@ -100,6 +100,14 @@ contract Pool is Helper {
         address beneficiary
     );
 
+    event LogShutPool(
+        address token,
+        uint tokenReturned,
+        uint ethReturned,
+        uint poolTokenBurned,
+        address beneficiary
+    );
+
     /**
      * @dev Uniswap's pool basic details
      * @param token token address to get pool. Eg:- DAI address, MKR address, etc
@@ -163,6 +171,7 @@ contract Pool is Helper {
     ) public returns (uint ethReturned, uint tokenReturned)
     {
         address poolAddr = getAddressPool(token);
+
         setApproval(poolAddr, amount, poolAddr);
         (ethReturned, tokenReturned) = UniswapPool(poolAddr).removeLiquidity(
             amount,
@@ -177,6 +186,35 @@ contract Pool is Helper {
             tokenReturned,
             ethReturned,
             amount,
+            msg.sender
+        );
+    }
+
+    /**
+     * @dev to remove all of the user's liquidity from pool. ETH and token quantity is decided as per the exchange token qty to burn
+     * @param token ERC20 address of Uniswap's pool (eg:- DAI address, MKR address, etc)
+     */
+    function shut(
+        address token
+    ) public returns (uint ethReturned, uint tokenReturned)
+    {
+        address poolAddr = getAddressPool(token);
+        uint userPoolBal = IERC20(poolAddr).balanceOf(address(this));
+        
+        setApproval(poolAddr, userPoolBal, poolAddr);
+        (ethReturned, tokenReturned) = UniswapPool(poolAddr).removeLiquidity(
+            userPoolBal,
+            uint(1),
+            uint(1),
+            uint(1899063809) // 6th March 2030 GMT // no logic
+        );
+        address(msg.sender).transfer(ethReturned);
+        IERC20(token).transfer(msg.sender, tokenReturned);
+        emit LogShutPool(
+            token,
+            tokenReturned,
+            ethReturned,
+            userPoolBal,
             msg.sender
         );
     }
