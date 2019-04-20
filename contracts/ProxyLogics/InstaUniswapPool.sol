@@ -194,10 +194,7 @@ contract Pool is Helper {
      * @dev to remove all of the user's liquidity from pool. ETH and token quantity is decided as per the exchange token qty to burn
      * @param token ERC20 address of Uniswap's pool (eg:- DAI address, MKR address, etc)
      */
-    function shut(
-        address token
-    ) public returns (uint ethReturned, uint tokenReturned)
-    {
+    function shut(address token) public returns (uint ethReturned, uint tokenReturned) {
         address poolAddr = getAddressPool(token);
         uint userPoolBal = IERC20(poolAddr).balanceOf(address(this));
 
