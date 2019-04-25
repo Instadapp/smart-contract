@@ -21,6 +21,10 @@ interface TubInterface {
     function per() external view returns (uint);
 }
 
+interface oracleInterface {
+    function read() external view returns (bytes32);
+} 
+
 interface IERC20 {
     function allowance(address, address) external view returns (uint);
     function balanceOf(address) external view returns (uint);
@@ -56,6 +60,10 @@ contract DSMath {
         require((z = x + y) >= x, "math-not-safe");
     }
 
+    function sub(uint x, uint y) internal pure returns (uint z) {
+        require((z = x - y) <= x, "ds-math-sub-underflow");
+    }
+
     function mul(uint x, uint y) internal pure returns (uint z) {
         require(y == 0 || (z = x * y) / y == x, "math-not-safe");
     }
@@ -69,6 +77,10 @@ contract DSMath {
 
     function rdiv(uint x, uint y) internal pure returns (uint z) {
         z = add(mul(x, RAY), y / 2) / y;
+    }
+
+    function wmul(uint x, uint y) internal pure returns (uint z) {
+        z = add(mul(x, y), WAD / 2) / WAD;
     }
 
     function wdiv(uint x, uint y) internal pure returns (uint z) {
@@ -85,6 +97,13 @@ contract Helpers is DSMath {
      */
     function getSaiTubAddress() public pure returns (address sai) {
         sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
+    }
+
+    /**
+     * @dev get MakerDAO Oracle for ETH price
+     */
+    function getOracleAddress() public pure returns (address oracle) {
+        oracle = 0x729D19f657BD0614b4985Cf1D82531c67569197B;
     }
 
     /**
@@ -184,6 +203,18 @@ contract Helpers is DSMath {
 
 contract Save is Helpers {
 
-    
+    function getFinalPosition(uint cdpID) public view returns (uint finalEthCol, uint finalDaiDebt) {
+        bytes32 cdpToBytes = bytes32(cdpID);
+        TubInterface tub = TubInterface(getSaiTubAddress());
+        uint usdPerEth = uint(oracleInterface(getOracleAddress()).read());
+        (, uint pethCol, uint daiDebt,) = tub.cups(cdpToBytes);
+        uint ethCol = rmul(pethCol, tub.per()); // get ETH col from PETH col
+        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
+        uint ratio = rdiv(colToUSD, daiDebt);
+        uint minRatio = 1500000000000000000;
+        require(ratio > minRatio, "No-margin-to-leverage");
+        uint minColNeeded = wmul(daiDebt, minRatio) + 10;
+        uint colToFree = sub(colToUSD, minColNeeded);
+    }
 
 }
