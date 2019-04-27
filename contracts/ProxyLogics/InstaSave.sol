@@ -120,11 +120,18 @@ contract Helpers is DSMath {
         ude = 0x09cabEC1eAd1c0Ba254B09efb3EE13841712bE14;
     }
 
-        /**
+    /**
      * @dev get ethereum address for trade
      */
     function getAddressETH() public pure returns (address eth) {
         eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    }
+
+    /**
+     * @dev get ethereum address for trade
+     */
+    function getAddressDAI() public pure returns (address dai) {
+        dai = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
     }
 
     /**
@@ -198,23 +205,64 @@ contract Helpers is DSMath {
         }
     }
 
+    /**
+     * @dev setting allowance to kyber for the "user proxy" if required
+     * @param token is the token
+     * @param srcAmt is the amount of token to sell
+     */
+    function getCDPRatio(uint ethCol, uint daiDebt) internal returns (uint ratio) {
+        TubInterface tub = TubInterface(getSaiTubAddress());
+    }
+
 }
 
 
 contract Save is Helpers {
 
-    function getFinalPosition(uint cdpID) public view returns (uint finalEthCol, uint finalDaiDebt) {
+    function getFinalPosition(uint cdpID, uint runTime) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD) {
         bytes32 cdpToBytes = bytes32(cdpID);
         TubInterface tub = TubInterface(getSaiTubAddress());
         uint usdPerEth = uint(oracleInterface(getOracleAddress()).read());
         (, uint pethCol, uint daiDebt,) = tub.cups(cdpToBytes);
         uint ethCol = rmul(pethCol, tub.per()); // get ETH col from PETH col
-        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
-        uint ratio = rdiv(colToUSD, daiDebt);
-        uint minRatio = 1500000000000000000;
-        require(ratio > minRatio, "No-margin-to-leverage");
-        uint minColNeeded = wmul(daiDebt, minRatio) + 10;
-        uint colToFree = sub(colToUSD, minColNeeded);
+        (finalEthCol, finalDaiDebt, finalColToUSD) = _finalPositionLoop(
+            ethCol,
+            daiDebt,
+            usdPerEth,
+            runTime
+        );
+    }
+
+    function _finalPositionLoop(
+        uint ethCol,
+        uint daiDebt,
+        uint usdPerEth,
+        uint runTime
+    ) internal view returns (
+        uint finalEthCol, 
+        uint finalDaiDebt,
+        uint finalColToUSD
+    )
+    {
+        if (runTime != 0) {
+            uint colToUSD = wmul(ethCol, usdPerEth) - 10;
+            require(wdiv(colToUSD, daiDebt) > 1500000000000000000, "No-margin-to-leverage");
+            uint minColNeeded = wmul(daiDebt, 1500000000000000000) + 10;
+            uint colToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
+            (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressETH(), getAddressDAI(), colToFree);
+            uint expectedDAI = wmul(colToFree, expectedRate);
+            uint runTimeMinus = sub(runTime, 1);
+            (finalEthCol, finalDaiDebt, finalColToUSD) = _finalPositionLoop(
+                sub(ethCol, colToFree),
+                sub(daiDebt, expectedDAI),
+                usdPerEth,
+                runTimeMinus
+            );
+        } else {
+            finalEthCol = ethCol;
+            finalDaiDebt = daiDebt;
+            finalColToUSD = wmul(ethCol, usdPerEth);
+        }
     }
 
 }
