@@ -219,6 +219,53 @@ contract Helpers is DSMath {
 
 contract Save is Helpers {
 
+    function checkFinalPosition(uint cdpID) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD, uint timesPossible) {
+        bytes32 cdpToBytes = bytes32(cdpID);
+        TubInterface tub = TubInterface(getSaiTubAddress());
+        uint usdPerEth = uint(oracleInterface(getOracleAddress()).read());
+        (, uint pethCol, uint daiDebt,) = tub.cups(cdpToBytes);
+        uint ethCol = rmul(pethCol, tub.per()); // get ETH col from PETH col
+        (finalEthCol, finalDaiDebt, finalColToUSD, timesPossible) = _checkPositionLoop(
+            ethCol,
+            daiDebt,
+            usdPerEth,
+            0
+        );
+    }
+
+    function _checkPositionLoop(
+        uint ethCol,
+        uint daiDebt,
+        uint usdPerEth,
+        uint runTime
+    ) internal view returns (
+        uint finalEthCol, 
+        uint finalDaiDebt,
+        uint finalColToUSD,
+        uint timesPossible
+    )
+    {
+        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
+        uint minColNeeded = wmul(daiDebt, 1500000000000000000) + 10;
+        uint colToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
+        (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressETH(), getAddressDAI(), colToFree);
+        uint expectedDAI = wmul(colToFree, expectedRate);
+        if (expectedDAI < daiDebt) {
+            uint runTimePlus = add(runTime, 1);
+            (finalEthCol, finalDaiDebt, finalColToUSD, timesPossible) = _checkPositionLoop(
+                sub(ethCol, colToFree),
+                sub(daiDebt, expectedDAI),
+                usdPerEth,
+                runTimePlus
+            );
+        } else {
+            finalEthCol = ethCol;
+            finalDaiDebt = daiDebt;
+            finalColToUSD = wmul(ethCol, usdPerEth);
+            timesPossible = runTime;
+        }
+    }
+
     function getFinalPosition(uint cdpID, uint runTime) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD) {
         bytes32 cdpToBytes = bytes32(cdpID);
         TubInterface tub = TubInterface(getSaiTubAddress());
