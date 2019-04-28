@@ -163,7 +163,7 @@ contract Helpers is DSMath {
     /**
      * @dev get admin address
      */
-    function getAddressAdmin() public pure returns (address admin) {
+    function getAddressAdmin() public pure returns (address payable admin) {
         admin = 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638;
     }
 
@@ -218,8 +218,8 @@ contract MakerHelpers is Helpers {
         }
     }
 
-    function lock(uint cdpNum) internal {
-        if (msg.value > 0) {
+    function lock(uint cdpNum, uint ethAmt) internal {
+        if (ethAmt > 0) {
             bytes32 cup = bytes32(cdpNum);
             address tubAddr = getSaiTubAddress();
 
@@ -230,10 +230,10 @@ contract MakerHelpers is Helpers {
             (address lad,,,) = tub.cups(cup);
             require(lad == address(this), "cup-not-owned");
 
-            weth.deposit.value(msg.value)();
+            weth.deposit.value(ethAmt)();
 
-            uint ink = rdiv(msg.value, tub.per());
-            ink = rmul(ink, tub.per()) <= msg.value ? ink : ink - 1;
+            uint ink = rdiv(ethAmt, tub.per());
+            ink = rmul(ink, tub.per()) <= ethAmt ? ink : ink - 1;
 
             setAllowance(weth, tubAddr);
             tub.join(ink);
@@ -243,7 +243,7 @@ contract MakerHelpers is Helpers {
 
             emit LogLock(
                 cdpNum,
-                msg.value,
+                ethAmt,
                 ink,
                 address(this)
             );
@@ -269,8 +269,6 @@ contract MakerHelpers is Helpers {
             uint freeJam = weth.balanceOf(address(this)); // withdraw possible previous stuck WETH as well
             weth.withdraw(freeJam);
             
-            // address(msg.sender).transfer(freeJam);
-            
             emit LogFree(
                 cdpNum,
                 freeJam,
@@ -286,7 +284,6 @@ contract MakerHelpers is Helpers {
             TubInterface tub = TubInterface(getSaiTubAddress());
 
             tub.draw(cup, _wad);
-            tub.sai().transfer(msg.sender, _wad);
             
             emit LogDraw(cdpNum, _wad, address(this));
         }
@@ -315,8 +312,7 @@ contract MakerHelpers is Helpers {
             uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
 
             uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
-            uint daiAmt = add(_wad, daiFeeAmt);
-            require(dai.transferFrom(msg.sender, address(this), daiAmt), "not-approved-yet");
+            uint daiAmt = sub(_wad, daiFeeAmt);
 
             if (ok && val != 0) {
                 daiEx.tokenToTokenSwapOutput(
@@ -328,7 +324,7 @@ contract MakerHelpers is Helpers {
                 );
             }
 
-            tub.wipe(cup, _wad);
+            tub.wipe(cup, daiAmt);
 
             emit LogWipe(
                 cdpNum,
@@ -438,9 +434,41 @@ contract Save is GetDetails {
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
         uint colToUSD = wmul(ethCol, usdPerEth) - 10;
         uint minColNeeded = wmul(daiDebt, 1500000000000000000) + 10;
-        uint colToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
+        uint colToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth) - 10;
         free(cdpID, colToFree);
-        
+        uint ethToSwap = wdiv(wmul(colToFree, 99750000000000000000), 100000000000000000000);
+        getAddressAdmin().transfer(sub(colToFree, ethToSwap));
+        uint destAmt = KyberInterface(getAddressKyber()).trade.value(ethToSwap)(
+            getAddressETH(),
+            colToFree,
+            getAddressDAI(),
+            address(this),
+            2**255,
+            0,
+            getAddressAdmin()
+        );
+        wipe(cdpID, destAmt);
+    }
+
+    function leverage(uint cdpID) public {
+        bytes32 cup = bytes32(cdpID);
+        (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
+        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
+        uint maxDebtLimit = wdiv(colToUSD, 1500000000000000000) - 10;
+        uint debtToBorrow = sub(maxDebtLimit, daiDebt);
+        draw(cdpID, debtToBorrow);
+        uint destAmt = KyberInterface(getAddressKyber()).trade.value(0)(
+            getAddressETH(),
+            debtToBorrow,
+            getAddressDAI(),
+            address(this),
+            2**255,
+            0,
+            getAddressAdmin()
+        );
+        uint ethToDeposit = wdiv(wmul(destAmt, 99750000000000000000), 100000000000000000000);
+        getAddressAdmin().transfer(sub(destAmt, ethToDeposit));
+        lock(cdpID, ethToDeposit);
     }
 
 }
