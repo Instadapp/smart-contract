@@ -11,21 +11,40 @@ interface TubInterface {
     function give(bytes32, address) external;
     function shut(bytes32) external;
     function cups(bytes32) external view returns (address, uint, uint, uint);
-    function gem() external view returns (IERC20);
-    function gov() external view returns (IERC20);
-    function skr() external view returns (IERC20);
-    function sai() external view returns (IERC20);
+    function gem() external view returns (TokenInterface);
+    function gov() external view returns (TokenInterface);
+    function skr() external view returns (TokenInterface);
+    function sai() external view returns (TokenInterface);
     function ink(bytes32) external view returns (uint);
     function tab(bytes32) external returns (uint);
     function rap(bytes32) external returns (uint);
     function per() external view returns (uint);
+    function pep() external view returns (PepInterface);
 }
+
+interface PepInterface {
+    function peek() external returns (bytes32, bool);
+}
+
 
 interface oracleInterface {
     function read() external view returns (bytes32);
 } 
 
-interface IERC20 {
+interface UniswapExchange {
+    function getEthToTokenOutputPrice(uint256 tokensBought) external view returns (uint256 ethSold);
+    function getTokenToEthOutputPrice(uint256 ethBought) external view returns (uint256 tokensSold);
+    function tokenToTokenSwapOutput(
+        uint256 tokensBought,
+        uint256 maxTokensSold,
+        uint256 maxEthSold,
+        uint256 deadline,
+        address tokenAddr
+        ) external returns (uint256  tokensSold);
+}
+
+
+interface TokenInterface {
     function allowance(address, address) external view returns (uint);
     function balanceOf(address) external view returns (uint);
     function approve(address, uint) external;
@@ -176,140 +195,252 @@ contract Helpers is DSMath {
         slippageRate = (expectedRate / 100) * 99; // changing slippage rate upto 99%
     }
 
-    /**
-     * @dev fetching token from the trader if ERC20
-     * @param trader is the trader
-     * @param src is the token which is being sold
-     * @param srcAmt is the amount of token being sold
-     */
-    function getToken(address trader, address src, uint srcAmt) internal returns (uint ethQty) {
-        if (src == getAddressETH()) {
-            require(msg.value == srcAmt, "not-enough-src");
-            ethQty = srcAmt;
-        } else {
-            IERC20 tknContract = IERC20(src);
-            setApproval(tknContract, srcAmt);
-            tknContract.transferFrom(trader, address(this), srcAmt);
-        }
-    }
-
-    /**
-     * @dev setting allowance to kyber for the "user proxy" if required
-     * @param token is the token
-     * @param srcAmt is the amount of token to sell
-     */
-    function setApproval(IERC20 tknContract, uint srcAmt) internal returns (uint) {
-        uint tokenAllowance = tknContract.allowance(address(this), getAddressKyber());
-        if (srcAmt > tokenAllowance) {
-            tknContract.approve(getAddressKyber(), 2**255);
-        }
-    }
-
-    /**
-     * @dev setting allowance to kyber for the "user proxy" if required
-     * @param token is the token
-     * @param srcAmt is the amount of token to sell
-     */
-    function getCDPRatio(uint ethCol, uint daiDebt) internal returns (uint ratio) {
+    function getCDPStats(bytes32 cup) internal view returns (uint ethCol, uint daiDebt, uint usdPerEth) {
         TubInterface tub = TubInterface(getSaiTubAddress());
+        usdPerEth = uint(oracleInterface(getOracleAddress()).read());
+        (, uint pethCol, uint daiDebt,) = tub.cups(cup);
+        ethCol = rmul(pethCol, tub.per()); // get ETH col from PETH col
     }
 
 }
 
 
-contract Save is Helpers {
+contract MakerHelpers is Helpers {
 
-    function checkFinalPosition(uint cdpID) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD, uint timesPossible) {
-        bytes32 cdpToBytes = bytes32(cdpID);
-        TubInterface tub = TubInterface(getSaiTubAddress());
-        uint usdPerEth = uint(oracleInterface(getOracleAddress()).read());
-        (, uint pethCol, uint daiDebt,) = tub.cups(cdpToBytes);
-        uint ethCol = rmul(pethCol, tub.per()); // get ETH col from PETH col
-        (finalEthCol, finalDaiDebt, finalColToUSD, timesPossible) = _checkPositionLoop(
+    event LogLock(uint cdpNum, uint amtETH, uint amtPETH, address owner);
+    event LogFree(uint cdpNum, uint amtETH, uint amtPETH, address owner);
+    event LogDraw(uint cdpNum, uint amtDAI, address owner);
+    event LogWipe(uint cdpNum, uint daiAmt, uint mkrFee, uint daiFee, address owner);
+
+    function setAllowance(TokenInterface _token, address _spender) private {
+        if (_token.allowance(address(this), _spender) != uint(-1)) {
+            _token.approve(_spender, uint(-1));
+        }
+    }
+
+    function lock(uint cdpNum) internal {
+        if (msg.value > 0) {
+            bytes32 cup = bytes32(cdpNum);
+            address tubAddr = getSaiTubAddress();
+
+            TubInterface tub = TubInterface(tubAddr);
+            TokenInterface weth = tub.gem();
+            TokenInterface peth = tub.skr();
+
+            (address lad,,,) = tub.cups(cup);
+            require(lad == address(this), "cup-not-owned");
+
+            weth.deposit.value(msg.value)();
+
+            uint ink = rdiv(msg.value, tub.per());
+            ink = rmul(ink, tub.per()) <= msg.value ? ink : ink - 1;
+
+            setAllowance(weth, tubAddr);
+            tub.join(ink);
+
+            setAllowance(peth, tubAddr);
+            tub.lock(cup, ink);
+
+            emit LogLock(
+                cdpNum,
+                msg.value,
+                ink,
+                address(this)
+            );
+        }
+    }
+
+    function free(uint cdpNum, uint jam) internal {
+        if (jam > 0) {
+            bytes32 cup = bytes32(cdpNum);
+            address tubAddr = getSaiTubAddress();
+
+            TubInterface tub = TubInterface(tubAddr);
+            TokenInterface peth = tub.skr();
+            TokenInterface weth = tub.gem();
+
+            uint ink = rdiv(jam, tub.per());
+            ink = rmul(ink, tub.per()) <= jam ? ink : ink - 1;
+            tub.free(cup, ink);
+
+            setAllowance(peth, tubAddr);
+            
+            tub.exit(ink);
+            uint freeJam = weth.balanceOf(address(this)); // withdraw possible previous stuck WETH as well
+            weth.withdraw(freeJam);
+            
+            // address(msg.sender).transfer(freeJam);
+            
+            emit LogFree(
+                cdpNum,
+                freeJam,
+                ink,
+                address(this)
+            );
+        }
+    }
+
+    function draw(uint cdpNum, uint _wad) internal {
+        bytes32 cup = bytes32(cdpNum);
+        if (_wad > 0) {
+            TubInterface tub = TubInterface(getSaiTubAddress());
+
+            tub.draw(cup, _wad);
+            tub.sai().transfer(msg.sender, _wad);
+            
+            emit LogDraw(cdpNum, _wad, address(this));
+        }
+    }
+
+    function wipe(uint cdpNum, uint _wad) internal {
+        if (_wad > 0) {
+            TubInterface tub = TubInterface(getSaiTubAddress());
+            UniswapExchange daiEx = UniswapExchange(getUniswapDAIExchange());
+            UniswapExchange mkrEx = UniswapExchange(getUniswapMKRExchange());
+            TokenInterface dai = tub.sai();
+            TokenInterface mkr = tub.gov();
+
+            bytes32 cup = bytes32(cdpNum);
+
+            (address lad,,,) = tub.cups(cup);
+            require(lad == address(this), "cup-not-owned");
+
+            setAllowance(dai, getSaiTubAddress());
+            setAllowance(mkr, getSaiTubAddress());
+            setAllowance(dai, getUniswapDAIExchange());
+
+            (bytes32 val, bool ok) = tub.pep().peek();
+
+            // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
+            uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
+
+            uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
+            uint daiAmt = add(_wad, daiFeeAmt);
+            require(dai.transferFrom(msg.sender, address(this), daiAmt), "not-approved-yet");
+
+            if (ok && val != 0) {
+                daiEx.tokenToTokenSwapOutput(
+                    mkrFee,
+                    daiAmt,
+                    uint(999000000000000000000),
+                    uint(1899063809), // 6th March 2030 GMT // no logic
+                    address(mkr)
+                );
+            }
+
+            tub.wipe(cup, _wad);
+
+            emit LogWipe(
+                cdpNum,
+                daiAmt,
+                mkrFee,
+                daiFeeAmt,
+                address(this)
+            );
+
+        }
+    }
+
+}
+
+
+contract GetDetails is MakerHelpers {
+
+    function getSave(uint cdpID) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD, bool canSave) {
+        bytes32 cup = bytes32(cdpID);
+        (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
+        (finalEthCol, finalDaiDebt, finalColToUSD, canSave) = checkSave(
             ethCol,
             daiDebt,
-            usdPerEth,
-            0
+            usdPerEth
         );
     }
 
-    function _checkPositionLoop(
+    function checkSave(
         uint ethCol,
         uint daiDebt,
-        uint usdPerEth,
-        uint runTime
-    ) internal view returns (
+        uint usdPerEth
+    ) internal view returns 
+    (
         uint finalEthCol, 
         uint finalDaiDebt,
         uint finalColToUSD,
-        uint timesPossible
+        bool canSave
     )
     {
         uint colToUSD = wmul(ethCol, usdPerEth) - 10;
         uint minColNeeded = wmul(daiDebt, 1500000000000000000) + 10;
         uint colToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
         (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressETH(), getAddressDAI(), colToFree);
+        expectedRate = wdiv(wmul(expectedRate, 99750000000000000000), 100000000000000000000);
         uint expectedDAI = wmul(colToFree, expectedRate);
         if (expectedDAI < daiDebt) {
-            uint runTimePlus = add(runTime, 1);
-            (finalEthCol, finalDaiDebt, finalColToUSD, timesPossible) = _checkPositionLoop(
-                sub(ethCol, colToFree),
-                sub(daiDebt, expectedDAI),
-                usdPerEth,
-                runTimePlus
-            );
+            finalEthCol = sub(ethCol, colToFree);
+            finalDaiDebt = sub(daiDebt, expectedDAI);
+            finalColToUSD = wmul(finalEthCol, usdPerEth);
+            canSave = true;
         } else {
-            finalEthCol = ethCol;
-            finalDaiDebt = daiDebt;
-            finalColToUSD = wmul(ethCol, usdPerEth);
-            timesPossible = runTime;
+            finalEthCol = 0;
+            finalDaiDebt = 0;
+            finalColToUSD = 0;
+            canSave = false;
         }
     }
 
-    function getFinalPosition(uint cdpID, uint runTime) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD) {
-        bytes32 cdpToBytes = bytes32(cdpID);
-        TubInterface tub = TubInterface(getSaiTubAddress());
-        uint usdPerEth = uint(oracleInterface(getOracleAddress()).read());
-        (, uint pethCol, uint daiDebt,) = tub.cups(cdpToBytes);
-        uint ethCol = rmul(pethCol, tub.per()); // get ETH col from PETH col
-        (finalEthCol, finalDaiDebt, finalColToUSD) = _finalPositionLoop(
+    function getLeverage(uint cdpID) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD, bool canLeverage) {
+        bytes32 cup = bytes32(cdpID);
+        (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
+        (finalEthCol, finalDaiDebt, finalColToUSD, canLeverage) = checkLeverage(
             ethCol,
             daiDebt,
-            usdPerEth,
-            runTime
+            usdPerEth
         );
     }
 
-    function _finalPositionLoop(
+    function checkLeverage(
         uint ethCol,
         uint daiDebt,
-        uint usdPerEth,
-        uint runTime
-    ) internal view returns (
+        uint usdPerEth
+    ) internal view returns 
+    (
         uint finalEthCol, 
         uint finalDaiDebt,
-        uint finalColToUSD
+        uint finalColToUSD,
+        bool canLeverage
     )
     {
-        if (runTime != 0) {
-            uint colToUSD = wmul(ethCol, usdPerEth) - 10;
-            require(wdiv(colToUSD, daiDebt) > 1500000000000000000, "No-margin-to-leverage");
-            uint minColNeeded = wmul(daiDebt, 1500000000000000000) + 10;
-            uint colToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
-            (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressETH(), getAddressDAI(), colToFree);
-            uint expectedDAI = wmul(colToFree, expectedRate);
-            uint runTimeMinus = sub(runTime, 1);
-            (finalEthCol, finalDaiDebt, finalColToUSD) = _finalPositionLoop(
-                sub(ethCol, colToFree),
-                sub(daiDebt, expectedDAI),
-                usdPerEth,
-                runTimeMinus
-            );
+        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
+        uint maxDebtLimit = wdiv(colToUSD, 1500000000000000000) - 10;
+        uint debtToBorrow = sub(maxDebtLimit, daiDebt);
+        (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressDAI(), getAddressETH(), debtToBorrow);
+        expectedRate = wdiv(wmul(expectedRate, 99750000000000000000), 100000000000000000000);
+        uint expectedETH = wmul(debtToBorrow, expectedRate);
+        if (ethCol != 0) {
+            finalEthCol = add(ethCol, expectedETH);
+            finalDaiDebt = maxDebtLimit;
+            finalColToUSD = wmul(finalEthCol, usdPerEth);
+            canLeverage = true;
         } else {
-            finalEthCol = ethCol;
-            finalDaiDebt = daiDebt;
-            finalColToUSD = wmul(ethCol, usdPerEth);
+            finalEthCol = 0;
+            finalDaiDebt = 0;
+            finalColToUSD = 0;
+            canLeverage = false;
         }
+    }
+
+}
+
+
+contract Save is GetDetails {
+
+    function save(uint cdpID) public {
+        bytes32 cup = bytes32(cdpID);
+        (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
+        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
+        uint minColNeeded = wmul(daiDebt, 1500000000000000000) + 10;
+        uint colToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
+        free(cdpID, colToFree);
+        
     }
 
 }
