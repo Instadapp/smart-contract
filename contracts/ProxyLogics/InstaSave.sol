@@ -264,11 +264,11 @@ contract MakerHelpers is Helpers {
             tub.free(cup, ink);
 
             setAllowance(peth, tubAddr);
-            
+
             tub.exit(ink);
             uint freeJam = weth.balanceOf(address(this)); // withdraw possible previous stuck WETH as well
             weth.withdraw(freeJam);
-            
+
             emit LogFree(
                 cdpNum,
                 freeJam,
@@ -284,7 +284,7 @@ contract MakerHelpers is Helpers {
             TubInterface tub = TubInterface(getSaiTubAddress());
 
             tub.draw(cup, _wad);
-            
+
             emit LogDraw(cdpNum, _wad, address(this));
         }
     }
@@ -356,9 +356,9 @@ contract GetDetails is MakerHelpers {
         uint ethCol,
         uint daiDebt,
         uint usdPerEth
-    ) internal view returns 
+    ) internal view returns
     (
-        uint finalEthCol, 
+        uint finalEthCol,
         uint finalDaiDebt,
         uint finalColToUSD,
         bool canSave
@@ -397,9 +397,9 @@ contract GetDetails is MakerHelpers {
         uint ethCol,
         uint daiDebt,
         uint usdPerEth
-    ) internal view returns 
+    ) internal view returns
     (
-        uint finalEthCol, 
+        uint finalEthCol,
         uint finalDaiDebt,
         uint finalColToUSD,
         bool canLeverage
@@ -432,9 +432,10 @@ contract Save is GetDetails {
     function save(uint cdpID) public {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
-        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
-        uint minColNeeded = wmul(daiDebt, 1500000000000000000) + 10;
-        uint colToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth) - 10;
+        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
+        uint minColNeeded = add(wmul(daiDebt, 1500000000000000000), 10);
+        uint colToFree = sub(wdiv(sub(colToUSD, minColNeeded), usdPerEth), 10);
+        require(colToFree != 0, "No-collatral-to-free");
         free(cdpID, colToFree);
         uint ethToSwap = wdiv(wmul(colToFree, 99750000000000000000), 100000000000000000000);
         getAddressAdmin().transfer(sub(colToFree, ethToSwap));
@@ -453,14 +454,15 @@ contract Save is GetDetails {
     function leverage(uint cdpID) public {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
-        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
-        uint maxDebtLimit = wdiv(colToUSD, 1500000000000000000) - 10;
+        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
+        uint maxDebtLimit = sub(wdiv(colToUSD, 1500000000000000000), 10);
         uint debtToBorrow = sub(maxDebtLimit, daiDebt);
+        require(debtToBorrow != 0, "No-debt-to-borrow");
         draw(cdpID, debtToBorrow);
         uint destAmt = KyberInterface(getAddressKyber()).trade.value(0)(
-            getAddressETH(),
-            debtToBorrow,
             getAddressDAI(),
+            debtToBorrow,
+            getAddressETH(),
             address(this),
             2**255,
             0,
