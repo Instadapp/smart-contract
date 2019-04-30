@@ -29,7 +29,7 @@ interface PepInterface {
 
 interface oracleInterface {
     function read() external view returns (bytes32);
-} 
+}
 
 interface UniswapExchange {
     function getEthToTokenOutputPrice(uint256 tokensBought) external view returns (uint256 ethSold);
@@ -342,20 +342,22 @@ contract MakerHelpers is Helpers {
 
 contract GetDetails is MakerHelpers {
 
-    function getSave(uint cdpID) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD, bool canSave) {
+    function getSave(uint cdpID, uint ethToSwap) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD, bool canSave) {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
         (finalEthCol, finalDaiDebt, finalColToUSD, canSave) = checkSave(
             ethCol,
             daiDebt,
-            usdPerEth
+            usdPerEth,
+            ethToSwap
         );
     }
 
     function checkSave(
         uint ethCol,
         uint daiDebt,
-        uint usdPerEth
+        uint usdPerEth,
+        uint ethToSwap
     ) internal view returns
     (
         uint finalEthCol,
@@ -367,6 +369,9 @@ contract GetDetails is MakerHelpers {
         uint colToUSD = wmul(ethCol, usdPerEth) - 10;
         uint minColNeeded = wmul(daiDebt, 1500000000000000000) + 10;
         uint colToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
+        if (ethToSwap < colToFree) {
+            colToFree = ethToSwap;
+        }
         (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressETH(), getAddressDAI(), colToFree);
         expectedRate = wdiv(wmul(expectedRate, 99750000000000000000), 100000000000000000000);
         uint expectedDAI = wmul(colToFree, expectedRate);
@@ -383,20 +388,22 @@ contract GetDetails is MakerHelpers {
         }
     }
 
-    function getLeverage(uint cdpID) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD, bool canLeverage) {
+    function getLeverage(uint cdpID, uint daiToSwap) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD, bool canLeverage) {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
         (finalEthCol, finalDaiDebt, finalColToUSD, canLeverage) = checkLeverage(
             ethCol,
             daiDebt,
-            usdPerEth
+            usdPerEth,
+            daiToSwap
         );
     }
 
     function checkLeverage(
         uint ethCol,
         uint daiDebt,
-        uint usdPerEth
+        uint usdPerEth,
+        uint daiToSwap
     ) internal view returns
     (
         uint finalEthCol,
@@ -408,6 +415,9 @@ contract GetDetails is MakerHelpers {
         uint colToUSD = wmul(ethCol, usdPerEth) - 10;
         uint maxDebtLimit = wdiv(colToUSD, 1500000000000000000) - 10;
         uint debtToBorrow = sub(maxDebtLimit, daiDebt);
+        if (daiToSwap < debtToBorrow) {
+            debtToBorrow = daiToSwap;
+        }
         (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressDAI(), getAddressETH(), debtToBorrow);
         expectedRate = wdiv(wmul(expectedRate, 99750000000000000000), 100000000000000000000);
         uint expectedETH = wmul(debtToBorrow, expectedRate);
@@ -429,13 +439,30 @@ contract GetDetails is MakerHelpers {
 
 contract Save is GetDetails {
 
-    function save(uint cdpID) public {
+    /**
+     * @param what 2 for SAVE & 3 for LEVERAGE
+     */
+    event LogTrade(
+        uint what, // 2 for SAVE & 3 for LEVERAGE
+        address src,
+        uint srcAmt,
+        address dest,
+        uint destAmt,
+        address beneficiary,
+        uint minConversionRate,
+        address affiliate
+    );
+
+    function save(uint cdpID, uint colToSwap) public {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
         uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
         uint minColNeeded = add(wmul(daiDebt, 1500000000000000000), 10);
         uint colToFree = sub(wdiv(sub(colToUSD, minColNeeded), usdPerEth), 10);
         require(colToFree != 0, "No-collatral-to-free");
+        if (colToSwap < colToFree) {
+            colToFree = colToSwap;
+        }
         free(cdpID, colToFree);
         uint ethToSwap = wdiv(wmul(colToFree, 99750000000000000000), 100000000000000000000);
         getAddressAdmin().transfer(sub(colToFree, ethToSwap));
@@ -449,15 +476,29 @@ contract Save is GetDetails {
             getAddressAdmin()
         );
         wipe(cdpID, destAmt);
+
+        emit LogTrade(
+            2,
+            getAddressETH(),
+            colToFree,
+            getAddressDAI(),
+            destAmt,
+            address(this),
+            0,
+            getAddressAdmin()
+        );
     }
 
-    function leverage(uint cdpID) public {
+    function leverage(uint cdpID, uint daiToSwap) public {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
         uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
         uint maxDebtLimit = sub(wdiv(colToUSD, 1500000000000000000), 10);
         uint debtToBorrow = sub(maxDebtLimit, daiDebt);
         require(debtToBorrow != 0, "No-debt-to-borrow");
+        if (daiToSwap < debtToBorrow) {
+            debtToBorrow = daiToSwap;
+        }
         draw(cdpID, debtToBorrow);
         uint destAmt = KyberInterface(getAddressKyber()).trade.value(0)(
             getAddressDAI(),
@@ -471,6 +512,16 @@ contract Save is GetDetails {
         uint ethToDeposit = wdiv(wmul(destAmt, 99750000000000000000), 100000000000000000000);
         getAddressAdmin().transfer(sub(destAmt, ethToDeposit));
         lock(cdpID, ethToDeposit);
+        emit LogTrade(
+            3,
+            getAddressDAI(),
+            debtToBorrow,
+            getAddressETH(),
+            destAmt,
+            address(this),
+            0,
+            getAddressAdmin()
+        );
     }
 
 }
