@@ -343,6 +343,16 @@ contract MakerHelpers is Helpers {
 
 contract GetDetails is MakerHelpers {
 
+    function getMax(uint cdpID) public view returns (uint maxColToFree, uint maxDaiToDraw) {
+        bytes32 cup = bytes32(cdpID);
+        (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
+        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
+        uint minColNeeded = wmul(daiDebt, 1500000000000000000) + 10;
+        maxColToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
+        uint maxDebtLimit = wdiv(colToUSD, 1500000000000000000) - 10;
+        maxDaiToDraw = sub(maxDebtLimit, daiDebt);
+    }
+
     function getSave(uint cdpID, uint ethToSwap) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD, bool canSave) {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
