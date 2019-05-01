@@ -167,34 +167,6 @@ contract Helpers is DSMath {
         admin = 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638;
     }
 
-    /**
-     * @dev get CDP bytes by CDP ID
-     */
-    function getCDPBytes(uint cdpNum) public pure returns (bytes32 cup) {
-        cup = bytes32(cdpNum);
-    }
-
-    /**
-     * @dev getting rates from Kyber
-     * @param src is the token being sold
-     * @param dest is the token being bought
-     * @param srcAmt is the amount of token being sold
-     * @return expectedRate - the current rate
-     * @return slippageRate - rate with 3% slippage
-     */
-    function getExpectedRate(
-        address src,
-        address dest,
-        uint srcAmt
-    ) public view returns (
-        uint expectedRate,
-        uint slippageRate
-    )
-    {
-        (expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(src, dest, srcAmt);
-        slippageRate = (expectedRate / 100) * 99; // changing slippage rate upto 99%
-    }
-
     function getCDPStats(bytes32 cup) internal view returns (uint ethCol, uint daiDebt, uint usdPerEth) {
         TubInterface tub = TubInterface(getSaiTubAddress());
         usdPerEth = uint(oracleInterface(getOracleAddress()).read());
