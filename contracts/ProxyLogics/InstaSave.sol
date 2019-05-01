@@ -309,8 +309,8 @@ contract MakerHelpers is Helpers {
 
             (bytes32 val, bool ok) = tub.pep().peek();
 
-            // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
-            uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
+            // tub.rap(cup) = stability fee in $, tub.tab(cup) = total DAI debt
+            uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), add(tub.rap(cup), tub.tab(cup)))), uint(val));
 
             uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
             uint daiAmt = sub(_wad, daiFeeAmt);
@@ -318,7 +318,7 @@ contract MakerHelpers is Helpers {
             if (ok && val != 0) {
                 daiEx.tokenToTokenSwapOutput(
                     mkrFee,
-                    daiAmt,
+                    daiFeeAmt,
                     uint(999000000000000000000),
                     uint(1899063809), // 6th March 2030 GMT // no logic
                     address(mkr)
@@ -329,7 +329,7 @@ contract MakerHelpers is Helpers {
 
             emit LogWipe(
                 cdpNum,
-                daiAmt,
+                _wad,
                 mkrFee,
                 daiFeeAmt,
                 address(this)
@@ -463,16 +463,21 @@ contract Save is GetDetails {
         address affiliate
     );
 
+    function getColToFree(uint ethCol, uint daiDebt, uint usdPerEth) internal pure returns (uint colToFree) {
+        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
+        uint minColNeeded = add(wmul(daiDebt, 1500000000000000000), 10);
+        colToFree = sub(wdiv(sub(colToUSD, minColNeeded), usdPerEth), 10);
+    }
+
     function save(uint cdpID, uint colToSwap) public {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
-        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
-        uint minColNeeded = add(wmul(daiDebt, 1500000000000000000), 10);
-        uint colToFree = sub(wdiv(sub(colToUSD, minColNeeded), usdPerEth), 10);
+        uint colToFree = getColToFree(ethCol, daiDebt, usdPerEth);
         require(colToFree != 0, "No-collatral-to-free");
         if (colToSwap < colToFree) {
             colToFree = colToSwap;
         }
+        uint thisBalance = address(this).balance;
         free(cdpID, colToFree);
         uint ethToSwap = wdiv(wmul(colToFree, 99750000000000000000), 100000000000000000000);
         getAddressAdmin().transfer(sub(colToFree, ethToSwap));
@@ -481,11 +486,16 @@ contract Save is GetDetails {
             colToFree,
             getAddressDAI(),
             address(this),
-            2**255,
+            daiDebt,
             0,
             getAddressAdmin()
         );
         wipe(cdpID, destAmt);
+
+        if (thisBalance < address(this).balance) {
+            uint balToLock = address(this).balance - thisBalance;
+            lock(cdpID, balToLock);
+        }
 
         emit LogTrade(
             2,
@@ -499,12 +509,16 @@ contract Save is GetDetails {
         );
     }
 
+    function getDebtToBorrow(uint ethCol, uint daiDebt, uint usdPerEth) internal pure returns (uint debtToBorrow) {
+        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
+        uint maxDebtLimit = sub(wdiv(colToUSD, 1500000000000000000), 10);
+        debtToBorrow = sub(maxDebtLimit, daiDebt);
+    }
+
     function leverage(uint cdpID, uint daiToSwap) public {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
-        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
-        uint maxDebtLimit = sub(wdiv(colToUSD, 1500000000000000000), 10);
-        uint debtToBorrow = sub(maxDebtLimit, daiDebt);
+        uint debtToBorrow = getDebtToBorrow(ethCol, daiDebt, usdPerEth);
         require(debtToBorrow != 0, "No-debt-to-borrow");
         if (daiToSwap < debtToBorrow) {
             debtToBorrow = daiToSwap;
