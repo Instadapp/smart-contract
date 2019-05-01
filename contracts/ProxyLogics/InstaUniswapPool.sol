@@ -78,7 +78,7 @@ contract Helper {
             erc20Contract.approve(to, 2**255);
         }
     }
-    
+
 }
 
 
@@ -222,7 +222,7 @@ contract Pool is Helper {
 contract InstaUniswapPool is Pool {
 
     uint public version;
-    
+
     /**
      * @dev setting up variables on deployment
      * 1...2...3 versioning in each subsequent deployments

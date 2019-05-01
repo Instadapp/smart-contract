@@ -80,7 +80,7 @@ contract Helper {
     ) public view returns (
         uint expectedRate,
         uint slippageRate
-    ) 
+    )
     {
         (expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(src, dest, srcAmt);
         slippageRate = (expectedRate / 100) * 99; // changing slippage rate upto 99%
@@ -114,7 +114,7 @@ contract Helper {
             tknContract.approve(getAddressKyber(), 2**255);
         }
     }
-    
+
 }
 
 
@@ -229,7 +229,7 @@ contract Swap is Helper {
 contract InstaTrade is Swap {
 
     uint public version;
-    
+
     /**
      * @dev setting up variables on deployment
      * 1...2...3 versioning in each subsequent deployments

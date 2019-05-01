@@ -189,7 +189,7 @@ contract Helpers is DSMath {
     ) public view returns (
         uint expectedRate,
         uint slippageRate
-    ) 
+    )
     {
         (expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(src, dest, srcAmt);
         slippageRate = (expectedRate / 100) * 99; // changing slippage rate upto 99%
@@ -198,8 +198,9 @@ contract Helpers is DSMath {
     function getCDPStats(bytes32 cup) internal view returns (uint ethCol, uint daiDebt, uint usdPerEth) {
         TubInterface tub = TubInterface(getSaiTubAddress());
         usdPerEth = uint(oracleInterface(getOracleAddress()).read());
-        (, uint pethCol, uint daiDebt,) = tub.cups(cup);
+        (, uint pethCol, uint debt,) = tub.cups(cup);
         ethCol = rmul(pethCol, tub.per()); // get ETH col from PETH col
+        daiDebt = debt;
     }
 
 }
@@ -212,7 +213,7 @@ contract MakerHelpers is Helpers {
     event LogDraw(uint cdpNum, uint amtDAI, address owner);
     event LogWipe(uint cdpNum, uint daiAmt, uint mkrFee, uint daiFee, address owner);
 
-    function setAllowance(TokenInterface _token, address _spender) private {
+    function setAllowance(TokenInterface _token, address _spender) internal {
         if (_token.allowance(address(this), _spender) != uint(-1)) {
             _token.approve(_spender, uint(-1));
         }
@@ -388,7 +389,16 @@ contract GetDetails is MakerHelpers {
         }
     }
 
-    function getLeverage(uint cdpID, uint daiToSwap) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD, bool canLeverage) {
+    function getLeverage(
+        uint cdpID,
+        uint daiToSwap
+    ) public view returns (
+        uint finalEthCol,
+        uint finalDaiDebt,
+        uint finalColToUSD,
+        bool canLeverage
+    )
+    {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
         (finalEthCol, finalDaiDebt, finalColToUSD, canLeverage) = checkLeverage(
@@ -500,6 +510,7 @@ contract Save is GetDetails {
             debtToBorrow = daiToSwap;
         }
         draw(cdpID, debtToBorrow);
+        setAllowance(TokenInterface(getAddressDAI()), getAddressKyber());
         uint destAmt = KyberInterface(getAddressKyber()).trade.value(0)(
             getAddressDAI(),
             debtToBorrow,

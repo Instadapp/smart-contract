@@ -180,13 +180,13 @@ contract CDPResolver is Helpers {
             tub.free(cup, ink);
 
             setAllowance(peth, tubAddr);
-            
+
             tub.exit(ink);
             uint freeJam = weth.balanceOf(address(this)); // withdraw possible previous stuck WETH as well
             weth.withdraw(freeJam);
-            
+
             address(msg.sender).transfer(freeJam);
-            
+
             emit LogFree(
                 cdpNum,
                 freeJam,
@@ -203,7 +203,7 @@ contract CDPResolver is Helpers {
 
             tub.draw(cup, _wad);
             tub.sai().transfer(msg.sender, _wad);
-            
+
             emit LogDraw(cdpNum, _wad, address(this));
         }
     }
@@ -298,7 +298,7 @@ contract CDPCluster is CDPResolver {
 contract InstaMaker is CDPCluster {
 
     uint public version;
-    
+
     /**
      * @dev setting up variables on deployment
      * 1...2...3 versioning in each subsequent deployments
