@@ -282,7 +282,8 @@ contract MakerHelpers is Helpers {
             (bytes32 val, bool ok) = tub.pep().peek();
 
             // tub.rap(cup) = stability fee in $, tub.tab(cup) = total DAI debt
-            uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), add(tub.rap(cup), tub.tab(cup)))), uint(val));
+            uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
+            // uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), add(tub.rap(cup), tub.tab(cup)))), uint(val));
 
             uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
             uint daiAmt = sub(_wad, daiFeeAmt);
@@ -315,7 +316,7 @@ contract MakerHelpers is Helpers {
 
 contract GetDetails is MakerHelpers {
 
-    function getMax(uint cdpID) public view returns (uint maxColToFree, uint maxDaiToDraw) {
+    function getMax(uint cdpID) public view returns (uint maxColToFree, uint maxDaiToDraw, uint ethInUSD) {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
         uint colToUSD = wmul(ethCol, usdPerEth) - 10;
@@ -323,6 +324,7 @@ contract GetDetails is MakerHelpers {
         maxColToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
         uint maxDebtLimit = wdiv(colToUSD, 1500000000000000000) - 10;
         maxDaiToDraw = sub(maxDebtLimit, daiDebt);
+        ethInUSD = usdPerEth;
     }
 
     function getSave(uint cdpID, uint ethToSwap) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD, bool canSave) {
@@ -465,7 +467,7 @@ contract Save is GetDetails {
         getAddressAdmin().transfer(sub(colToFree, ethToSwap));
         uint destAmt = KyberInterface(getAddressKyber()).trade.value(ethToSwap)(
             getAddressETH(),
-            colToFree,
+            ethToSwap,
             getAddressDAI(),
             address(this),
             daiDebt,
