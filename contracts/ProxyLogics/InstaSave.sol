@@ -417,7 +417,7 @@ contract GetDetails is MakerHelpers {
         uint expectedETH = wmul(debtToBorrow, expectedRate);
         if (ethCol != 0) {
             finalEthCol = add(ethCol, expectedETH);
-            finalDaiDebt = maxDebtLimit;
+            finalDaiDebt = add(daiDebt, debtToBorrow);
             finalColToUSD = wmul(finalEthCol, usdPerEth);
             canLeverage = true;
         } else {
