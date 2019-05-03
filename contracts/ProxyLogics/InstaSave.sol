@@ -338,6 +338,26 @@ contract GetDetails is MakerHelpers {
         );
     }
 
+    function getLeverage(
+        uint cdpID,
+        uint daiToSwap
+    ) public view returns (
+        uint finalEthCol,
+        uint finalDaiDebt,
+        uint finalColToUSD,
+        bool canLeverage
+    )
+    {
+        bytes32 cup = bytes32(cdpID);
+        (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
+        (finalEthCol, finalDaiDebt, finalColToUSD, canLeverage) = checkLeverage(
+            ethCol,
+            daiDebt,
+            usdPerEth,
+            daiToSwap
+        );
+    }
+
     function checkSave(
         uint ethCol,
         uint daiDebt,
@@ -371,26 +391,6 @@ contract GetDetails is MakerHelpers {
             finalColToUSD = 0;
             canSave = false;
         }
-    }
-
-    function getLeverage(
-        uint cdpID,
-        uint daiToSwap
-    ) public view returns (
-        uint finalEthCol,
-        uint finalDaiDebt,
-        uint finalColToUSD,
-        bool canLeverage
-    )
-    {
-        bytes32 cup = bytes32(cdpID);
-        (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
-        (finalEthCol, finalDaiDebt, finalColToUSD, canLeverage) = checkLeverage(
-            ethCol,
-            daiDebt,
-            usdPerEth,
-            daiToSwap
-        );
     }
 
     function checkLeverage(
@@ -437,7 +437,7 @@ contract Save is GetDetails {
      * @param what 2 for SAVE & 3 for LEVERAGE
      */
     event LogTrade(
-        uint what, // 2 for SAVE & 3 for LEVERAGE
+        uint what, // 0 for BUY & 1 for SELL
         address src,
         uint srcAmt,
         address dest,
@@ -447,17 +447,24 @@ contract Save is GetDetails {
         address affiliate
     );
 
-    function getColToFree(uint ethCol, uint daiDebt, uint usdPerEth) internal pure returns (uint colToFree) {
-        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
-        uint minColNeeded = add(wmul(daiDebt, 1500000000000000000), 10);
-        colToFree = sub(wdiv(sub(colToUSD, minColNeeded), usdPerEth), 10);
-    }
+    event LogSaveCDP(
+        uint cdpID,
+        uint srcETH,
+        uint destDAI
+    );
+
+    event LogLeverageCDP(
+        uint cdpID,
+        uint srcDAI,
+        uint destETH
+    );
+
 
     function save(uint cdpID, uint colToSwap) public {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
         uint colToFree = getColToFree(ethCol, daiDebt, usdPerEth);
-        require(colToFree != 0, "No-collatral-to-free");
+        require(colToFree != 0, "no-collatral-to-free");
         if (colToSwap < colToFree) {
             colToFree = colToSwap;
         }
@@ -481,8 +488,10 @@ contract Save is GetDetails {
             lock(cdpID, balToLock);
         }
 
+        emit LogSaveCDP(cdpID, ethToSwap, destAmt);
+
         emit LogTrade(
-            2,
+            0,
             getAddressETH(),
             colToFree,
             getAddressDAI(),
@@ -491,12 +500,6 @@ contract Save is GetDetails {
             0,
             getAddressAdmin()
         );
-    }
-
-    function getDebtToBorrow(uint ethCol, uint daiDebt, uint usdPerEth) internal pure returns (uint debtToBorrow) {
-        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
-        uint maxDebtLimit = sub(wdiv(colToUSD, 1500000000000000000), 10);
-        debtToBorrow = sub(maxDebtLimit, daiDebt);
     }
 
     function leverage(uint cdpID, uint daiToSwap) public {
@@ -521,8 +524,11 @@ contract Save is GetDetails {
         uint ethToDeposit = wdiv(wmul(destAmt, 99750000000000000000), 100000000000000000000);
         getAddressAdmin().transfer(sub(destAmt, ethToDeposit));
         lock(cdpID, ethToDeposit);
+
+        emit LogLeverageCDP(cdpID, debtToBorrow, destAmt);
+
         emit LogTrade(
-            3,
+            1,
             getAddressDAI(),
             debtToBorrow,
             getAddressETH(),
@@ -531,6 +537,18 @@ contract Save is GetDetails {
             0,
             getAddressAdmin()
         );
+    }
+
+    function getColToFree(uint ethCol, uint daiDebt, uint usdPerEth) internal pure returns (uint colToFree) {
+        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
+        uint minColNeeded = add(wmul(daiDebt, 1500000000000000000), 10);
+        colToFree = sub(wdiv(sub(colToUSD, minColNeeded), usdPerEth), 10);
+    }
+
+    function getDebtToBorrow(uint ethCol, uint daiDebt, uint usdPerEth) internal pure returns (uint debtToBorrow) {
+        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
+        uint maxDebtLimit = sub(wdiv(colToUSD, 1500000000000000000), 10);
+        debtToBorrow = sub(maxDebtLimit, daiDebt);
     }
 
 }
