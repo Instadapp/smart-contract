@@ -325,6 +325,13 @@ contract GetDetails is MakerHelpers {
         uint maxDebtLimit = wdiv(colToUSD, 1500000000000000000) - 10;
         maxDaiToDraw = sub(maxDebtLimit, daiDebt);
         ethInUSD = usdPerEth;
+
+        (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressETH(), getAddressDAI(), maxColToFree);
+        uint expectedDai = wmul(maxColToFree, expectedRate);
+        if (expectedDai > maxDaiToDraw) {
+            maxColToFree = wmul(maxColToFree, wdiv(maxDaiToDraw, expectedDai));
+        }
+
     }
 
     function getSave(uint cdpID, uint ethToSwap) public view returns (uint finalEthCol, uint finalDaiDebt, uint finalColToUSD, bool canSave) {
