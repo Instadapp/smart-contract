@@ -378,7 +378,6 @@ contract GetDetails is MakerHelpers {
             colToFree = ethToSwap;
         }
         (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressETH(), getAddressDAI(), colToFree);
-        expectedRate = wdiv(wmul(expectedRate, 99750000000000000000), 100000000000000000000);
         uint expectedDAI = wmul(colToFree, expectedRate);
         if (expectedDAI < daiDebt) {
             finalEthCol = sub(ethCol, colToFree);
@@ -413,7 +412,6 @@ contract GetDetails is MakerHelpers {
             debtToBorrow = daiToSwap;
         }
         (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressDAI(), getAddressETH(), debtToBorrow);
-        expectedRate = wdiv(wmul(expectedRate, 99750000000000000000), 100000000000000000000);
         uint expectedETH = wmul(debtToBorrow, expectedRate);
         if (ethCol != 0) {
             finalEthCol = add(ethCol, expectedETH);
@@ -470,11 +468,9 @@ contract Save is GetDetails {
         }
         uint thisBalance = address(this).balance;
         free(cdpID, colToFree);
-        uint ethToSwap = wdiv(wmul(colToFree, 99750000000000000000), 100000000000000000000);
-        getAddressAdmin().transfer(sub(colToFree, ethToSwap));
-        uint destAmt = KyberInterface(getAddressKyber()).trade.value(ethToSwap)(
+        uint destAmt = KyberInterface(getAddressKyber()).trade.value(colToFree)(
             getAddressETH(),
-            ethToSwap,
+            colToFree,
             getAddressDAI(),
             address(this),
             daiDebt,
@@ -488,7 +484,7 @@ contract Save is GetDetails {
             lock(cdpID, balToLock);
         }
 
-        emit LogSaveCDP(cdpID, ethToSwap, destAmt);
+        emit LogSaveCDP(cdpID, colToFree, destAmt);
 
         emit LogTrade(
             0,
@@ -521,9 +517,7 @@ contract Save is GetDetails {
             0,
             getAddressAdmin()
         );
-        uint ethToDeposit = wdiv(wmul(destAmt, 99750000000000000000), 100000000000000000000);
-        getAddressAdmin().transfer(sub(destAmt, ethToDeposit));
-        lock(cdpID, ethToDeposit);
+        lock(cdpID, destAmt);
 
         emit LogLeverageCDP(cdpID, debtToBorrow, destAmt);
 
