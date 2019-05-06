@@ -319,10 +319,10 @@ contract GetDetails is MakerHelpers {
     function getMax(uint cdpID) public view returns (uint maxColToFree, uint maxDaiToDraw, uint ethInUSD) {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
-        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
-        uint minColNeeded = wmul(daiDebt, 1500000000000000000) + 10;
+        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
+        uint minColNeeded = add(wmul(daiDebt, 1500000000000000000), 10);
         maxColToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
-        uint maxDebtLimit = wdiv(colToUSD, 1500000000000000000) - 10;
+        uint maxDebtLimit = sub(wdiv(colToUSD, 1500000000000000000), 10);
         maxDaiToDraw = sub(maxDebtLimit, daiDebt);
         ethInUSD = usdPerEth;
     }
@@ -371,8 +371,8 @@ contract GetDetails is MakerHelpers {
         bool canSave
     )
     {
-        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
-        uint minColNeeded = wmul(daiDebt, 1500000000000000000) + 10;
+        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
+        uint minColNeeded = add(wmul(daiDebt, 1500000000000000000), 10);
         uint colToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
         if (ethToSwap < colToFree) {
             colToFree = ethToSwap;
@@ -405,8 +405,8 @@ contract GetDetails is MakerHelpers {
         bool canLeverage
     )
     {
-        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
-        uint maxDebtLimit = wdiv(colToUSD, 1500000000000000000) - 10;
+        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
+        uint maxDebtLimit = sub(wdiv(colToUSD, 1500000000000000000), 10);
         uint debtToBorrow = sub(maxDebtLimit, daiDebt);
         if (daiToSwap < debtToBorrow) {
             debtToBorrow = daiToSwap;
@@ -480,7 +480,7 @@ contract Save is GetDetails {
         wipe(cdpID, destAmt);
 
         if (thisBalance < address(this).balance) {
-            uint balToLock = address(this).balance - thisBalance;
+            uint balToLock = sub(address(this).balance, thisBalance);
             lock(cdpID, balToLock);
         }
 
