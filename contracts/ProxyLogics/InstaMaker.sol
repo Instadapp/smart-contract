@@ -117,6 +117,7 @@ contract CDPResolver is Helpers {
     event LogLock(uint cdpNum, uint amtETH, uint amtPETH, address owner);
     event LogFree(uint cdpNum, uint amtETH, uint amtPETH, address owner);
     event LogDraw(uint cdpNum, uint amtDAI, address owner);
+    event LogDrawSend(uint cdpNum, uint amtDAI, address to);
     event LogWipe(uint cdpNum, uint daiAmt, uint mkrFee, uint daiFee, address owner);
     event LogShut(uint cdpNum);
 
@@ -205,6 +206,19 @@ contract CDPResolver is Helpers {
             tub.sai().transfer(msg.sender, _wad);
 
             emit LogDraw(cdpNum, _wad, address(this));
+        }
+    }
+
+    function drawSend(uint cdpNum, uint _wad, address to) public {
+        bytes32 cup = bytes32(cdpNum);
+        if (_wad > 0) {
+            TubInterface tub = TubInterface(getSaiTubAddress());
+
+            tub.draw(cup, _wad);
+            tub.sai().transfer(to, _wad);
+
+            emit LogDraw(cdpNum, _wad, address(this));
+            emit LogDrawSend(cdpNum, _wad, to);
         }
     }
 
