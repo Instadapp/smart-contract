@@ -210,6 +210,7 @@ contract CDPResolver is Helpers {
     }
 
     function drawSend(uint cdpNum, uint _wad, address to) public {
+        require(to != address(0x0), "address-not-valid");
         bytes32 cup = bytes32(cdpNum);
         if (_wad > 0) {
             TubInterface tub = TubInterface(getSaiTubAddress());
