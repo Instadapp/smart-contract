@@ -12,4 +12,14 @@ interface CTokenInterface {
     function repayBorrowBehalf(address borrower) external payable; // For ETH
     function liquidateBorrow(address borrower, uint repayAmount, address cTokenCollateral) external returns (uint);
     function liquidateBorrow(address borrower, address cTokenCollateral) external payable;
+    function exchangeRateCurrent() external returns (uint);
+    function getCash() external view returns (uint);
+    function totalBorrowsCurrent() external returns (uint);
+    function borrowBalanceCurrent(address account) external returns (uint);
+    function borrowRatePerBlock() external view returns (uint);
+    function totalSupply() external view returns (uint256);
+    function balanceOf(address owner) external view returns (uint256 balance);
+    function supplyRatePerBlock() external view returns (uint);
+    function totalReserves() external view returns (uint);
+    function reserveFactorMantissa() external view returns (uint);
 }
