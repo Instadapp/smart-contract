@@ -102,29 +102,6 @@ contract Helpers is DSMath {
         cEthAdd = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
     }
 
-    // Need to check at the end
-    function exchangeRate(address cERC20) public returns (uint exchangeRateMantissa) {
-        CTokenInterface cToken = CTokenInterface(cERC20);
-        exchangeRateMantissa = cToken.exchangeRateCurrent();
-    }
-
-    function getCash(address cERC20) public view returns (uint cash) {
-        CTokenInterface cToken = CTokenInterface(cERC20);
-        cash = cToken.getCash();
-    }
-
-    // Need to check at the end
-    function totalBorrow(address cERC20) public returns (uint borrows) {
-        CTokenInterface cToken = CTokenInterface(cERC20);
-        borrows = cToken.totalBorrowsCurrent();
-    }
-
-    // Need to check at the end
-    function borrowBalance(address user, address cERC20) public returns (uint borrowAmt) {
-        CTokenInterface cToken = CTokenInterface(cERC20);
-        borrowAmt = cToken.borrowBalanceCurrent(user);
-    }
-
 }
 
 
