@@ -80,12 +80,18 @@ contract Helpers is DSMath {
      * @dev setting allowance to kyber for the "user proxy" if required
      * @param token is the token address
      */
-    function setApproval(address token, uint srcAmt, address to) internal {
-        ERC20Interface erc20Contract = ERC20Interface(token);
+    function setApproval(ERC20Interface erc20Contract, uint srcAmt, address to) internal {
         uint tokenAllowance = erc20Contract.allowance(address(this), to);
         if (srcAmt > tokenAllowance) {
             erc20Contract.approve(to, 2**255);
         }
+    }
+
+    /**
+     * @dev get ethereum address for trade
+     */
+    function getAddressETH() public pure returns (address eth) {
+        eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     }
 
     /**
@@ -115,64 +121,73 @@ contract CompoundResolver is Helpers {
         isSuccess = ComptrollerInterface(getComptrollerAddress()).exitMarket(cTokensAdd);
     }
 
-    function mintCETH() external payable {
-        CETHInterface cToken = CETHInterface(getCETHAddress());
-        cToken.mint.value(msg.value)();
-    }
-
-    function mintCToken(address erc20, address cErc20, uint tokenAmt) external {
-        ERC20Interface token = ERC20Interface(erc20);
-        uint toDeposit = token.balanceOf(msg.sender);
-        if (toDeposit > tokenAmt) {
-            toDeposit = tokenAmt;
+    function mintCToken(address erc20, address cErc20, uint tokenAmt) external payable {
+        if (erc20 == getAddressETH()) {
+            CETHInterface cToken = CETHInterface(cErc20);
+            cToken.mint.value(msg.value)();
+        } else {
+            ERC20Interface token = ERC20Interface(erc20);
+            uint toDeposit = token.balanceOf(msg.sender);
+            if (toDeposit > tokenAmt) {
+                toDeposit = tokenAmt;
+            }
+            token.transferFrom(msg.sender, address(this), toDeposit);
+            CERC20Interface cToken = CERC20Interface(cErc20);
+            setApproval(token, toDeposit, cErc20);
+            assert(cToken.mint(toDeposit) == 0);
         }
-        token.transferFrom(msg.sender, address(this), toDeposit);
-        CERC20Interface cToken = CERC20Interface(cErc20);
-        setApproval(erc20, toDeposit, cErc20);
-        assert(cToken.mint(toDeposit) == 0);
     }
 
-    function redeem(address cErc20, uint cTokenAmt) external {
+    function redeemCToken(address erc20, address cErc20, uint cTokenAmt) external {
         CTokenInterface cToken = CTokenInterface(cErc20);
         uint toBurn = cToken.balanceOf(address(this));
         if (toBurn > cTokenAmt) {
             toBurn = cTokenAmt;
         }
-        setApproval(cErc20, toBurn, cErc20);
+        setApproval(cToken, toBurn, cErc20);
         require(cToken.redeem(toBurn) == 0, "something went wrong");
+        transferToken(erc20);
     }
 
-    function redeemUnderlying(address cErc20, uint tokenAmt) external {
+    function redeemUnderlying(address erc20, address cErc20, uint tokenAmt) external {
         CTokenInterface cToken = CTokenInterface(cErc20);
-        setApproval(cErc20, 10**50, cErc20);
+        setApproval(cToken, 10**50, cErc20);
         require(cToken.redeemUnderlying(tokenAmt) == 0, "something went wrong");
+        transferToken(erc20);
+    }
+
+    function transferToken(address erc20) internal {
+        if (erc20 == getAddressETH()) {
+            msg.sender.transfer(address(this).balance);
+        } else {
+            ERC20Interface erc20Contract = ERC20Interface(erc20);
+            uint srcBal = erc20Contract.balanceOf(address(this));
+            if (srcBal > 0) {
+                erc20Contract.transfer(msg.sender, srcBal);
+            }
+        }
     }
 
     function borrow(address erc20, address cErc20, uint tokenAmt) external {
         require(CTokenInterface(cErc20).borrow(tokenAmt) == 0, "got collateral?");
-        ERC20Interface(erc20).transfer(msg.sender, tokenAmt);
+        transferToken(erc20);
     }
 
-    function repayEth() external payable {
-        CETHInterface cToken = CETHInterface(getCETHAddress());
-        cToken.repayBorrow.value(msg.value)();
-    }
-
-    function repaytoken(address erc20, address cErc20, uint tokenAmt) external payable {
-        CERC20Interface cToken = CERC20Interface(cErc20);
-        ERC20Interface token = ERC20Interface(erc20);
-        uint toRepay = token.balanceOf(msg.sender);
-        if (toRepay > tokenAmt) {
-            toRepay = tokenAmt;
+    function repayToken(address erc20, address cErc20, uint tokenAmt) external payable {
+        if (erc20 == getAddressETH()) {
+            CETHInterface cToken = CETHInterface(cErc20);
+            cToken.repayBorrow.value(msg.value)();
+        } else {
+            CERC20Interface cToken = CERC20Interface(cErc20);
+            ERC20Interface token = ERC20Interface(erc20);
+            uint toRepay = token.balanceOf(msg.sender);
+            if (toRepay > tokenAmt) {
+                toRepay = tokenAmt;
+            }
+            setApproval(token, toRepay, cErc20);
+            token.transferFrom(msg.sender, address(this), toRepay);
+            require(cToken.repayBorrow(toRepay) == 0, "transfer approved?");
         }
-        setApproval(erc20, toRepay, cErc20);
-        token.transferFrom(msg.sender, address(this), toRepay);
-        require(cToken.repayBorrow(toRepay) == 0, "transfer approved?");
-    }
-
-    function repayEthBehalf(address borrower) external payable {
-        CETHInterface cToken = CETHInterface(getCETHAddress());
-        cToken.repayBorrowBehalf.value(msg.value)(borrower);
     }
 
     function repaytokenBehalf(
@@ -182,20 +197,39 @@ contract CompoundResolver is Helpers {
         uint tokenAmt
     ) external payable
     {
-        CERC20Interface cToken = CERC20Interface(cErc20);
-        ERC20Interface token = ERC20Interface(erc20);
-        uint toRepay = token.balanceOf(msg.sender);
-        if (toRepay > tokenAmt) {
-            toRepay = tokenAmt;
+        if (erc20 == getAddressETH()) {
+            CETHInterface cToken = CETHInterface(getCETHAddress());
+            cToken.repayBorrowBehalf.value(msg.value)(borrower);
+        } else {
+            CERC20Interface cToken = CERC20Interface(cErc20);
+            ERC20Interface token = ERC20Interface(erc20);
+            uint toRepay = token.balanceOf(msg.sender);
+            if (toRepay > tokenAmt) {
+                toRepay = tokenAmt;
+            }
+            setApproval(token, toRepay, cErc20);
+            uint tokenAllowance = token.allowance(address(this), cErc20);
+            if (toRepay > tokenAllowance) {
+                token.approve(cErc20, toRepay);
+            }
+            token.transferFrom(msg.sender, address(this), toRepay);
+            require(cToken.repayBorrowBehalf(borrower, tokenAmt) == 0, "transfer approved?");
         }
-        setApproval(erc20, toRepay, cErc20);
-        uint tokenAllowance = token.allowance(address(this), cErc20);
-        if (toRepay > tokenAllowance) {
-            token.approve(cErc20, toRepay);
-        }
-        token.transferFrom(msg.sender, address(this), toRepay);
-        require(cToken.repayBorrowBehalf(borrower, tokenAmt) == 0, "transfer approved?");
     }
 
+}
+
+
+contract InstaCompound is CompoundResolver {
+
+    uint public version;
+
+    /**
+     * @dev setting up variables on deployment
+     * 1...2...3 versioning in each subsequent deployments
+     */
+    constructor(uint _version) public {
+        version = _version;
+    }
 
 }
