@@ -102,17 +102,8 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get CETH Address
+     * @dev Transfer ETH/ERC20 to user 
      */
-    function getCETHAddress() public pure returns (address cEthAdd) {
-        cEthAdd = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
-    }
-
-    function getTokenAmt(CTokenInterface cToken, uint cTokenAmt) public returns(uint tokenAmt) {
-        uint exchangeRate = cToken.exchangeRateCurrent();
-        tokenAmt = wmul(exchangeRate, cTokenAmt);
-    }
-
     function transferToken(address erc20) internal {
         if (erc20 == getAddressETH()) {
             msg.sender.transfer(address(this).balance);
@@ -240,7 +231,7 @@ contract CompoundResolver is Helpers {
     ) external payable
     {
         if (erc20 == getAddressETH()) {
-            CETHInterface cToken = CETHInterface(getCETHAddress());
+            CETHInterface cToken = CETHInterface(cErc20);
             cToken.repayBorrowBehalf.value(msg.value)(borrower);
         } else {
             CERC20Interface cToken = CERC20Interface(cErc20);
