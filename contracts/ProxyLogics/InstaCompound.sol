@@ -108,10 +108,33 @@ contract Helpers is DSMath {
         cEthAdd = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
     }
 
+    function getTokenAmt(CTokenInterface cToken, uint cTokenAmt) public returns(uint tokenAmt) {
+        uint exchangeRate = cToken.exchangeRateCurrent();
+        tokenAmt = wmul(exchangeRate, cTokenAmt);
+    }
+
+    function transferToken(address erc20) internal {
+        if (erc20 == getAddressETH()) {
+            msg.sender.transfer(address(this).balance);
+        } else {
+            ERC20Interface erc20Contract = ERC20Interface(erc20);
+            uint srcBal = erc20Contract.balanceOf(address(this));
+            if (srcBal > 0) {
+                erc20Contract.transfer(msg.sender, srcBal);
+            }
+        }
+    }
+
 }
 
 
 contract CompoundResolver is Helpers {
+
+    event LogMint(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogRedeem(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogBorrow(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogRepayBehalf(address erc20, address cErc20, uint tokenAmt, address owner, address borrower);
 
     function enterMarkets(address[] calldata cTokensAdd) external returns (uint[] memory isSuccess) {
         isSuccess = ComptrollerInterface(getComptrollerAddress()).enterMarkets(cTokensAdd);
@@ -136,6 +159,12 @@ contract CompoundResolver is Helpers {
             setApproval(token, toDeposit, cErc20);
             assert(cToken.mint(toDeposit) == 0);
         }
+        emit LogMint(
+            erc20,
+            cErc20,
+            tokenAmt,
+            msg.sender
+        );
     }
 
     function redeemCToken(address erc20, address cErc20, uint cTokenAmt) external {
@@ -147,6 +176,13 @@ contract CompoundResolver is Helpers {
         setApproval(cToken, toBurn, cErc20);
         require(cToken.redeem(toBurn) == 0, "something went wrong");
         transferToken(erc20);
+        uint tokenReturned = wmul(cToken.balanceOf(address(this)), cToken.exchangeRateCurrent());
+        emit LogRedeem(
+            erc20,
+            cErc20,
+            tokenReturned,
+            address(this)
+        );
     }
 
     function redeemUnderlying(address erc20, address cErc20, uint tokenAmt) external {
@@ -154,23 +190,23 @@ contract CompoundResolver is Helpers {
         setApproval(cToken, 10**50, cErc20);
         require(cToken.redeemUnderlying(tokenAmt) == 0, "something went wrong");
         transferToken(erc20);
-    }
-
-    function transferToken(address erc20) internal {
-        if (erc20 == getAddressETH()) {
-            msg.sender.transfer(address(this).balance);
-        } else {
-            ERC20Interface erc20Contract = ERC20Interface(erc20);
-            uint srcBal = erc20Contract.balanceOf(address(this));
-            if (srcBal > 0) {
-                erc20Contract.transfer(msg.sender, srcBal);
-            }
-        }
+        emit LogRedeem(
+            erc20,
+            cErc20,
+            tokenAmt,
+            address(this)
+        );
     }
 
     function borrow(address erc20, address cErc20, uint tokenAmt) external {
         require(CTokenInterface(cErc20).borrow(tokenAmt) == 0, "got collateral?");
         transferToken(erc20);
+        emit LogBorrow(
+            erc20,
+            cErc20,
+            tokenAmt,
+            address(this)
+        );
     }
 
     function repayToken(address erc20, address cErc20, uint tokenAmt) external payable {
@@ -188,6 +224,12 @@ contract CompoundResolver is Helpers {
             token.transferFrom(msg.sender, address(this), toRepay);
             require(cToken.repayBorrow(toRepay) == 0, "transfer approved?");
         }
+        emit LogRepay(
+            erc20,
+            cErc20,
+            tokenAmt,
+            address(this)
+        );
     }
 
     function repaytokenBehalf(
@@ -215,6 +257,13 @@ contract CompoundResolver is Helpers {
             token.transferFrom(msg.sender, address(this), toRepay);
             require(cToken.repayBorrowBehalf(borrower, tokenAmt) == 0, "transfer approved?");
         }
+        emit LogRepay(
+            erc20,
+            cErc20,
+            tokenAmt,
+            address(this),
+            borrower
+        );
     }
 
 }
