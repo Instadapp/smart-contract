@@ -102,7 +102,7 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev Transfer ETH/ERC20 to user 
+     * @dev Transfer ETH/ERC20 to user
      */
     function transferToken(address erc20) internal {
         if (erc20 == getAddressETH()) {
