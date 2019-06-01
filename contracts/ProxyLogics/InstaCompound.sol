@@ -77,10 +77,10 @@ contract DSMath {
 contract Helpers is DSMath {
 
     /**
-     * @dev setting allowance to kyber for the "user proxy" if required
-     * @param token is the token address
+     * @dev setting allowance to compound for the "user proxy" if required
      */
-    function setApproval(ERC20Interface erc20Contract, uint srcAmt, address to) internal {
+    function setApproval(address erc20, uint srcAmt, address to) internal {
+        ERC20Interface erc20Contract = ERC20Interface(erc20);
         uint tokenAllowance = erc20Contract.allowance(address(this), to);
         if (srcAmt > tokenAllowance) {
             erc20Contract.approve(to, 2**255);
@@ -95,10 +95,11 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get Compound Comptroller
+     * @dev get Compound Comptroller Address
      */
     function getComptrollerAddress() public pure returns (address troller) {
         troller = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
+        // troller = 0x2EAa9D77AE4D8f9cdD9FAAcd44016E746485bddb; // Rinkeby
     }
 
     /**
@@ -127,14 +128,23 @@ contract CompoundResolver is Helpers {
     event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogRepayBehalf(address erc20, address cErc20, uint tokenAmt, address owner, address borrower);
 
+    /**
+     * @dev Enter Compound Market to start borrowing
+     */
     function enterMarkets(address[] calldata cTokensAdd) external returns (uint[] memory isSuccess) {
         isSuccess = ComptrollerInterface(getComptrollerAddress()).enterMarkets(cTokensAdd);
     }
 
+    /**
+     * @dev Exit Compound Market to stop borrowing
+     */
     function exitMarket(address cTokensAdd) external returns (uint isSuccess) {
         isSuccess = ComptrollerInterface(getComptrollerAddress()).exitMarket(cTokensAdd);
     }
 
+    /**
+     * @dev Deposit ETH/ERC20 and mint Compound Tokens
+     */
     function mintCToken(address erc20, address cErc20, uint tokenAmt) external payable {
         if (erc20 == getAddressETH()) {
             CETHInterface cToken = CETHInterface(cErc20);
@@ -147,7 +157,7 @@ contract CompoundResolver is Helpers {
             }
             token.transferFrom(msg.sender, address(this), toDeposit);
             CERC20Interface cToken = CERC20Interface(cErc20);
-            setApproval(token, toDeposit, cErc20);
+            setApproval(erc20, toDeposit, cErc20);
             assert(cToken.mint(toDeposit) == 0);
         }
         emit LogMint(
@@ -158,13 +168,17 @@ contract CompoundResolver is Helpers {
         );
     }
 
+    /**
+     * @dev Redeem ETH/ERC20 and burn Compound Tokens
+     * @param cTokenAmt Amount of CToken To burn
+     */
     function redeemCToken(address erc20, address cErc20, uint cTokenAmt) external {
         CTokenInterface cToken = CTokenInterface(cErc20);
         uint toBurn = cToken.balanceOf(address(this));
         if (toBurn > cTokenAmt) {
             toBurn = cTokenAmt;
         }
-        setApproval(cToken, toBurn, cErc20);
+        setApproval(cErc20, toBurn, cErc20);
         require(cToken.redeem(toBurn) == 0, "something went wrong");
         transferToken(erc20);
         uint tokenReturned = wmul(cToken.balanceOf(address(this)), cToken.exchangeRateCurrent());
@@ -176,9 +190,13 @@ contract CompoundResolver is Helpers {
         );
     }
 
+    /**
+     * @dev Redeem ETH/ERC20 and mint Compound Tokens
+     * @param tokenAmt Amount of token To Redeem
+     */
     function redeemUnderlying(address erc20, address cErc20, uint tokenAmt) external {
         CTokenInterface cToken = CTokenInterface(cErc20);
-        setApproval(cToken, 10**50, cErc20);
+        setApproval(cErc20, 10**50, cErc20);
         require(cToken.redeemUnderlying(tokenAmt) == 0, "something went wrong");
         transferToken(erc20);
         emit LogRedeem(
@@ -189,6 +207,9 @@ contract CompoundResolver is Helpers {
         );
     }
 
+    /**
+     * @dev borrow ETH/ERC20
+     */
     function borrow(address erc20, address cErc20, uint tokenAmt) external {
         require(CTokenInterface(cErc20).borrow(tokenAmt) == 0, "got collateral?");
         transferToken(erc20);
@@ -200,6 +221,9 @@ contract CompoundResolver is Helpers {
         );
     }
 
+    /**
+     * @dev Pay Debt ETH/ERC20
+     */
     function repayToken(address erc20, address cErc20, uint tokenAmt) external payable {
         if (erc20 == getAddressETH()) {
             CETHInterface cToken = CETHInterface(cErc20);
@@ -211,7 +235,7 @@ contract CompoundResolver is Helpers {
             if (toRepay > tokenAmt) {
                 toRepay = tokenAmt;
             }
-            setApproval(token, toRepay, cErc20);
+            setApproval(erc20, toRepay, cErc20);
             token.transferFrom(msg.sender, address(this), toRepay);
             require(cToken.repayBorrow(toRepay) == 0, "transfer approved?");
         }
@@ -223,6 +247,9 @@ contract CompoundResolver is Helpers {
         );
     }
 
+    /**
+     * @dev Pay Debt for someone else
+     */
     function repaytokenBehalf(
         address borrower,
         address erc20,
@@ -240,7 +267,7 @@ contract CompoundResolver is Helpers {
             if (toRepay > tokenAmt) {
                 toRepay = tokenAmt;
             }
-            setApproval(token, toRepay, cErc20);
+            setApproval(erc20, toRepay, cErc20);
             uint tokenAllowance = token.allowance(address(this), cErc20);
             if (toRepay > tokenAllowance) {
                 token.approve(cErc20, toRepay);
@@ -248,7 +275,7 @@ contract CompoundResolver is Helpers {
             token.transferFrom(msg.sender, address(this), toRepay);
             require(cToken.repayBorrowBehalf(borrower, tokenAmt) == 0, "transfer approved?");
         }
-        emit LogRepay(
+        emit LogRepayBehalf(
             erc20,
             cErc20,
             tokenAmt,
@@ -271,5 +298,7 @@ contract InstaCompound is CompoundResolver {
     constructor(uint _version) public {
         version = _version;
     }
+
+    function() external payable {}
 
 }
