@@ -59,23 +59,6 @@ contract Owners {
         require(ownersCount > 0, "zero-owner-not-allowed");
     }
 
-    function execute(
-        address _target,
-        bytes memory _data,
-        uint _src,
-        uint _session
-    ) public payable onlyOwner
-    {
-        address walletAddress = RegistryInterface(registry).proxies(address(this));
-        UserWalletInterface(walletAddress).execute.value(msg.value)(
-            _target,
-            _data,
-            _src,
-            _session
-        );
-    }
-    
-
 }
 
 
@@ -87,6 +70,22 @@ contract InstaAccess is Owners {
         registry = _registry;
         owners[msg.sender] = true;
         ownersCount++;
+    }
+
+    function execute(
+        address target,
+        bytes memory data,
+        uint src,
+        uint session
+    ) public payable onlyOwner
+    {
+        address walletAddress = RegistryInterface(registry).proxies(address(this));
+        UserWalletInterface(walletAddress).execute.value(msg.value)(
+            target,
+            data,
+            src,
+            session
+        );
     }
 
 }
