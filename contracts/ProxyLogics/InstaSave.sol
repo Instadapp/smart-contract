@@ -319,10 +319,10 @@ contract GetDetails is MakerHelpers {
     function getMax(uint cdpID) public view returns (uint maxColToFree, uint maxDaiToDraw, uint ethInUSD) {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
-        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
-        uint minColNeeded = wmul(daiDebt, 1500000000000000000) + 10;
+        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
+        uint minColNeeded = add(wmul(daiDebt, 1500000000000000000), 10);
         maxColToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
-        uint maxDebtLimit = wdiv(colToUSD, 1500000000000000000) - 10;
+        uint maxDebtLimit = sub(wdiv(colToUSD, 1500000000000000000), 10);
         maxDaiToDraw = sub(maxDebtLimit, daiDebt);
         ethInUSD = usdPerEth;
     }
@@ -371,14 +371,13 @@ contract GetDetails is MakerHelpers {
         bool canSave
     )
     {
-        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
-        uint minColNeeded = wmul(daiDebt, 1500000000000000000) + 10;
+        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
+        uint minColNeeded = add(wmul(daiDebt, 1500000000000000000), 10);
         uint colToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
         if (ethToSwap < colToFree) {
             colToFree = ethToSwap;
         }
         (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressETH(), getAddressDAI(), colToFree);
-        expectedRate = wdiv(wmul(expectedRate, 99750000000000000000), 100000000000000000000);
         uint expectedDAI = wmul(colToFree, expectedRate);
         if (expectedDAI < daiDebt) {
             finalEthCol = sub(ethCol, colToFree);
@@ -406,14 +405,13 @@ contract GetDetails is MakerHelpers {
         bool canLeverage
     )
     {
-        uint colToUSD = wmul(ethCol, usdPerEth) - 10;
-        uint maxDebtLimit = wdiv(colToUSD, 1500000000000000000) - 10;
+        uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
+        uint maxDebtLimit = sub(wdiv(colToUSD, 1500000000000000000), 10);
         uint debtToBorrow = sub(maxDebtLimit, daiDebt);
         if (daiToSwap < debtToBorrow) {
             debtToBorrow = daiToSwap;
         }
         (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressDAI(), getAddressETH(), debtToBorrow);
-        expectedRate = wdiv(wmul(expectedRate, 99750000000000000000), 100000000000000000000);
         uint expectedETH = wmul(debtToBorrow, expectedRate);
         if (ethCol != 0) {
             finalEthCol = add(ethCol, expectedETH);
@@ -470,11 +468,9 @@ contract Save is GetDetails {
         }
         uint thisBalance = address(this).balance;
         free(cdpID, colToFree);
-        uint ethToSwap = wdiv(wmul(colToFree, 99750000000000000000), 100000000000000000000);
-        getAddressAdmin().transfer(sub(colToFree, ethToSwap));
-        uint destAmt = KyberInterface(getAddressKyber()).trade.value(ethToSwap)(
+        uint destAmt = KyberInterface(getAddressKyber()).trade.value(colToFree)(
             getAddressETH(),
-            ethToSwap,
+            colToFree,
             getAddressDAI(),
             address(this),
             daiDebt,
@@ -484,11 +480,11 @@ contract Save is GetDetails {
         wipe(cdpID, destAmt);
 
         if (thisBalance < address(this).balance) {
-            uint balToLock = address(this).balance - thisBalance;
+            uint balToLock = sub(address(this).balance, thisBalance);
             lock(cdpID, balToLock);
         }
 
-        emit LogSaveCDP(cdpID, ethToSwap, destAmt);
+        emit LogSaveCDP(cdpID, colToFree, destAmt);
 
         emit LogTrade(
             0,
@@ -521,9 +517,7 @@ contract Save is GetDetails {
             0,
             getAddressAdmin()
         );
-        uint ethToDeposit = wdiv(wmul(destAmt, 99750000000000000000), 100000000000000000000);
-        getAddressAdmin().transfer(sub(destAmt, ethToDeposit));
-        lock(cdpID, ethToDeposit);
+        lock(cdpID, destAmt);
 
         emit LogLeverageCDP(cdpID, debtToBorrow, destAmt);
 
