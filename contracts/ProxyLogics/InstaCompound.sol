@@ -130,20 +130,6 @@ contract CompoundResolver is Helpers {
     event LogRepayBehalf(address erc20, address cErc20, uint tokenAmt, address owner, address borrower);
 
     /**
-     * @dev Enter Compound Market to start borrowing
-     */
-    function enterMarkets(address[] calldata cTokensAdd) external returns (uint[] memory isSuccess) {
-        isSuccess = ComptrollerInterface(getComptrollerAddress()).enterMarkets(cTokensAdd);
-    }
-
-    /**
-     * @dev Exit Compound Market to stop borrowing
-     */
-    function exitMarket(address cTokensAdd) external returns (uint isSuccess) {
-        isSuccess = ComptrollerInterface(getComptrollerAddress()).exitMarket(cTokensAdd);
-    }
-
-    /**
      * @dev Deposit ETH/ERC20 and mint Compound Tokens
      */
     function mintCToken(address erc20, address cErc20, uint tokenAmt) external payable {
@@ -212,6 +198,19 @@ contract CompoundResolver is Helpers {
      * @dev borrow ETH/ERC20
      */
     function borrow(address erc20, address cErc20, uint tokenAmt) external {
+        ComptrollerInterface troller = ComptrollerInterface(getComptrollerAddress());
+        address[] memory markets = troller.getAssetsIn(address(this));
+        bool isEntered = false;
+        for (uint i = 0; i < markets.length; i++) {
+            if (markets[i] == cErc20) {
+                isEntered = true;
+            }
+        }
+        if (!isEntered) {
+            address[] memory toEnter;
+            toEnter[0] = cErc20;
+            troller.enterMarkets(toEnter);
+        }
         require(CTokenInterface(cErc20).borrow(tokenAmt) == 0, "got collateral?");
         transferToken(erc20);
         emit LogBorrow(
