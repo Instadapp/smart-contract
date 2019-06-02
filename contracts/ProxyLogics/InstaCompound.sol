@@ -127,7 +127,6 @@ contract CompoundResolver is Helpers {
     event LogRedeem(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogBorrow(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
-    event LogRepayBehalf(address erc20, address cErc20, uint tokenAmt, address owner, address borrower);
 
     /**
      * @dev Deposit ETH/ERC20 and mint Compound Tokens
@@ -291,12 +290,11 @@ contract CompoundResolver is Helpers {
             token.transferFrom(msg.sender, address(this), toRepay);
             require(cToken.repayBorrowBehalf(borrower, tokenAmt) == 0, "transfer approved?");
         }
-        emit LogRepayBehalf(
+        emit LogRepay(
             erc20,
             cErc20,
             tokenAmt,
-            address(this),
-            borrower
+            address(this)
         );
     }
 
