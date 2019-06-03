@@ -101,6 +101,7 @@ contract Helpers is DSMath {
     function getComptrollerAddress() public pure returns (address troller) {
         troller = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
         // troller = 0x2EAa9D77AE4D8f9cdD9FAAcd44016E746485bddb; // Rinkeby
+        // troller = 0x3CA5a0E85aD80305c2d2c4982B2f2756f1e747a5; // Kovan
     }
 
     /**
@@ -118,6 +119,22 @@ contract Helpers is DSMath {
         }
     }
 
+    function enterMarket(address cErc20) internal {
+        ComptrollerInterface troller = ComptrollerInterface(getComptrollerAddress());
+        address[] memory markets = troller.getAssetsIn(address(this));
+        bool isEntered = false;
+        for (uint i = 0; i < markets.length; i++) {
+            if (markets[i] == cErc20) {
+                isEntered = true;
+            }
+        }
+        if (!isEntered) {
+            address[] memory toEnter = new address[](1);
+            toEnter[0] = cErc20;
+            troller.enterMarkets(toEnter);
+        }
+    }
+
 }
 
 
@@ -132,6 +149,7 @@ contract CompoundResolver is Helpers {
      * @dev Deposit ETH/ERC20 and mint Compound Tokens
      */
     function mintCToken(address erc20, address cErc20, uint tokenAmt) external payable {
+        enterMarket(cErc20);
         if (erc20 == getAddressETH()) {
             CETHInterface cToken = CETHInterface(cErc20);
             cToken.mint.value(msg.value)();
@@ -202,19 +220,7 @@ contract CompoundResolver is Helpers {
      * @dev borrow ETH/ERC20
      */
     function borrow(address erc20, address cErc20, uint tokenAmt) external {
-        ComptrollerInterface troller = ComptrollerInterface(getComptrollerAddress());
-        address[] memory markets = troller.getAssetsIn(address(this));
-        bool isEntered = false;
-        for (uint i = 0; i < markets.length; i++) {
-            if (markets[i] == cErc20) {
-                isEntered = true;
-            }
-        }
-        if (!isEntered) {
-            address[] memory toEnter = new address[](1);
-            toEnter[0] = cErc20;
-            troller.enterMarkets(toEnter);
-        }
+        enterMarket(cErc20);
         require(CTokenInterface(cErc20).borrow(tokenAmt) == 0, "got collateral?");
         transferToken(erc20);
         emit LogBorrow(
