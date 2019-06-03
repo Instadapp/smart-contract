@@ -167,7 +167,7 @@ contract CompoundResolver is Helpers {
         setApproval(cErc20, toBurn, cErc20);
         require(cToken.redeem(toBurn) == 0, "something went wrong");
         transferToken(erc20);
-        uint tokenReturned = wmul(cToken.balanceOf(address(this)), cToken.exchangeRateCurrent());
+        uint tokenReturned = wmul(toBurn, cToken.exchangeRateCurrent());
         emit LogRedeem(
             erc20,
             cErc20,
@@ -206,7 +206,7 @@ contract CompoundResolver is Helpers {
             }
         }
         if (!isEntered) {
-            address[] memory toEnter;
+            address[] memory toEnter = new address[](1);
             toEnter[0] = cErc20;
             troller.enterMarkets(toEnter);
         }
