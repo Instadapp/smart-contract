@@ -193,7 +193,7 @@ contract CompoundResolver is Helpers {
         emit LogRedeem(
             erc20,
             cErc20,
-            tokenAmt,
+            tokenToReturn,
             address(this)
         );
     }
