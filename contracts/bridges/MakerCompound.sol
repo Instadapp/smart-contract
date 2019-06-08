@@ -64,15 +64,17 @@ contract DSMath {
 
 contract Helper is DSMath {
 
-    address public admin = 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638;
-    address public dai = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
-    address public cDai = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+    address public adminAdd = 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638;
+    address public daiAdd = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
+    address public cDaiAdd = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+    address public registryAdd = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
     mapping (address => uint) deposited; // Amount of CToken deposited
 
     /**
      * @dev setting allowance to compound for the "user proxy" if required
      */
-    function setApproval(address erc20, uint srcAmt, address to) internal {
+    function setApproval(address erc20, uint srcAmt, address to) public {
+        require(msg.sender == adminAdd, "Not-Admin");
         ERC20Interface erc20Contract = ERC20Interface(erc20);
         uint tokenAllowance = erc20Contract.allowance(address(this), to);
         if (srcAmt > tokenAllowance) {
@@ -86,21 +88,34 @@ contract Helper is DSMath {
 contract Bridge is Helper {
 
     function depositDAI(uint amt) public {
-        ERC20Interface tokenContract = ERC20Interface(dai);
-        uint toDeposit = tokenContract.balanceOf(msg.sender);
-        if (toDeposit > amt) {
-            toDeposit = amt;
-        }
+        ERC20Interface tokenContract = ERC20Interface(daiAdd);
+        uint toDeposit = amt;
         tokenContract.transferFrom(msg.sender, address(this), toDeposit);
-        CTokenInterface cToken = CTokenInterface(cDai);
-        setApproval(dai, toDeposit, cDai);
+        CTokenInterface cToken = CTokenInterface(cDaiAdd);
         assert(cToken.mint(toDeposit) == 0);
-        uint cTokenMinted = wdiv(toDeposit, cToken.exchangeRateCurrent());
-        deposited[msg.sender] += cTokenMinted;
     }
 
-    function withdrawDAI(uint amt) public {
+    function depositCDAI(uint amt) public {
+        CTokenInterface cToken = CTokenInterface(cDaiAdd);
+        cToken.transferFrom(msg.sender, address(this), amt);
+        deposited[msg.sender] += amt;
+    }
 
+    function withdrawCDAI(uint amt) public {
+        CTokenInterface cToken = CTokenInterface(cDaiAdd);
+        uint withdrawAmt = amt;
+        if (withdrawAmt > deposited[msg.sender]) {
+            withdrawAmt = deposited[msg.sender];
+        }
+        cToken.transfer(msg.sender, withdrawAmt);
+        deposited[msg.sender] -= withdrawAmt;
+    }
+
+    function transferDAI(uint amt) public {
+        require(RegistryInterface(registryAdd).proxies(msg.sender) != address(0), "Not-User-Wallet");
+        CTokenInterface cToken = CTokenInterface(cDaiAdd);
+        require(cToken.redeemUnderlying(amt) == 0, "something went wrong");
+        ERC20Interface(daiAdd).transfer(msg.sender, amt);
     }
 
 }
