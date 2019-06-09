@@ -185,6 +185,34 @@ contract Helper is DSMath {
     }
 
     /**
+     * @dev get Compound Comptroller Address
+     */
+    function getComptrollerAddress() public pure returns (address troller) {
+        troller = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
+    }
+
+    /**
+     * @dev get Compound Comptroller Address
+     */
+    function getCETHAddress() public pure returns (address cEth) {
+        cEth = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
+    }
+
+    /**
+     * @dev get Compound Comptroller Address
+     */
+    function getDAIAddress() public pure returns (address dai) {
+        dai = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
+    }
+
+    /**
+     * @dev get Compound Comptroller Address
+     */
+    function getCDAIAddress() public pure returns (address cDai) {
+        cDai = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+    }
+
+    /**
      * @dev get CDP bytes by CDP ID
      */
     function getCDPBytes(uint cdpNum) public pure returns (bytes32 cup) {
@@ -200,7 +228,7 @@ contract MakerHelper is Helper {
     event LogWipe(uint cdpNum, uint daiAmt, uint mkrFee, uint daiFee, address owner);
     event LogShut(uint cdpNum);
 
-    function setAllowance(TokenInterface _token, address _spender) private {
+    function setMakerAllowance(TokenInterface _token, address _spender) private {
         if (_token.allowance(address(this), _spender) != uint(-1)) {
             _token.approve(_spender, uint(-1));
         }
@@ -225,7 +253,7 @@ contract MakerHelper is Helper {
             ink = rmul(ink, tub.per()) <= jam ? ink : ink - 1;
             tub.free(cup, ink);
 
-            setAllowance(peth, tubAddr);
+            setMakerAllowance(peth, tubAddr);
 
             tub.exit(ink);
             uint freeJam = weth.balanceOf(address(this)); // convert previous WETH into ETH as well
@@ -251,9 +279,9 @@ contract MakerHelper is Helper {
             (address lad,,,) = tub.cups(cup);
             require(lad == address(this), "cup-not-owned");
 
-            setAllowance(dai, getSaiTubAddress());
-            setAllowance(mkr, getSaiTubAddress());
-            setAllowance(dai, getUniswapDAIExchange());
+            setMakerAllowance(dai, getSaiTubAddress());
+            setMakerAllowance(mkr, getSaiTubAddress());
+            setMakerAllowance(dai, getUniswapDAIExchange());
 
             (bytes32 val, bool ok) = tub.pep().peek();
 
@@ -307,12 +335,93 @@ contract MakerHelper is Helper {
 
 contract CompoundHelper is MakerHelper {
 
+    event LogMint(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogRedeem(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogBorrow(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
+
+    /**
+     * @dev setting allowance to compound for the "user proxy" if required
+     */
+    function setCompoundAllowance(address erc20, uint srcAmt, address to) internal {
+        ERC20Interface erc20Contract = ERC20Interface(erc20);
+        uint tokenAllowance = erc20Contract.allowance(address(this), to);
+        if (srcAmt > tokenAllowance) {
+            erc20Contract.approve(to, 2**255);
+        }
+    }
+
+    /**
+     * @dev Transfer ETH/ERC20 to user
+     */
+    // function transferToken(address erc20) internal {
+    //     if (erc20 == getAddressETH()) {
+    //         msg.sender.transfer(address(this).balance);
+    //     } else {
+    //         ERC20Interface erc20Contract = ERC20Interface(erc20);
+    //         uint srcBal = erc20Contract.balanceOf(address(this));
+    //         if (srcBal > 0) {
+    //             erc20Contract.transfer(msg.sender, srcBal);
+    //         }
+    //     }
+    // }
+
+    function enterMarket(address cErc20) internal {
+        ComptrollerInterface troller = ComptrollerInterface(getComptrollerAddress());
+        address[] memory markets = troller.getAssetsIn(address(this));
+        bool isEntered = false;
+        for (uint i = 0; i < markets.length; i++) {
+            if (markets[i] == cErc20) {
+                isEntered = true;
+            }
+        }
+        if (!isEntered) {
+            address[] memory toEnter = new address[](1);
+            toEnter[0] = cErc20;
+            troller.enterMarkets(toEnter);
+        }
+    }
+
+    /**
+     * @dev Deposit ETH and mint Compound Tokens
+     */
+    function mintCEth(uint tokenAmt) internal {
+        enterMarket(getCETHAddress());
+        CETHInterface cToken = CETHInterface(getCETHAddress());
+        cToken.mint.value(tokenAmt)();
+        emit LogMint(
+            getAddressETH(),
+            getCETHAddress(),
+            tokenAmt,
+            msg.sender
+        );
+    }
+
+    /**
+     * @dev borrow ETH/ERC20
+     */
+    function borrowDAIComp(address erc20, address cErc20, uint tokenAmt) internal {
+        enterMarket(cErc20);
+        require(CTokenInterface(cErc20).borrow(tokenAmt) == 0, "got collateral?");
+        ERC20Interface(erc20).transfer(getBridgeAddress(), tokenAmt);
+        emit LogBorrow(
+            erc20,
+            cErc20,
+            tokenAmt,
+            address(this)
+        );
+    }
+
 }
 
 
 contract Bridge is CompoundHelper {
 
-    function makerToCompound(uint cdpId, uint toConvert) public { // toConvert ranges from 0 to 1 and has (18 decimals)
+    /**
+     * @dev makerToCompound
+     * @param toConvert ranges from 0 to 1 and has (18 decimals)
+     */
+    function makerToCompound(uint cdpId, uint toConvert) public {
         bytes32 cup = bytes32(cdpId);
         (uint ethCol, uint daiDebt) = getCDPStats(cup);
         uint ethFree = ethCol;
@@ -325,6 +434,8 @@ contract Bridge is CompoundHelper {
         } else {
             daiAmt = shut(cup);
         }
+        mintCEth(ethFree);
+        borrowDAIComp(getDAIAddress(), getCDAIAddress(), daiAmt);
     }
 
 }
