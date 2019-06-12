@@ -65,7 +65,9 @@ contract DSMath {
 contract Helper is DSMath {
 
     address public daiAdd = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
+    // address public daiAdd = 0x5592EC0cfb4dbc12D3aB100b257153436a1f0FEa; // Rinkeby
     address public cDaiAdd = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+    // address public cDaiAdd = 0x6D7F0754FFeb405d23C51CE938289d4835bE3b14; // Rinkeby
     address public registryAdd = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
     mapping (address => uint) public deposited; // Amount of CToken deposited
     mapping (address => bool) public isAdmin;
@@ -111,7 +113,7 @@ contract Bridge is Helper {
 
     function depositCDAI(uint amt) public {
         CTokenInterface cToken = CTokenInterface(cDaiAdd);
-        cToken.transferFrom(msg.sender, address(this), amt);
+        require(cToken.transferFrom(msg.sender, address(this), amt) == true, "Nothing to deposit");
         deposited[msg.sender] += amt;
     }
 
