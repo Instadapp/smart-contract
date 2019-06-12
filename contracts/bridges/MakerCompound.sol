@@ -118,4 +118,29 @@ contract Bridge is Helper {
         ERC20Interface(daiAdd).transfer(msg.sender, amt);
     }
 
+    function transferBackDAI(uint amt) public {
+        require(RegistryInterface(registryAdd).proxies(msg.sender) != address(0), "Not-User-Wallet");
+        ERC20Interface tokenContract = ERC20Interface(daiAdd);
+        tokenContract.transferFrom(msg.sender, address(this), amt);
+        CTokenInterface cToken = CTokenInterface(cDaiAdd);
+        assert(cToken.mint(amt) == 0);
+    }
+
+}
+
+
+contract MakerCompBridge is Bridge {
+
+    uint public version;
+
+    /**
+     * @dev setting up variables on deployment
+     * 1...2...3 versioning in each subsequent deployments
+     */
+    constructor(uint _version) public {
+        version = _version;
+    }
+
+    function() external payable {}
+
 }

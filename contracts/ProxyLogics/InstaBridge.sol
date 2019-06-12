@@ -50,6 +50,7 @@ interface UniswapExchange {
 
 interface BridgeInterface {
     function transferDAI(uint) external;
+    function transferBackDAI(uint) external;
 }
 
 interface CTokenInterface {
@@ -313,7 +314,8 @@ contract MakerHelper is Helper {
             TubInterface tub = TubInterface(getSaiTubAddress());
 
             tub.draw(cup, _wad);
-            ERC20Interface(getDAIAddress()).transfer(getBridgeAddress(), _wad);
+            setApproval(getDAIAddress(), _wad, getBridgeAddress());
+            BridgeInterface(getBridgeAddress()).transferBackDAI(_wad);
 
             emit LogDraw(uint(cup), _wad, address(this));
         }
@@ -438,7 +440,8 @@ contract CompoundHelper is MakerHelper {
     function borrowDAIComp(address erc20, address cErc20, uint tokenAmt) internal {
         enterMarket(cErc20);
         require(CTokenInterface(cErc20).borrow(tokenAmt) == 0, "got collateral?");
-        ERC20Interface(erc20).transfer(getBridgeAddress(), tokenAmt);
+        setApproval(erc20, tokenAmt, getBridgeAddress());
+        BridgeInterface(getBridgeAddress()).transferBackDAI(tokenAmt);
         emit LogBorrow(
             erc20,
             cErc20,
@@ -507,6 +510,7 @@ contract Bridge is CompoundHelper {
 
     /**
      * @dev convert Compound Collateral into Maker CDP
+     * @param cdpId = 0, if user don't have any CDP
      * @param toConvert ranges from 0 to 1 and has (18 decimals)
      */
     function compoundToMaker(uint cdpId, uint toConvert) public {
@@ -529,5 +533,22 @@ contract Bridge is CompoundHelper {
         lock(cup, ethFree);
         draw(cup, daiAmt);
     }
+
+}
+
+
+contract InstaBridge is Bridge {
+
+    uint public version;
+
+    /**
+     * @dev setting up variables on deployment
+     * 1...2...3 versioning in each subsequent deployments
+     */
+    constructor(uint _version) public {
+        version = _version;
+    }
+
+    function() external payable {}
 
 }
