@@ -96,6 +96,7 @@ contract Bridge is Helper {
     }
 
     function withdrawDAI(uint amt) public {
+        require(deposited[msg.sender] != 0, "Nothing to Withdraw");
         CTokenInterface cToken = CTokenInterface(cDaiAdd);
         uint withdrawAmt = wdiv(amt, cToken.exchangeRateCurrent());
         uint daiAmt = amt;
@@ -115,7 +116,7 @@ contract Bridge is Helper {
     }
 
     function withdrawCDAI(uint amt) public {
-        require(deposited[msg.sender] != 0, "something went wrong");
+        require(deposited[msg.sender] != 0, "Nothing to Withdraw");
         CTokenInterface cToken = CTokenInterface(cDaiAdd);
         uint withdrawAmt = amt;
         if (withdrawAmt > deposited[msg.sender]) {
