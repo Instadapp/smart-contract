@@ -36,6 +36,10 @@ interface PepInterface {
     function peek() external returns (bytes32, bool);
 }
 
+interface MakerOracleInterface {
+    function read() external view returns (bytes32);
+}
+
 interface UniswapExchange {
     function getEthToTokenOutputPrice(uint256 tokensBought) external view returns (uint256 ethSold);
     function getTokenToEthOutputPrice(uint256 ethBought) external view returns (uint256 tokensSold);
@@ -104,6 +108,10 @@ interface ComptrollerInterface {
     function getAccountLiquidity(address account) external view returns (uint, uint, uint);
 }
 
+interface CompOracleInterface {
+    function getUnderlyingPrice(address) external view returns (uint);
+}
+
 
 contract DSMath {
 
@@ -165,6 +173,13 @@ contract Helper is DSMath {
     }
 
     /**
+     * @dev get MakerDAO Oracle for ETH price
+     */
+    function getOracleAddress() public pure returns (address oracle) {
+        oracle = 0x729D19f657BD0614b4985Cf1D82531c67569197B;
+    }
+
+    /**
      * @dev get uniswap MKR exchange
      */
     function getUniswapMKRExchange() public pure returns (address ume) {
@@ -190,6 +205,13 @@ contract Helper is DSMath {
      */
     function getComptrollerAddress() public pure returns (address troller) {
         troller = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
+    }
+
+    /**
+     * @dev get Compound Comptroller Address
+     */
+    function getCompOracleAddress() public pure returns (address troller) {
+        troller = 0xe7664229833AE4Abf4E269b8F23a86B657E2338D;
     }
 
     /**
@@ -240,6 +262,7 @@ contract MakerHelper is Helper {
 
     function getCDPStats(bytes32 cup) internal view returns (uint ethCol, uint daiDebt) {
         TubInterface tub = TubInterface(getSaiTubAddress());
+        uint usdPerEth = uint(MakerOracleInterface(getOracleAddress()).read());
         (, uint pethCol, uint debt,) = tub.cups(cup);
         ethCol = rmul(pethCol, tub.per()); // get ETH col from PETH col
         daiDebt = debt;
@@ -343,6 +366,13 @@ contract MakerHelper is Helper {
 
             uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
             daiAmt = add(_wad, daiFeeAmt);
+
+            uint daiCompOracle = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(getCDAIAddress()); // DAI in ETH
+            uint debtInEth = wmul(daiAmt, daiCompOracle);
+            (uint ethCol,) = getCDPStats(cup);
+            uint ratio = wdiv(debtInEth, ethCol);
+            require(ratio < 740000000000000000, "Danger to liquidate");
+
             BridgeInterface(getBridgeAddress()).transferDAI(daiAmt);
 
             if (ok && val != 0) {
@@ -393,7 +423,7 @@ contract CompoundHelper is MakerHelper {
     event LogBorrow(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
 
-    function getCompoundStats() internal returns (uint ethCol, uint daiDebt) {
+    function getCompoundStats() internal returns (uint ethCol, uint daiDebt, bool isOk) {
         CTokenInterface cEthContract = CTokenInterface(getCETHAddress());
         CERC20Interface cDaiContract = CERC20Interface(getCDAIAddress());
         uint cEthBal = cEthContract.balanceOf(address(this));
@@ -401,6 +431,14 @@ contract CompoundHelper is MakerHelper {
         ethCol = wmul(cEthBal, cEthExchangeRate);
         ethCol = wdiv(ethCol, cEthExchangeRate) <= cEthBal ? ethCol : ethCol - 1;
         daiDebt = cDaiContract.borrowBalanceCurrent(address(this));
+        uint usdPerEth = uint(MakerOracleInterface(getOracleAddress()).read());
+        uint ethInUSD = wmul(ethCol, usdPerEth);
+        uint ratio = wdiv(daiDebt, ethInUSD);
+        if (ratio < 660000000000000000) {
+            isOk = true;
+        } else {
+            isOk = false;
+        }
     }
 
     function enterMarket(address cErc20) internal {
@@ -518,7 +556,8 @@ contract Bridge is CompoundHelper {
         if (cdpId == 0) {
             cup = open();
         }
-        (uint ethCol, uint daiDebt) = getCompoundStats();
+        (uint ethCol, uint daiDebt, bool isOk) = getCompoundStats();
+        require(isOk == true, "DAI Debt to ETH Col Ratio above 65%");
         uint ethFree = ethCol;
         uint daiAmt = daiDebt;
         if (toConvert < 10**18) {
