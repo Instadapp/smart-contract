@@ -262,7 +262,6 @@ contract MakerHelper is Helper {
 
     function getCDPStats(bytes32 cup) internal view returns (uint ethCol, uint daiDebt) {
         TubInterface tub = TubInterface(getSaiTubAddress());
-        uint usdPerEth = uint(MakerOracleInterface(getOracleAddress()).read());
         (, uint pethCol, uint debt,) = tub.cups(cup);
         ethCol = rmul(pethCol, tub.per()); // get ETH col from PETH col
         daiDebt = debt;
@@ -371,7 +370,7 @@ contract MakerHelper is Helper {
             uint debtInEth = wmul(daiAmt, daiCompOracle);
             (uint ethCol,) = getCDPStats(cup);
             uint ratio = wdiv(debtInEth, ethCol);
-            require(ratio < 740000000000000000, "Danger to liquidate");
+            require(ratio < 740000000000000000, "Ratio above 74%");
 
             BridgeInterface(getBridgeAddress()).transferDAI(daiAmt);
 
