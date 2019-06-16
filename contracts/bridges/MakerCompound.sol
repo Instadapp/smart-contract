@@ -87,7 +87,27 @@ contract Helper is DSMath {
 }
 
 
-contract Bridge is Helper {
+contract CTokens is Helper {
+
+    struct CTokenData {
+        address cTokenAdd;
+        uint factor;
+    }
+
+    CTokenData[] public cTokenAddr;
+
+    uint public cArrLength = 0;
+
+    function addCToken(address cToken, uint factor) public {
+        require(isAdmin[msg.sender], "Address not an admin");
+        CTokenData memory setCToken = CTokenData(cToken, factor);
+        cTokenAddr.push(setCToken);
+        cArrLength++;
+    }
+}
+
+
+contract Bridge is CTokens {
 
     function depositDAI(uint amt) public {
         ERC20Interface(daiAdd).transferFrom(msg.sender, address(this), amt);
@@ -155,6 +175,12 @@ contract MakerCompBridge is Bridge {
      * 1...2...3 versioning in each subsequent deployments
      */
     constructor(uint _version) public {
+        addCToken(0x6C8c6b02E7b2BE14d4fA6022Dfd6d75921D90E4E, 600000000000000000);
+        addCToken(0xF5DCe57282A584D2746FaF1593d3121Fcac444dC, 750000000000000000);
+        addCToken(0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5, 750000000000000000);
+        addCToken(0x158079Ee67Fce2f58472A96584A73C7Ab9AC95c1, 500000000000000000);
+        addCToken(0x39AA39c021dfbaE8faC545936693aC917d5E7563, 750000000000000000);
+        addCToken(0xB3319f5D18Bc0D84dD1b4825Dcde5d5f7266d407, 600000000000000000);
         isAdmin[0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638] = true;
         isAdmin[0xa7615CD307F323172331865181DC8b80a2834324] = true;
         version = _version;

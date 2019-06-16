@@ -55,6 +55,8 @@ interface UniswapExchange {
 interface BridgeInterface {
     function transferDAI(uint) external;
     function transferBackDAI(uint) external;
+    function cArrLength() external view returns (uint);
+    function cTokenAddr(uint) external view returns (address, uint);
 }
 
 interface CTokenInterface {
@@ -243,23 +245,13 @@ contract Helper is DSMath {
         cup = bytes32(cdpNum);
     }
 
-    struct CTokenData {
-        address cTokenAdd;
-        uint factor;
-    }
-
-    CTokenData[] public cTokenAddr;
-
-    function addCToken(address cToken, uint factor) public {
-        require(condition);
-        CTokenData memory setCToken = CTokenData(cToken, factor);
-        cTokenAddr.push(setCToken);
-    }
-
     function getCompRatio(address user) public returns (uint totalSupply, uint totalBorrow, uint maxBorrow, uint ratio) {
-        for (uint i = 0; i < cTokenAddr.length; i++) {
-            CTokenInterface cTokenContract = CTokenInterface(cTokenAddr[i].cTokenAdd);
-            uint tokenPriceInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(cTokenAddr[i].cTokenAdd);
+        BridgeInterface bridgeContract = BridgeInterface(getBridgeAddress());
+        uint arrLength = bridgeContract.cArrLength();
+        for (uint i = 0; i < arrLength; i++) {
+            (address cTokenAdd, uint factor) = bridgeContract.cTokenAddr(i);
+            CTokenInterface cTokenContract = CTokenInterface(cTokenAdd);
+            uint tokenPriceInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(cTokenAdd);
             uint cTokenBal = cTokenContract.balanceOf(user);
             uint cTokenExchangeRate = cTokenContract.exchangeRateCurrent();
             uint tokenSupply = wmul(cTokenBal, cTokenExchangeRate);
@@ -268,7 +260,7 @@ contract Helper is DSMath {
             uint borrowInEth = wmul(tokenBorrowed, tokenPriceInEth);
             totalSupply += supplyInEth;
             totalBorrow += borrowInEth;
-            maxBorrow += wmul(supplyInEth, cTokenAddr[i].factor);
+            maxBorrow += wmul(supplyInEth, factor);
         }
         ratio = wdiv(totalBorrow, totalSupply);
     }
@@ -411,9 +403,10 @@ contract MakerHelper is Helper {
             if (ethCol == 0) {
                 (ethCol,) = getCDPStats(cup);
             }
-            (uint totalSupply, uint totalBorrow, uint maxBorrow, uint ratio) = getCompRatio(address(this));
-            uint ratio = wdiv(debtInEth, ethCol);
-            require(ratio < 740000000000000000, "Ratio above 74%");
+            (uint totalSupply, uint totalBorrow, uint maxBorrow,) = getCompRatio(address(this));
+            totalBorrow += debtInEth;
+            maxBorrow += wmul(ethCol, 750000000000000000);
+            require(totalBorrow < maxBorrow, "Compound will liquidate");
 
             BridgeInterface(getBridgeAddress()).transferDAI(daiAmt);
 
@@ -630,18 +623,6 @@ contract InstaBridge is Bridge {
      * 1...2...3 versioning in each subsequent deployments
      */
     constructor(uint _version) public {
-        addCToken(0x6C8c6b02E7b2BE14d4fA6022Dfd6d75921D90E4E, 600000000000000000);
-        addCToken(0xF5DCe57282A584D2746FaF1593d3121Fcac444dC, 750000000000000000);
-        addCToken(0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5, 750000000000000000);
-        addCToken(0x158079Ee67Fce2f58472A96584A73C7Ab9AC95c1, 500000000000000000);
-        addCToken(0x39AA39c021dfbaE8faC545936693aC917d5E7563, 750000000000000000);
-        addCToken(0xB3319f5D18Bc0D84dD1b4825Dcde5d5f7266d407, 600000000000000000);
-        // addCToken(0xEBf1A11532b93a529b5bC942B4bAA98647913002, 600000000000000000); // Rinkeby
-        // addCToken(0x6D7F0754FFeb405d23C51CE938289d4835bE3b14, 700000000000000000); // Rinkeby
-        // addCToken(0xd6801a1DfFCd0a410336Ef88DeF4320D6DF1883e, 800000000000000000); // Rinkeby
-        // addCToken(0xEBe09eB3411D18F4FF8D859e096C533CAC5c6B60, 400000000000000000); // Rinkeby
-        // addCToken(0x5B281A6DdA0B271e91ae35DE655Ad301C976edb1, 800000000000000000); // Rinkeby
-        // addCToken(0x52201ff1720134bBbBB2f6BC97Bf3715490EC19B, 600000000000000000); // Rinkeby
         version = _version;
     }
 
