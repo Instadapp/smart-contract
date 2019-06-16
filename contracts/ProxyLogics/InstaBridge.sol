@@ -418,7 +418,12 @@ contract MakerHelper is Helper {
 
 contract CompoundHelper is MakerHelper {
 
-    address[] public cTokenAddr;
+    struct CTokenData {
+        address cTokenAdd;
+        uint factor;
+    }
+
+    CTokenData[] public cTokenAddr;
 
     event LogMint(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogRedeem(address erc20, address cErc20, uint tokenAmt, address owner);
@@ -427,8 +432,8 @@ contract CompoundHelper is MakerHelper {
 
     function getCompRatio() public returns (uint totalSupply, uint totalBorrow, uint ratio) {
         for (uint i = 0; i < cTokenAddr.length; i++) {
-            CTokenInterface cTokenContract = CTokenInterface(cTokenAddr[i]);
-            uint tokenPriceInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(cTokenAddr[i]);
+            CTokenInterface cTokenContract = CTokenInterface(cTokenAddr[i].cTokenAdd);
+            uint tokenPriceInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(cTokenAddr[i].cTokenAdd);
             uint cTokenBal = cTokenContract.balanceOf(address(this));
             uint cTokenExchangeRate = cTokenContract.exchangeRateCurrent();
             uint tokenSupply = wmul(cTokenBal, cTokenExchangeRate);
