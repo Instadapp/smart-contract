@@ -243,6 +243,36 @@ contract Helper is DSMath {
         cup = bytes32(cdpNum);
     }
 
+    struct CTokenData {
+        address cTokenAdd;
+        uint factor;
+    }
+
+    CTokenData[] public cTokenAddr;
+
+    function addCToken(address cToken, uint factor) public {
+        require(condition);
+        CTokenData memory setCToken = CTokenData(cToken, factor);
+        cTokenAddr.push(setCToken);
+    }
+
+    function getCompRatio(address user) public returns (uint totalSupply, uint totalBorrow, uint maxBorrow, uint ratio) {
+        for (uint i = 0; i < cTokenAddr.length; i++) {
+            CTokenInterface cTokenContract = CTokenInterface(cTokenAddr[i].cTokenAdd);
+            uint tokenPriceInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(cTokenAddr[i].cTokenAdd);
+            uint cTokenBal = cTokenContract.balanceOf(user);
+            uint cTokenExchangeRate = cTokenContract.exchangeRateCurrent();
+            uint tokenSupply = wmul(cTokenBal, cTokenExchangeRate);
+            uint supplyInEth = wmul(tokenSupply, tokenPriceInEth);
+            uint tokenBorrowed = cTokenContract.borrowBalanceCurrent(user);
+            uint borrowInEth = wmul(tokenBorrowed, tokenPriceInEth);
+            totalSupply += supplyInEth;
+            totalBorrow += borrowInEth;
+            maxBorrow += wmul(supplyInEth, cTokenAddr[i].factor);
+        }
+        ratio = wdiv(totalBorrow, totalSupply);
+    }
+
 }
 
 
@@ -259,6 +289,15 @@ contract MakerHelper is Helper {
         if (_token.allowance(address(this), _spender) != uint(-1)) {
             _token.approve(_spender, uint(-1));
         }
+    }
+
+    function getMakerRatio(bytes32 cup, uint ethCol, uint daiDebt) internal view returns (uint ratio) {
+        (uint makerCol, uint makerDebt) = getCDPStats(cup);
+        makerCol += ethCol;
+        makerDebt += daiDebt;
+        uint usdPerEth = uint(MakerOracleInterface(getOracleAddress()).read());
+        uint makerColInUSD = wmul(makerCol, usdPerEth);
+        ratio = wdiv(makerDebt, makerColInUSD);
     }
 
     function getCDPStats(bytes32 cup) internal view returns (uint ethCol, uint daiDebt) {
@@ -344,7 +383,7 @@ contract MakerHelper is Helper {
         }
     }
 
-    function wipe(bytes32 cup, uint _wad) internal returns (uint daiAmt) {
+    function wipe(bytes32 cup, uint _wad, uint ethCol) internal returns (uint daiAmt) {
         if (_wad > 0) {
             TubInterface tub = TubInterface(getSaiTubAddress());
             UniswapExchange daiEx = UniswapExchange(getUniswapDAIExchange());
@@ -367,11 +406,14 @@ contract MakerHelper is Helper {
             uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
             daiAmt = add(_wad, daiFeeAmt);
 
-            // uint daiCompOracle = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(getCDAIAddress()); // DAI in ETH
-            // uint debtInEth = wmul(daiAmt, daiCompOracle);
-            // (uint ethCol,) = getCDPStats(cup);
-            // uint ratio = wdiv(debtInEth, ethCol);
-            // require(ratio < 740000000000000000, "Ratio above 74%");
+            uint daiCompOracle = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(getCDAIAddress()); // DAI in ETH
+            uint debtInEth = wmul(daiAmt, daiCompOracle);
+            if (ethCol == 0) {
+                (ethCol,) = getCDPStats(cup);
+            }
+            (uint totalSupply, uint totalBorrow, uint maxBorrow, uint ratio) = getCompRatio(address(this));
+            uint ratio = wdiv(debtInEth, ethCol);
+            require(ratio < 740000000000000000, "Ratio above 74%");
 
             BridgeInterface(getBridgeAddress()).transferDAI(daiAmt);
 
@@ -399,7 +441,7 @@ contract MakerHelper is Helper {
     }
 
     function wipeAndFree(bytes32 cup, uint jam, uint _wad) internal returns (uint daiAmt) {
-        daiAmt = wipe(cup, _wad);
+        daiAmt = wipe(cup, _wad, 0);
         free(cup, jam);
     }
 
@@ -418,50 +460,29 @@ contract MakerHelper is Helper {
 
 contract CompoundHelper is MakerHelper {
 
-    struct CTokenData {
-        address cTokenAdd;
-        uint factor;
-    }
-
-    CTokenData[] public cTokenAddr;
-
     event LogMint(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogRedeem(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogBorrow(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
 
-    function getCompRatio() public returns (uint totalSupply, uint totalBorrow, uint ratio) {
-        for (uint i = 0; i < cTokenAddr.length; i++) {
-            CTokenInterface cTokenContract = CTokenInterface(cTokenAddr[i].cTokenAdd);
-            uint tokenPriceInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(cTokenAddr[i].cTokenAdd);
-            uint cTokenBal = cTokenContract.balanceOf(address(this));
-            uint cTokenExchangeRate = cTokenContract.exchangeRateCurrent();
-            uint tokenSupply = wmul(cTokenBal, cTokenExchangeRate);
-            uint supplyInEth = wmul(tokenSupply, tokenPriceInEth);
-            uint tokenBorrowed = cTokenContract.borrowBalanceCurrent(address(this));
-            uint borrowInEth = wmul(tokenBorrowed, tokenPriceInEth);
-            totalSupply += supplyInEth;
-            totalBorrow += borrowInEth;
-        }
-        ratio = wdiv(totalBorrow, totalSupply);
-    }
-
-    function getCompoundStats() internal returns (uint ethCol, uint daiDebt, bool isOk) {
+    function getCompoundStats(address user) public returns (uint ethCol, uint daiDebt, uint totalSupply, uint totalBorrow, uint maxBorrow, uint daiInEth) {
         CTokenInterface cEthContract = CTokenInterface(getCETHAddress());
         CERC20Interface cDaiContract = CERC20Interface(getCDAIAddress());
-        uint cEthBal = cEthContract.balanceOf(address(this));
+        uint cEthBal = cEthContract.balanceOf(user);
         uint cEthExchangeRate = cEthContract.exchangeRateCurrent();
         ethCol = wmul(cEthBal, cEthExchangeRate);
         ethCol = wdiv(ethCol, cEthExchangeRate) <= cEthBal ? ethCol : ethCol - 1;
-        daiDebt = cDaiContract.borrowBalanceCurrent(address(this));
-        uint usdPerEth = uint(MakerOracleInterface(getOracleAddress()).read());
-        uint ethInUSD = wmul(ethCol, usdPerEth);
-        uint ratio = wdiv(daiDebt, ethInUSD);
-        if (ratio < 660000000000000000) {
-            isOk = true;
-        } else {
-            isOk = false;
+        daiDebt = cDaiContract.borrowBalanceCurrent(user);
+        daiInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(getCDAIAddress());
+        uint compRatio;
+        (totalSupply, totalBorrow, maxBorrow, compRatio) = getCompRatio(user);
+        uint ethColFree = wdiv(wmul(daiDebt, daiInEth), compRatio);
+        if (ethColFree > ethCol) {
+            ethColFree = ethCol;
+            daiDebt = wdiv(wmul(ethColFree, compRatio), daiInEth);
         }
+        // uint usdPerEth = uint(MakerOracleInterface(getOracleAddress()).read());
+        // uint ethInUSD = wmul(ethCol, usdPerEth);
     }
 
     function enterMarket(address cErc20) internal {
@@ -560,7 +581,7 @@ contract Bridge is CompoundHelper {
         if (toConvert < 10**18) {
             uint wipeAmt = wmul(daiDebt, toConvert);
             ethFree = wmul(ethCol, toConvert);
-            daiAmt = wipe(cup, wipeAmt);
+            daiAmt = wipe(cup, wipeAmt, ethFree);
             free(cup, ethFree);
         } else {
             daiAmt = shut(cup);
@@ -579,19 +600,20 @@ contract Bridge is CompoundHelper {
         if (cdpId == 0) {
             cup = open();
         }
-        (uint ethCol, uint daiDebt, bool isOk) = getCompoundStats();
-        require(isOk == true, "DAI Debt to ETH Col Ratio above 65%");
+        (uint ethCol, uint daiDebt,, uint totalBorrow, uint maxBorrow, uint daiInEth) = getCompoundStats(address(this));
         uint ethFree = ethCol;
         uint daiAmt = daiDebt;
         if (toConvert < 10**18) {
             daiAmt = wmul(daiDebt, toConvert);
             ethFree = wmul(ethCol, toConvert);
-            repayToken(daiAmt);
-            redeemUnderlying(ethFree);
-        } else {
-            repayToken(daiAmt);
-            redeemUnderlying(ethFree);
         }
+        uint makerFinalRatio = getMakerRatio(cup, ethFree, daiAmt);
+        require(makerFinalRatio < 660000000000000000, "Maker CDP will liquidate");
+        totalBorrow -= wmul(daiAmt, daiInEth);
+        maxBorrow -= wmul(ethFree, 750000000000000000);
+        require(totalBorrow < maxBorrow, "Compound position will liquidate");
+        repayToken(daiAmt);
+        redeemUnderlying(ethFree);
         lock(cup, ethFree);
         draw(cup, daiAmt);
     }
@@ -608,6 +630,18 @@ contract InstaBridge is Bridge {
      * 1...2...3 versioning in each subsequent deployments
      */
     constructor(uint _version) public {
+        addCToken(0x6C8c6b02E7b2BE14d4fA6022Dfd6d75921D90E4E, 600000000000000000);
+        addCToken(0xF5DCe57282A584D2746FaF1593d3121Fcac444dC, 750000000000000000);
+        addCToken(0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5, 750000000000000000);
+        addCToken(0x158079Ee67Fce2f58472A96584A73C7Ab9AC95c1, 500000000000000000);
+        addCToken(0x39AA39c021dfbaE8faC545936693aC917d5E7563, 750000000000000000);
+        addCToken(0xB3319f5D18Bc0D84dD1b4825Dcde5d5f7266d407, 600000000000000000);
+        // addCToken(0xEBf1A11532b93a529b5bC942B4bAA98647913002, 600000000000000000); // Rinkeby
+        // addCToken(0x6D7F0754FFeb405d23C51CE938289d4835bE3b14, 700000000000000000); // Rinkeby
+        // addCToken(0xd6801a1DfFCd0a410336Ef88DeF4320D6DF1883e, 800000000000000000); // Rinkeby
+        // addCToken(0xEBe09eB3411D18F4FF8D859e096C533CAC5c6B60, 400000000000000000); // Rinkeby
+        // addCToken(0x5B281A6DdA0B271e91ae35DE655Ad301C976edb1, 800000000000000000); // Rinkeby
+        // addCToken(0x52201ff1720134bBbBB2f6BC97Bf3715490EC19B, 600000000000000000); // Rinkeby
         version = _version;
     }
 
