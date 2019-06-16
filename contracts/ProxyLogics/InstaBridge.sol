@@ -70,6 +70,7 @@ interface CTokenInterface {
     function supplyRatePerBlock() external view returns (uint);
     function totalReserves() external view returns (uint);
     function reserveFactorMantissa() external view returns (uint);
+    function borrowBalanceCurrent(address account) external returns (uint);
 
     function totalSupply() external view returns (uint256);
     function balanceOf(address owner) external view returns (uint256 balance);
@@ -366,11 +367,11 @@ contract MakerHelper is Helper {
             uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
             daiAmt = add(_wad, daiFeeAmt);
 
-            uint daiCompOracle = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(getCDAIAddress()); // DAI in ETH
-            uint debtInEth = wmul(daiAmt, daiCompOracle);
-            (uint ethCol,) = getCDPStats(cup);
-            uint ratio = wdiv(debtInEth, ethCol);
-            require(ratio < 740000000000000000, "Ratio above 74%");
+            // uint daiCompOracle = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(getCDAIAddress()); // DAI in ETH
+            // uint debtInEth = wmul(daiAmt, daiCompOracle);
+            // (uint ethCol,) = getCDPStats(cup);
+            // uint ratio = wdiv(debtInEth, ethCol);
+            // require(ratio < 740000000000000000, "Ratio above 74%");
 
             BridgeInterface(getBridgeAddress()).transferDAI(daiAmt);
 
@@ -417,10 +418,28 @@ contract MakerHelper is Helper {
 
 contract CompoundHelper is MakerHelper {
 
+    address[] public cTokenAddr;
+
     event LogMint(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogRedeem(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogBorrow(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
+
+    function getCompRatio() public returns (uint totalSupply, uint totalBorrow, uint ratio) {
+        for (uint i = 0; i < cTokenAddr.length; i++) {
+            CTokenInterface cTokenContract = CTokenInterface(cTokenAddr[i]);
+            uint tokenPriceInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(cTokenAddr[i]);
+            uint cTokenBal = cTokenContract.balanceOf(address(this));
+            uint cTokenExchangeRate = cTokenContract.exchangeRateCurrent();
+            uint tokenSupply = wmul(cTokenBal, cTokenExchangeRate);
+            uint supplyInEth = wmul(tokenSupply, tokenPriceInEth);
+            uint tokenBorrowed = cTokenContract.borrowBalanceCurrent(address(this));
+            uint borrowInEth = wmul(tokenBorrowed, tokenPriceInEth);
+            totalSupply += supplyInEth;
+            totalBorrow += borrowInEth;
+        }
+        ratio = wdiv(totalBorrow, totalSupply);
+    }
 
     function getCompoundStats() internal returns (uint ethCol, uint daiDebt, bool isOk) {
         CTokenInterface cEthContract = CTokenInterface(getCETHAddress());
