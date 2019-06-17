@@ -104,6 +104,7 @@ contract CTokens is Helper {
         cTokenAddr.push(setCToken);
         cArrLength++;
     }
+
 }
 
 
@@ -183,6 +184,8 @@ contract MakerCompBridge is Bridge {
         addCToken(0xB3319f5D18Bc0D84dD1b4825Dcde5d5f7266d407, 600000000000000000);
         isAdmin[0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638] = true;
         isAdmin[0xa7615CD307F323172331865181DC8b80a2834324] = true;
+        setApproval(daiAdd, 10**30, cDaiAdd);
+        setApproval(cDaiAdd, 10**30, cDaiAdd);
         version = _version;
     }
 
