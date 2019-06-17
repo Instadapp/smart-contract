@@ -79,8 +79,7 @@ contract Helper is DSMath {
     /**
      * @dev setting allowance to compound for the "user proxy" if required
      */
-    function setApproval(address erc20, uint srcAmt, address to) public {
-        require(isAdmin[msg.sender] == true, "Not-Admin");
+    function setApproval(address erc20, uint srcAmt, address to) internal {
         ERC20Interface erc20Contract = ERC20Interface(erc20);
         uint tokenAllowance = erc20Contract.allowance(address(this), to);
         if (srcAmt > tokenAllowance) {
