@@ -200,7 +200,7 @@ contract Helper is DSMath {
      * @dev get uniswap DAI exchange
      */
     function getBridgeAddress() public pure returns (address bridge) {
-        // bridge = <BRIDGE ADDRESS>;
+        bridge = 0x9807554C441Bb37F549fc7F77165E5be49e55eD5;
     }
 
     /**
@@ -313,6 +313,20 @@ contract CompoundHelper is MakerHelper {
     }
 
     /**
+     * @dev get user's token supply and borrow in ETH
+     */
+    function compSupplyBorrow(address cTokenAdd, address user) public returns(uint supplyInEth, uint borrowInEth) {
+        CTokenInterface cTokenContract = CTokenInterface(cTokenAdd);
+        uint tokenPriceInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(cTokenAdd);
+        uint cTokenBal = cTokenContract.balanceOf(user);
+        uint cTokenExchangeRate = cTokenContract.exchangeRateCurrent();
+        uint tokenSupply = wmul(cTokenBal, cTokenExchangeRate);
+        supplyInEth = wmul(tokenSupply, tokenPriceInEth);
+        uint tokenBorrowed = cTokenContract.borrowBalanceCurrent(user);
+        borrowInEth = wmul(tokenBorrowed, tokenPriceInEth);
+    }
+
+    /**
      * @dev get users overall details for Compound
      */
     function getCompRatio(address user) public returns (uint totalSupply, uint totalBorrow, uint maxBorrow, uint ratio) {
@@ -320,14 +334,7 @@ contract CompoundHelper is MakerHelper {
         uint arrLength = bridgeContract.cArrLength();
         for (uint i = 0; i < arrLength; i++) {
             (address cTokenAdd, uint factor) = bridgeContract.cTokenAddr(i);
-            CTokenInterface cTokenContract = CTokenInterface(cTokenAdd);
-            uint tokenPriceInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(cTokenAdd);
-            uint cTokenBal = cTokenContract.balanceOf(user);
-            uint cTokenExchangeRate = cTokenContract.exchangeRateCurrent();
-            uint tokenSupply = wmul(cTokenBal, cTokenExchangeRate);
-            uint supplyInEth = wmul(tokenSupply, tokenPriceInEth);
-            uint tokenBorrowed = cTokenContract.borrowBalanceCurrent(user);
-            uint borrowInEth = wmul(tokenBorrowed, tokenPriceInEth);
+            (uint supplyInEth, uint borrowInEth) = compSupplyBorrow(cTokenAdd, user);
             totalSupply += supplyInEth;
             totalBorrow += borrowInEth;
             maxBorrow += wmul(supplyInEth, factor);
