@@ -263,6 +263,12 @@ contract MakerHelper is Helper {
         }
     }
 
+    function isCupOwner(bytes32 cup) internal view returns(bool isOwner) {
+        TubInterface tub = TubInterface(getSaiTubAddress());
+        (address lad,,,) = tub.cups(cup);
+        isOwner = lad == address(this);
+    }
+
     function getCDPStats(bytes32 cup) public view returns (uint ethCol, uint daiDebt) {
         TubInterface tub = TubInterface(getSaiTubAddress());
         (, uint pethCol, uint debt,) = tub.cups(cup);
@@ -270,6 +276,11 @@ contract MakerHelper is Helper {
         daiDebt = debt;
     }
 
+    /**
+     * @dev get final Ratio of Maker CDP
+     * @param ethCol amount of ETH Col to add in existing Col
+     * @param daiDebt amount of DAI Debt to add in existing Debt
+     */
     function getMakerRatio(bytes32 cup, uint ethCol, uint daiDebt) public view returns (uint ratio) {
         (uint makerCol, uint makerDebt) = getCDPStats(cup);
         makerCol += ethCol;
@@ -284,6 +295,26 @@ contract MakerHelper is Helper {
 
 contract CompoundHelper is MakerHelper {
 
+    event LogMint(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogRedeem(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogBorrow(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
+
+    function isCompoundOk(bytes32 cup, uint ethCol, uint daiAmt) internal returns (bool isOk) {
+        uint daiCompOracle = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(getCDAIAddress()); // DAI in ETH
+        uint debtInEth = wmul(daiAmt, daiCompOracle);
+        if (ethCol == 0) {
+            (ethCol,) = getCDPStats(cup);
+        }
+        (, uint totalBorrow, uint maxBorrow,) = getCompRatio(address(this));
+        totalBorrow += debtInEth;
+        maxBorrow += wmul(ethCol, 750000000000000000);
+        isOk = totalBorrow < maxBorrow;
+    }
+
+    /**
+     * @dev get users overall details for Compound
+     */
     function getCompRatio(address user) public returns (uint totalSupply, uint totalBorrow, uint maxBorrow, uint ratio) {
         BridgeInterface bridgeContract = BridgeInterface(getBridgeAddress());
         uint arrLength = bridgeContract.cArrLength();
@@ -304,11 +335,9 @@ contract CompoundHelper is MakerHelper {
         ratio = wdiv(totalBorrow, totalSupply);
     }
 
-    event LogMint(address erc20, address cErc20, uint tokenAmt, address owner);
-    event LogRedeem(address erc20, address cErc20, uint tokenAmt, address owner);
-    event LogBorrow(address erc20, address cErc20, uint tokenAmt, address owner);
-    event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
-
+    /**
+     * @dev get users overall and basic stats for Compound
+     */
     function getCompoundStats(address user) public returns (uint ethColFree, uint daiDebt, uint totalSupply, uint totalBorrow, uint maxBorrow, uint daiInEth) {
         CTokenInterface cEthContract = CTokenInterface(getCETHAddress());
         CERC20Interface cDaiContract = CERC20Interface(getCDAIAddress());
@@ -361,9 +390,6 @@ contract MakerResolver is CompoundHelper {
             TubInterface tub = TubInterface(tubAddr);
             TokenInterface weth = tub.gem();
             TokenInterface peth = tub.skr();
-
-            (address lad,,,) = tub.cups(cup);
-            require(lad == address(this), "cup-not-owned");
 
             weth.deposit.value(ethAmt)();
 
@@ -433,9 +459,6 @@ contract MakerResolver is CompoundHelper {
             TokenInterface dai = tub.sai();
             TokenInterface mkr = tub.gov();
 
-            (address lad,,,) = tub.cups(cup);
-            require(lad == address(this), "cup-not-owned");
-
             setMakerAllowance(dai, getSaiTubAddress());
             setMakerAllowance(mkr, getSaiTubAddress());
             setMakerAllowance(dai, getUniswapDAIExchange());
@@ -448,16 +471,7 @@ contract MakerResolver is CompoundHelper {
             uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
             daiAmt = add(_wad, daiFeeAmt);
 
-            // compound final status and get DAI from bridge
-            uint daiCompOracle = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(getCDAIAddress()); // DAI in ETH
-            uint debtInEth = wmul(daiAmt, daiCompOracle);
-            if (ethCol == 0) {
-                (ethCol,) = getCDPStats(cup);
-            }
-            (, uint totalBorrow, uint maxBorrow,) = getCompRatio(address(this));
-            totalBorrow += debtInEth;
-            maxBorrow += wmul(ethCol, 750000000000000000);
-            require(totalBorrow < maxBorrow, "Compound will liquidate");
+            require(isCompoundOk(cup, ethCol, daiAmt), "Compound Will Liquidate");
 
             BridgeInterface(getBridgeAddress()).transferDAI(daiAmt);
 
@@ -520,7 +534,7 @@ contract CompoundResolver is MakerResolver {
     }
 
     /**
-     * @dev borrow ETH/ERC20
+     * @dev borrow DAI
      */
     function borrowDAIComp(uint tokenAmt) internal {
         enterMarket(getCDAIAddress());
@@ -536,7 +550,7 @@ contract CompoundResolver is MakerResolver {
     }
 
     /**
-     * @dev Pay Debt ERC20
+     * @dev Pay DAI Debt
      */
     function repayToken(uint tokenAmt) internal {
         CERC20Interface cToken = CERC20Interface(getCDAIAddress());
@@ -552,7 +566,7 @@ contract CompoundResolver is MakerResolver {
     }
 
     /**
-     * @dev Redeem ETH/ERC20 and mint Compound Tokens
+     * @dev Redeem ETH and mint Compound Tokens
      * @param tokenAmt Amount of token To Redeem
      */
     function redeemUnderlying(uint tokenAmt) internal {
@@ -578,6 +592,7 @@ contract Bridge is CompoundResolver {
      */
     function makerToCompound(uint cdpId, uint toConvert) public {
         bytes32 cup = bytes32(cdpId);
+        isCupOwner(cup);
         (uint ethCol, uint daiDebt) = getCDPStats(cup);
         uint ethFree = ethCol;
         uint daiAmt = daiDebt;
@@ -603,9 +618,7 @@ contract Bridge is CompoundResolver {
         if (cdpId == 0) {
             cup = open();
         } else {
-            TubInterface tub = TubInterface(getSaiTubAddress());
-            (address lad,,,) = tub.cups(cup);
-            require(lad == address(this), "cup-not-owned");
+            require(isCupOwner(cup), "Not CDP Owner");
         }
 
         (uint ethCol, uint daiDebt,, uint totalBorrow, uint maxBorrow, uint daiInEth) = getCompoundStats(address(this));
