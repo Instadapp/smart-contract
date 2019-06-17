@@ -473,7 +473,8 @@ contract MakerResolver is CompoundHelper {
             (bytes32 val, bool ok) = tub.pep().peek();
 
             // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
-            uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
+            uint mkrFeeHelper = rdiv(tub.rap(cup), tub.tab(cup));
+            uint mkrFee = wdiv(rmul(_wad, mkrFeeHelper), uint(val));
 
             uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
             daiAmt = add(_wad, daiFeeAmt);
