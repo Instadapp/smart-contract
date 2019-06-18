@@ -52,12 +52,10 @@ contract DSMath {
 
 contract Helper is DSMath {
 
-    address public daiAdd = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
-    // address public daiAdd = 0x5592EC0cfb4dbc12D3aB100b257153436a1f0FEa; // Rinkeby
-    address public cDaiAdd = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
-    // address public cDaiAdd = 0x6D7F0754FFeb405d23C51CE938289d4835bE3b14; // Rinkeby
-    address public registryAdd = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
-    mapping (address => uint) public deposited; // Amount of CToken deposited
+    address public daiAddr = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
+    address public cdaiAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+    address public registryAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+    mapping (address => uint) public deposited; // amount of CToken deposited
     mapping (address => bool) public isAdmin;
 
     /**
@@ -73,7 +71,7 @@ contract Helper is DSMath {
 
     modifier isUserWallet {
         address userAdd = UserWalletInterface(msg.sender).owner();
-        address walletAdd = RegistryInterface(registryAdd).proxies(userAdd);
+        address walletAdd = RegistryInterface(registryAddr).proxies(userAdd);
         require(walletAdd != address(0), "Not-User-Wallet");
         require(walletAdd == msg.sender, "Not-Wallet-Owner");
         _;
@@ -109,8 +107,8 @@ contract Bridge is CTokens {
      * @dev Deposit DAI for liquidity
      */
     function depositDAI(uint amt) public {
-        ERC20Interface(daiAdd).transferFrom(msg.sender, address(this), amt);
-        CTokenInterface cToken = CTokenInterface(cDaiAdd);
+        ERC20Interface(daiAddr).transferFrom(msg.sender, address(this), amt);
+        CTokenInterface cToken = CTokenInterface(cdaiAddr);
         assert(cToken.mint(amt) == 0);
         uint cDaiAmt = wdiv(amt, cToken.exchangeRateCurrent());
         deposited[msg.sender] += cDaiAmt;
@@ -121,7 +119,7 @@ contract Bridge is CTokens {
      */
     function withdrawDAI(uint amt) public {
         require(deposited[msg.sender] != 0, "Nothing to Withdraw");
-        CTokenInterface cToken = CTokenInterface(cDaiAdd);
+        CTokenInterface cToken = CTokenInterface(cdaiAddr);
         uint withdrawAmt = wdiv(amt, cToken.exchangeRateCurrent());
         uint daiAmt = amt;
         if (withdrawAmt > deposited[msg.sender]) {
@@ -129,7 +127,7 @@ contract Bridge is CTokens {
             daiAmt = wmul(withdrawAmt, cToken.exchangeRateCurrent());
         }
         require(cToken.redeem(withdrawAmt) == 0, "something went wrong");
-        ERC20Interface(daiAdd).transfer(msg.sender, daiAmt);
+        ERC20Interface(daiAddr).transfer(msg.sender, daiAmt);
         deposited[msg.sender] -= withdrawAmt;
     }
 
@@ -137,7 +135,7 @@ contract Bridge is CTokens {
      * @dev Deposit CDAI for liquidity
      */
     function depositCDAI(uint amt) public {
-        CTokenInterface cToken = CTokenInterface(cDaiAdd);
+        CTokenInterface cToken = CTokenInterface(cdaiAddr);
         require(cToken.transferFrom(msg.sender, address(this), amt) == true, "Nothing to deposit");
         deposited[msg.sender] += amt;
     }
@@ -147,7 +145,7 @@ contract Bridge is CTokens {
      */
     function withdrawCDAI(uint amt) public {
         require(deposited[msg.sender] != 0, "Nothing to Withdraw");
-        CTokenInterface cToken = CTokenInterface(cDaiAdd);
+        CTokenInterface cToken = CTokenInterface(cdaiAddr);
         uint withdrawAmt = amt;
         if (withdrawAmt > deposited[msg.sender]) {
             withdrawAmt = deposited[msg.sender];
@@ -160,18 +158,18 @@ contract Bridge is CTokens {
      * @dev Transfer DAI to only to user wallet
      */
     function transferDAI(uint amt) public isUserWallet {
-        CTokenInterface cToken = CTokenInterface(cDaiAdd);
+        CTokenInterface cToken = CTokenInterface(cdaiAddr);
         require(cToken.redeemUnderlying(amt) == 0, "something went wrong");
-        ERC20Interface(daiAdd).transfer(msg.sender, amt);
+        ERC20Interface(daiAddr).transfer(msg.sender, amt);
     }
 
     /**
      * @dev Take DAI back from user wallet
      */
     function transferBackDAI(uint amt) public isUserWallet {
-        ERC20Interface tokenContract = ERC20Interface(daiAdd);
+        ERC20Interface tokenContract = ERC20Interface(daiAddr);
         tokenContract.transferFrom(msg.sender, address(this), amt);
-        CTokenInterface cToken = CTokenInterface(cDaiAdd);
+        CTokenInterface cToken = CTokenInterface(cdaiAddr);
         assert(cToken.mint(amt) == 0);
     }
 
@@ -195,8 +193,8 @@ contract MakerCompBridge is Bridge {
         addCToken(0x158079Ee67Fce2f58472A96584A73C7Ab9AC95c1, 500000000000000000);
         addCToken(0x39AA39c021dfbaE8faC545936693aC917d5E7563, 750000000000000000);
         addCToken(0xB3319f5D18Bc0D84dD1b4825Dcde5d5f7266d407, 600000000000000000);
-        setApproval(daiAdd, 10**30, cDaiAdd);
-        setApproval(cDaiAdd, 10**30, cDaiAdd);
+        setApproval(daiAddr, 10**30, cdaiAddr);
+        setApproval(cdaiAddr, 10**30, cdaiAddr);
         version = _version;
     }
 
