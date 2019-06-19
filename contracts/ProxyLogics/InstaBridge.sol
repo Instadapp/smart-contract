@@ -45,9 +45,15 @@ interface ComptrollerInterface {
 
 interface CTokenInterface {
     function borrow(uint borrowAmount) external returns (uint);
+    function exchangeRateCurrent() external returns (uint);
 
     function transfer(address, uint) external returns (bool);
     function transferFrom(address, address, uint) external returns (bool);
+}
+
+interface BridgeInterface {
+    function makerToCompound(uint, uint, uint) external returns (uint);
+    function compoundToMaker(uint, uint, uint) external;
 }
 
 
@@ -173,6 +179,28 @@ contract CompoundHelper is MakerHelper {
         CTokenInterface cDaiContract = CTokenInterface(getCDAIAddress());
         require(cDaiContract.borrow(tokenAmt) == 0, "got collateral?");
         cDaiContract.transfer(getBridgeAddress());
+    }
+
+}
+
+
+contract InstaBridge is CompoundHelper {
+
+    function makerToCompound(uint cdpId, uint ethCol, uint daiDebt) public {
+        give(cdpId, getBridgeAddress());
+        BridgeInterface bridge = BridgeInterface(getBridgeAddress());
+        uint daiAmt = bridge.makerToCompound(cdpId, ethCol, daiDebt);
+        // setApproval(getDaiAddress(), daiAmt, getBridgeAddress());
+        bridge.takeDebtBack(daiAmt);
+    }
+
+    function compoundToMaker(uint cdpId, uint ethCol, uint daiDebt) public {
+        if (cdpId != 0) {
+            give(cdpId, getBridgeAddress());
+        }
+        BridgeInterface bridge = BridgeInterface(getBridgeAddress());
+        // setApproval(getCEthAddress(), daiAmt, getBridgeAddress());
+        uint daiAmt = bridge.compoundToMaker(cdpId, ethCol, daiDebt);
     }
 
 }

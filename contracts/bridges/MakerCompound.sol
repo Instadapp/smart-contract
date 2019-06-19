@@ -388,7 +388,7 @@ contract Bridge is CompoundResolver {
         give(cdpId, msg.sender);
     }
 
-    function compoundToMaker(uint cdpId, uint ethCol, uint daiDebt) public payable isUserWallet returns (uint daiAmt) {
+    function compoundToMaker(uint cdpId, uint ethCol, uint daiDebt) public payable isUserWallet {
         payUsersDebt(daiDebt);
         takeCETH(ethCol);
         redeemUnderlying(cEth, ethCol);
