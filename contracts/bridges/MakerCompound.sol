@@ -34,17 +34,6 @@ interface PepInterface {
     function peek() external returns (bytes32, bool);
 }
 
-interface CTokenInterface {
-    function mint(uint mintAmount) external returns (uint); // For ERC20
-    function redeem(uint redeemTokens) external returns (uint);
-    function redeemUnderlying(uint redeemAmount) external returns (uint);
-    function exchangeRateCurrent() external returns (uint);
-    function allowance(address, address) external view returns (uint);
-    function approve(address, uint) external;
-    function transfer(address, uint) external returns (bool);
-    function transferFrom(address, address, uint) external returns (bool);
-}
-
 interface ERC20Interface {
     function allowance(address, address) external view returns (uint);
     function balanceOf(address) external view returns (uint);
@@ -67,6 +56,15 @@ interface UniswapExchange {
         ) external returns (uint256  tokensSold);
 }
 
+interface CTokenInterface {
+    function redeem(uint redeemTokens) external returns (uint);
+    function redeemUnderlying(uint redeemAmount) external returns (uint);
+    function exchangeRateCurrent() external returns (uint);
+    function transfer(address, uint) external returns (bool);
+    function transferFrom(address, address, uint) external returns (bool);
+    function balanceOf(address) external view returns (uint);
+}
+
 interface CETHInterface {
     function mint() external payable; // For ETH
     function transfer(address, uint) external returns (bool);
@@ -74,6 +72,7 @@ interface CETHInterface {
 
 interface CDAIInterface {
     function mint(uint mintAmount) external returns (uint); // For ERC20
+    function repayBorrowBehalf(address borrower, uint repayAmount) external returns (uint);
 }
 
 
@@ -155,7 +154,20 @@ contract MakerResolver is Helper {
     event LogWipe(uint cdpNum, uint daiAmt, uint mkrFee, uint daiFee, address owner);
     event LogShut(uint cdpNum);
 
-    function wipe(uint cdpNum, uint _wad) public returns (uint daiAmt) {
+    function open() internal returns (uint) {
+        bytes32 cup = TubInterface(sai).open();
+        emit LogOpen(uint(cup), address(this));
+        return uint(cup);
+    }
+
+    /**
+     * @dev transfer CDP ownership
+     */
+    function give(uint cdpNum, address nextOwner) internal {
+        TubInterface(sai).give(bytes32(cdpNum), nextOwner);
+    }
+
+    function wipe(uint cdpNum, uint _wad) internal returns (uint daiAmt) {
         if (_wad > 0) {
             TubInterface tub = TubInterface(sai);
             UniswapExchange daiEx = UniswapExchange(ude);
@@ -204,7 +216,7 @@ contract MakerResolver is Helper {
         }
     }
 
-    function free(uint cdpNum, uint jam) public {
+    function free(uint cdpNum, uint jam) internal {
         if (jam > 0) {
             bytes32 cup = bytes32(cdpNum);
             address tubAddr = sai;
@@ -234,9 +246,58 @@ contract MakerResolver is Helper {
         }
     }
 
-    function wipeAndFree(uint cdpNum, uint jam, uint _wad) internal {
-        wipe(cdpNum, _wad);
+    function lock(uint cdpNum, uint ethAmt) internal {
+        if (msg.value > 0) {
+            bytes32 cup = bytes32(cdpNum);
+            address tubAddr = sai;
+
+            TubInterface tub = TubInterface(tubAddr);
+            ERC20Interface weth = tub.gem();
+            // ERC20Interface peth = tub.skr();
+
+            (address lad,,,) = tub.cups(cup);
+            require(lad == address(this), "cup-not-owned");
+
+            weth.deposit.value(ethAmt)();
+
+            uint ink = rdiv(ethAmt, tub.per());
+            ink = rmul(ink, tub.per()) <= ethAmt ? ink : ink - 1;
+
+            // setAllowance(weth, tubAddr);
+            tub.join(ink);
+
+            // setAllowance(peth, tubAddr);
+            tub.lock(cup, ink);
+
+            emit LogLock(
+                cdpNum,
+                ethAmt,
+                ink,
+                address(this)
+            );
+        }
+    }
+
+    function draw(uint cdpNum, uint _wad) internal {
+        bytes32 cup = bytes32(cdpNum);
+        if (_wad > 0) {
+            TubInterface tub = TubInterface(sai);
+
+            tub.draw(cup, _wad);
+            // tub.sai().transfer(msg.sender, _wad);
+
+            emit LogDraw(cdpNum, _wad, address(this));
+        }
+    }
+
+    function wipeAndFree(uint cdpNum, uint jam, uint _wad) internal returns (uint daiAmt) {
+        daiAmt = wipe(cdpNum, _wad);
         free(cdpNum, jam);
+    }
+
+    function lockAndDraw(uint cdpNum, uint jam, uint _wad) internal {
+        lock(cdpNum, jam);
+        draw(cdpNum, _wad);
     }
 
 }
@@ -252,37 +313,11 @@ contract CompoundResolver is MakerResolver {
     /**
      * @dev Deposit ETH/ERC20 and mint Compound Tokens
      */
-    function mintCToken(address erc20, address cErc20, uint tokenAmt) external payable {
-        enterMarket(cErc20);
-        if (erc20 == getAddressETH()) {
-            CETHInterface cToken = CETHInterface(cErc20);
-            cToken.mint.value(msg.value)();
-        } else {
-            ERC20Interface token = ERC20Interface(erc20);
-            uint toDeposit = token.balanceOf(msg.sender);
-            if (toDeposit > tokenAmt) {
-                toDeposit = tokenAmt;
-            }
-            token.transferFrom(msg.sender, address(this), toDeposit);
-            CERC20Interface cToken = CERC20Interface(cErc20);
-            setApproval(erc20, toDeposit, cErc20);
-            assert(cToken.mint(toDeposit) == 0);
-        }
-        emit LogMint(
-            erc20,
-            cErc20,
-            tokenAmt,
-            msg.sender
-        );
-    }
-
-    /**
-     * @dev Deposit ETH/ERC20 and mint Compound Tokens
-     */
     function mintCETH(uint tokenAmt) internal {
         CETHInterface cToken = CETHInterface(cEth);
         cToken.mint.value(tokenAmt)();
-        cToken.transfer(msg.sender, tokenAmt);
+        uint cEthToReturn = wdiv(tokenAmt, CTokenInterface(cEth).exchangeRateCurrent());
+        cToken.transfer(msg.sender, cEthToReturn);
         emit LogMint(
             ethAddr,
             cEth,
@@ -310,14 +345,57 @@ contract CompoundResolver is MakerResolver {
         );
     }
 
+    /**
+     * @dev Redeem ETH/ERC20 and mint Compound Tokens
+     * @param tokenAmt Amount of token To Redeem
+     */
+    function redeemUnderlying(address cErc20, uint tokenAmt) internal {
+        CTokenInterface cToken = CTokenInterface(cErc20);
+        // setApproval(cErc20, 10**50, cErc20);
+        uint toBurn = cToken.balanceOf(address(this));
+        uint tokenToReturn = wmul(toBurn, cToken.exchangeRateCurrent());
+        tokenToReturn = tokenToReturn > tokenAmt ? tokenAmt : tokenToReturn;
+        require(cToken.redeemUnderlying(tokenToReturn) == 0, "something went wrong");
+    }
+
+    function takeCETH(uint ethAmt) internal {
+        CTokenInterface cToken = CTokenInterface(cEth);
+        uint cTokenAmt = wdiv(ethAmt, cToken.exchangeRateCurrent());
+        uint cEthBal = cToken.balanceOf(msg.sender);
+        cTokenAmt = cEthBal > cTokenAmt ? cTokenAmt : cTokenAmt - 1;
+        require(ERC20Interface(cEth).transferFrom(msg.sender, address(this), cTokenAmt), "Contract Approved?");
+    }
+
 }
 
 
 contract Bridge is CompoundResolver {
 
+    function payUsersDebt(uint daiDebt) internal {
+        redeemUnderlying(cDai, daiDebt);
+        // setApproval(dai, daiDebt, cDai);
+        require(CDAIInterface(cDai).repayBorrowBehalf(msg.sender, daiDebt) == 0, "Enough DAI?");
+    }
+
+    function takeDebtBack(uint daiDebt) external {
+        require(ERC20Interface(daiAddr).transferFrom(msg.sender, address(this),daiDebt), "Contract Approved?");
+        mintCDAI(daiDebt);
+    }
+
     function makerToCompound(uint cdpId, uint ethCol, uint daiDebt) public payable isUserWallet returns (uint daiAmt) {
         daiAmt = wipeAndFree(cdpId, ethCol, daiDebt);
         mintCETH(ethCol);
+        give(cdpId, msg.sender);
+    }
+
+    function compoundToMaker(uint cdpId, uint ethCol, uint daiDebt) public payable isUserWallet returns (uint daiAmt) {
+        payUsersDebt(daiDebt);
+        takeCETH(ethCol);
+        redeemUnderlying(cEth, ethCol);
+        uint cdpNum = cdpId > 0 ? cdpId : open();
+        lockAndDraw(cdpNum, ethCol, daiDebt);
+        mintCDAI(daiDebt);
+        give(cdpNum, msg.sender);
     }
 
 }
