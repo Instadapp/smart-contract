@@ -174,11 +174,11 @@ contract CompoundHelper is MakerHelper {
     /**
      * @dev borrow ETH/ERC20
      */
-    function borrowDai(uint tokenAmt) internal {
+    function borrowDAI(uint tokenAmt) internal {
+        enterMarket(getCETHAddress());
         enterMarket(getCDAIAddress());
         CTokenInterface cDaiContract = CTokenInterface(getCDAIAddress());
         require(cDaiContract.borrow(tokenAmt) == 0, "got collateral?");
-        cDaiContract.transfer(getBridgeAddress());
     }
 
 }
@@ -190,7 +190,8 @@ contract InstaBridge is CompoundHelper {
         give(cdpId, getBridgeAddress());
         BridgeInterface bridge = BridgeInterface(getBridgeAddress());
         uint daiAmt = bridge.makerToCompound(cdpId, ethCol, daiDebt);
-        // setApproval(getDaiAddress(), daiAmt, getBridgeAddress());
+        borrowDAI(daiAmt);
+        setApproval(getDaiAddress(), daiAmt, getBridgeAddress());
         bridge.takeDebtBack(daiAmt);
     }
 
@@ -199,7 +200,7 @@ contract InstaBridge is CompoundHelper {
             give(cdpId, getBridgeAddress());
         }
         BridgeInterface bridge = BridgeInterface(getBridgeAddress());
-        // setApproval(getCEthAddress(), daiAmt, getBridgeAddress());
+        setApproval(getCEthAddress(), 2**150, getBridgeAddress());
         uint daiAmt = bridge.compoundToMaker(cdpId, ethCol, daiDebt);
     }
 

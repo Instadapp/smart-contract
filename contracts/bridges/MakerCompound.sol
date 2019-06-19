@@ -112,7 +112,6 @@ contract Helper is DSMath {
 
     address public ethAddr = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address public daiAddr = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
-    address public cdaiAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
     address public registryAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
     address public sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
     address public ume = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Uniswap Maker Exchange
@@ -132,12 +131,30 @@ contract Helper is DSMath {
         }
     }
 
+    function setAllowance(ERC20Interface _token, address _spender) internal {
+        if (_token.allowance(address(this), _spender) != uint(-1)) {
+            _token.approve(_spender, uint(-1));
+        }
+    }
+
     modifier isUserWallet {
         address userAdd = UserWalletInterface(msg.sender).owner();
         address walletAdd = RegistryInterface(registryAddr).proxies(userAdd);
         require(walletAdd != address(0), "Not-User-Wallet");
         require(walletAdd == msg.sender, "Not-Wallet-Owner");
         _;
+    }
+
+    /**
+     * @dev Redeem ETH/ERC20 and mint Compound Tokens
+     * @param tokenAmt Amount of token To Redeem
+     */
+    function redeemUnderlying(address cErc20, uint tokenAmt) internal {
+        CTokenInterface cToken = CTokenInterface(cErc20);
+        uint toBurn = cToken.balanceOf(address(this));
+        uint tokenToReturn = wmul(toBurn, cToken.exchangeRateCurrent());
+        tokenToReturn = tokenToReturn > tokenAmt ? tokenAmt : tokenToReturn;
+        require(cToken.redeemUnderlying(tokenToReturn) == 0, "something went wrong");
     }
 
 }
@@ -172,7 +189,7 @@ contract MakerResolver is Helper {
             TubInterface tub = TubInterface(sai);
             UniswapExchange daiEx = UniswapExchange(ude);
             UniswapExchange mkrEx = UniswapExchange(ume);
-            // ERC20Interface dai = tub.sai();
+            ERC20Interface dai = tub.sai();
             ERC20Interface mkr = tub.gov();
 
             bytes32 cup = bytes32(cdpNum);
@@ -180,9 +197,9 @@ contract MakerResolver is Helper {
             (address lad,,,) = tub.cups(cup);
             require(lad == address(this), "cup-not-owned");
 
-            // setAllowance(dai, sai);
-            // setAllowance(mkr, sai);
-            // setAllowance(dai, ude);
+            setAllowance(dai, sai);
+            setAllowance(mkr, sai);
+            setAllowance(dai, ude);
 
             (bytes32 val, bool ok) = tub.pep().peek();
 
@@ -191,7 +208,8 @@ contract MakerResolver is Helper {
 
             uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
             daiAmt = add(_wad, daiFeeAmt);
-            // require(dai.transferFrom(msg.sender, address(this), daiAmt), "not-approved-yet");
+
+            redeemUnderlying(cDai, daiAmt);
 
             if (ok && val != 0) {
                 daiEx.tokenToTokenSwapOutput(
@@ -222,20 +240,19 @@ contract MakerResolver is Helper {
             address tubAddr = sai;
 
             TubInterface tub = TubInterface(tubAddr);
-            // ERC20Interface peth = tub.skr();
+            ERC20Interface peth = tub.skr();
             ERC20Interface weth = tub.gem();
 
             uint ink = rdiv(jam, tub.per());
             ink = rmul(ink, tub.per()) <= jam ? ink : ink - 1;
             tub.free(cup, ink);
 
-            // setAllowance(peth, tubAddr);
+            setAllowance(peth, tubAddr);
+
 
             tub.exit(ink);
             uint freeJam = weth.balanceOf(address(this)); // withdraw possible previous stuck WETH as well
             weth.withdraw(freeJam);
-
-            // address(msg.sender).transfer(freeJam);
 
             emit LogFree(
                 cdpNum,
@@ -253,7 +270,7 @@ contract MakerResolver is Helper {
 
             TubInterface tub = TubInterface(tubAddr);
             ERC20Interface weth = tub.gem();
-            // ERC20Interface peth = tub.skr();
+            ERC20Interface peth = tub.skr();
 
             (address lad,,,) = tub.cups(cup);
             require(lad == address(this), "cup-not-owned");
@@ -263,10 +280,10 @@ contract MakerResolver is Helper {
             uint ink = rdiv(ethAmt, tub.per());
             ink = rmul(ink, tub.per()) <= ethAmt ? ink : ink - 1;
 
-            // setAllowance(weth, tubAddr);
+            setAllowance(weth, tubAddr);
             tub.join(ink);
 
-            // setAllowance(peth, tubAddr);
+            setAllowance(peth, tubAddr);
             tub.lock(cup, ink);
 
             emit LogLock(
@@ -284,7 +301,6 @@ contract MakerResolver is Helper {
             TubInterface tub = TubInterface(sai);
 
             tub.draw(cup, _wad);
-            // tub.sai().transfer(msg.sender, _wad);
 
             emit LogDraw(cdpNum, _wad, address(this));
         }
@@ -335,7 +351,6 @@ contract CompoundResolver is MakerResolver {
         toDeposit = toDeposit > tokenAmt ? tokenAmt : toDeposit;
         token.transferFrom(msg.sender, address(this), toDeposit);
         CDAIInterface cToken = CDAIInterface(cDai);
-        // setApproval(erc20, toDeposit, cErc20);
         assert(cToken.mint(toDeposit) == 0);
         emit LogMint(
             daiAddr,
@@ -343,19 +358,6 @@ contract CompoundResolver is MakerResolver {
             tokenAmt,
             msg.sender
         );
-    }
-
-    /**
-     * @dev Redeem ETH/ERC20 and mint Compound Tokens
-     * @param tokenAmt Amount of token To Redeem
-     */
-    function redeemUnderlying(address cErc20, uint tokenAmt) internal {
-        CTokenInterface cToken = CTokenInterface(cErc20);
-        // setApproval(cErc20, 10**50, cErc20);
-        uint toBurn = cToken.balanceOf(address(this));
-        uint tokenToReturn = wmul(toBurn, cToken.exchangeRateCurrent());
-        tokenToReturn = tokenToReturn > tokenAmt ? tokenAmt : tokenToReturn;
-        require(cToken.redeemUnderlying(tokenToReturn) == 0, "something went wrong");
     }
 
     function takeCETH(uint ethAmt) internal {
@@ -373,7 +375,6 @@ contract Bridge is CompoundResolver {
 
     function payUsersDebt(uint daiDebt) internal {
         redeemUnderlying(cDai, daiDebt);
-        // setApproval(dai, daiDebt, cDai);
         require(CDAIInterface(cDai).repayBorrowBehalf(msg.sender, daiDebt) == 0, "Enough DAI?");
     }
 
@@ -410,8 +411,9 @@ contract MakerCompBridge is Bridge {
      * 1...2...3 versioning in each subsequent deployments
      */
     constructor(uint _version) public {
-        setApproval(daiAddr, 10**30, cdaiAddr);
-        setApproval(cdaiAddr, 10**30, cdaiAddr);
+        setApproval(daiAddr, 10**30, cDai);
+        setApproval(cDai, 10**30, cDai);
+        setApproval(cEth, 10**30, cEth);
         version = _version;
     }
 
