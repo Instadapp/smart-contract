@@ -177,8 +177,7 @@ contract CompoundHelper is MakerHelper {
     function borrowDAI(uint tokenAmt) internal {
         enterMarket(getCETHAddress());
         enterMarket(getCDAIAddress());
-        CTokenInterface cDaiContract = CTokenInterface(getCDAIAddress());
-        require(cDaiContract.borrow(tokenAmt) == 0, "got collateral?");
+        require(CTokenInterface(getCDAIAddress()).borrow(tokenAmt) == 0, "got collateral?");
     }
 
 }

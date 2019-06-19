@@ -112,7 +112,7 @@ contract Helper is DSMath {
 
     address public ethAddr = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address public daiAddr = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
-    address public registryAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+    address public registry = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
     address public sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
     address public ume = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Uniswap Maker Exchange
     address public ude = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Uniswap DAI Exchange
@@ -139,9 +139,9 @@ contract Helper is DSMath {
 
     modifier isUserWallet {
         address userAdd = UserWalletInterface(msg.sender).owner();
-        address walletAdd = RegistryInterface(registryAddr).proxies(userAdd);
-        require(walletAdd != address(0), "Not-User-Wallet");
-        require(walletAdd == msg.sender, "Not-Wallet-Owner");
+        address walletAdd = RegistryInterface(registry).proxies(userAdd);
+        require(walletAdd != address(0), "not-user-wallet");
+        require(walletAdd == msg.sender, "not-wallet-owner");
         _;
     }
 
@@ -249,7 +249,6 @@ contract MakerResolver is Helper {
 
             setAllowance(peth, tubAddr);
 
-
             tub.exit(ink);
             uint freeJam = weth.balanceOf(address(this)); // withdraw possible previous stuck WETH as well
             weth.withdraw(freeJam);
@@ -329,15 +328,15 @@ contract CompoundResolver is MakerResolver {
     /**
      * @dev Deposit ETH/ERC20 and mint Compound Tokens
      */
-    function mintCETH(uint tokenAmt) internal {
+    function mintCETH(uint ethAmt) internal {
         CETHInterface cToken = CETHInterface(cEth);
-        cToken.mint.value(tokenAmt)();
-        uint cEthToReturn = wdiv(tokenAmt, CTokenInterface(cEth).exchangeRateCurrent());
+        cToken.mint.value(ethAmt)();
+        uint cEthToReturn = wdiv(ethAmt, CTokenInterface(cEth).exchangeRateCurrent());
         cToken.transfer(msg.sender, cEthToReturn);
         emit LogMint(
             ethAddr,
             cEth,
-            tokenAmt,
+            ethAmt,
             msg.sender
         );
     }
@@ -373,10 +372,6 @@ contract CompoundResolver is MakerResolver {
 
 contract Bridge is CompoundResolver {
 
-    function payUsersDebt(uint daiDebt) internal {
-        redeemUnderlying(cDai, daiDebt);
-        require(CDAIInterface(cDai).repayBorrowBehalf(msg.sender, daiDebt) == 0, "Enough DAI?");
-    }
 
     function takeDebtBack(uint daiDebt) external {
         require(ERC20Interface(daiAddr).transferFrom(msg.sender, address(this),daiDebt), "Contract Approved?");
@@ -397,6 +392,11 @@ contract Bridge is CompoundResolver {
         lockAndDraw(cdpNum, ethCol, daiDebt);
         mintCDAI(daiDebt);
         give(cdpNum, msg.sender);
+    }
+
+    function payUsersDebt(uint daiDebt) internal {
+        redeemUnderlying(cDai, daiDebt);
+        require(CDAIInterface(cDai).repayBorrowBehalf(msg.sender, daiDebt) == 0, "Enough DAI?");
     }
 
 }
