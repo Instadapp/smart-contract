@@ -74,6 +74,7 @@ interface CETHInterface {
 interface CDAIInterface {
     function mint(uint mintAmount) external returns (uint); // For ERC20
     function repayBorrowBehalf(address borrower, uint repayAmount) external returns (uint);
+    function borrowBalanceCurrent(address account) external returns (uint);
 }
 
 
@@ -207,8 +208,27 @@ contract CompoundResolver is Helper {
             CTokenInterface cToken = CTokenInterface(cEth);
             uint cTokenAmt = wdiv(ethAmt, cToken.exchangeRateCurrent());
             uint cEthBal = cToken.balanceOf(msg.sender);
-            cTokenAmt = cEthBal > cTokenAmt ? cTokenAmt : cTokenAmt - 1;
+            cTokenAmt = cEthBal >= cTokenAmt ? cTokenAmt : cTokenAmt - 1;
             require(ERC20Interface(cEth).transferFrom(msg.sender, address(this), cTokenAmt), "Contract Approved?");
+        }
+    }
+
+    /**
+     * @dev If col/debt > user's balance/borrow. Then set max
+     */
+    function checkCompound(uint ethAmt, uint daiAmt) internal returns (uint ethCol, uint daiDebt) {
+        CTokenInterface cEthContract = CTokenInterface(cEth);
+        uint cEthBal = cEthContract.balanceOf(address(this));
+        uint ethExchangeRate = cEthContract.exchangeRateCurrent();
+        ethCol = wmul(cEthBal, ethExchangeRate);
+        ethCol = wdiv(ethCol, ethExchangeRate) <= cEthBal ? ethCol : ethCol - 1;
+        if (ethCol > ethAmt) {
+            ethCol = ethAmt;
+        }
+
+        daiDebt = CDAIInterface(cDai).borrowBalanceCurrent(msg.sender);
+        if (daiDebt > daiAmt) {
+            daiDebt = daiAmt;
         }
     }
 
@@ -482,7 +502,7 @@ contract Bridge is LiquidityProvider {
      * @dev MakerDAO to Compound
      */
     function makerToCompound(uint cdpId, uint ethCol, uint daiDebt) public payable isUserWallet returns (uint daiAmt) {
-        uint ethAmt = ethCol;
+        uint ethAmt;
         (ethAmt, daiAmt) = wipeAndFree(cdpId, ethCol, daiDebt);
         mintCETH(ethAmt);
         give(cdpId, msg.sender);
@@ -492,12 +512,13 @@ contract Bridge is LiquidityProvider {
      * @dev Compound to MakerDAO
      */
     function compoundToMaker(uint cdpId, uint ethCol, uint daiDebt) public payable isUserWallet {
-        payUserDebt(daiDebt);
-        fetchCETH(ethCol);
-        redeemUnderlying(cEth, ethCol);
+        (uint ethAmt, uint daiAmt) = checkCompound(ethCol, daiDebt);
+        payUserDebt(daiAmt);
+        fetchCETH(ethAmt);
+        redeemUnderlying(cEth, ethAmt);
         uint cdpNum = cdpId > 0 ? cdpId : open();
-        lockAndDraw(cdpNum, ethCol, daiDebt);
-        mintCDAI(daiDebt);
+        lockAndDraw(cdpNum, ethAmt, daiAmt);
+        mintCDAI(daiAmt);
         give(cdpNum, msg.sender);
     }
 
