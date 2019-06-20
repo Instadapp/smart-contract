@@ -137,6 +137,16 @@ contract Helper is DSMath {
         }
     }
 
+}
+
+
+contract CompoundResolver is Helper {
+
+    event LogMint(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogRedeem(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogBorrow(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
+
     /**
      * @dev Redeem ETH/ERC20 and mint Compound Tokens
      * @param tokenAmt Amount of token To Redeem
@@ -150,16 +160,6 @@ contract Helper is DSMath {
             require(cToken.redeemUnderlying(tokenToReturn) == 0, "something went wrong");
         }
     }
-
-}
-
-
-contract CompoundResolver is Helper {
-
-    event LogMint(address erc20, address cErc20, uint tokenAmt, address owner);
-    event LogRedeem(address erc20, address cErc20, uint tokenAmt, address owner);
-    event LogBorrow(address erc20, address cErc20, uint tokenAmt, address owner);
-    event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
 
     /**
      * @dev Deposit ETH/ERC20 and mint Compound Tokens
