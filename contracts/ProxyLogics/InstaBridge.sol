@@ -2,34 +2,11 @@ pragma solidity ^0.5.7;
 
 interface ERC20Interface {
     function allowance(address, address) external view returns (uint);
-    function balanceOf(address) external view returns (uint);
     function approve(address, uint) external;
-    function transfer(address, uint) external returns (bool);
-    function transferFrom(address, address, uint) external returns (bool);
-    function deposit() external payable;
-    function withdraw(uint) external;
 }
 
 interface TubInterface {
-    function open() external returns (bytes32);
-    function join(uint) external;
-    function exit(uint) external;
-    function lock(bytes32, uint) external;
-    function free(bytes32, uint) external;
-    function draw(bytes32, uint) external;
-    function wipe(bytes32, uint) external;
     function give(bytes32, address) external;
-    function shut(bytes32) external;
-    function cups(bytes32) external view returns (address, uint, uint, uint);
-    function gem() external view returns (ERC20Interface);
-    function gov() external view returns (ERC20Interface);
-    function skr() external view returns (ERC20Interface);
-    function sai() external view returns (ERC20Interface);
-    function ink(bytes32) external view returns (uint);
-    function tab(bytes32) external returns (uint);
-    function rap(bytes32) external returns (uint);
-    function per() external view returns (uint);
-    function pep() external view returns (PepInterface);
 }
 
 interface PepInterface {
@@ -38,59 +15,21 @@ interface PepInterface {
 
 interface ComptrollerInterface {
     function enterMarkets(address[] calldata cTokens) external returns (uint[] memory);
-    function exitMarket(address cTokenAddress) external returns (uint);
     function getAssetsIn(address account) external view returns (address[] memory);
-    function getAccountLiquidity(address account) external view returns (uint, uint, uint);
 }
 
 interface CTokenInterface {
     function borrow(uint borrowAmount) external returns (uint);
-    function exchangeRateCurrent() external returns (uint);
-
-    function transfer(address, uint) external returns (bool);
-    function transferFrom(address, address, uint) external returns (bool);
 }
 
 interface BridgeInterface {
     function makerToCompound(uint, uint, uint) external returns (uint);
     function compoundToMaker(uint, uint, uint) external;
+    function refillFunds(uint) external;
 }
 
 
-
-contract DSMath {
-
-    function add(uint x, uint y) internal pure returns (uint z) {
-        require((z = x + y) >= x, "math-not-safe");
-    }
-
-    function mul(uint x, uint y) internal pure returns (uint z) {
-        require(y == 0 || (z = x * y) / y == x, "math-not-safe");
-    }
-
-    uint constant WAD = 10 ** 18;
-    uint constant RAY = 10 ** 27;
-
-    function rmul(uint x, uint y) internal pure returns (uint z) {
-        z = add(mul(x, y), RAY / 2) / RAY;
-    }
-
-    function rdiv(uint x, uint y) internal pure returns (uint z) {
-        z = add(mul(x, RAY), y / 2) / y;
-    }
-
-    function wmul(uint x, uint y) internal pure returns (uint z) {
-        z = add(mul(x, y), WAD / 2) / WAD;
-    }
-
-    function wdiv(uint x, uint y) internal pure returns (uint z) {
-        z = add(mul(x, WAD), y / 2) / y;
-    }
-
-}
-
-
-contract Helper is DSMath {
+contract Helper {
 
     /**
      * @dev get MakerDAO CDP engine
@@ -138,11 +77,6 @@ contract Helper is DSMath {
         }
     }
 
-}
-
-
-contract MakerHelper is Helper {
-
     /**
      * @dev transfer CDP ownership
      */
@@ -150,11 +84,9 @@ contract MakerHelper is Helper {
         TubInterface(getSaiTubAddress()).give(bytes32(cdpNum), nextOwner);
     }
 
-}
-
-
-contract CompoundHelper is MakerHelper {
-
+    /**
+     * @dev enter compound market
+     */
     function enterMarket(address cErc20) internal {
         ComptrollerInterface troller = ComptrollerInterface(getComptrollerAddress());
         address[] memory markets = troller.getAssetsIn(address(this));
@@ -172,7 +104,7 @@ contract CompoundHelper is MakerHelper {
     }
 
     /**
-     * @dev borrow ETH/ERC20
+     * @dev borrow DAI from compound
      */
     function borrowDAI(uint tokenAmt) internal {
         enterMarket(getCETHAddress());
@@ -185,6 +117,9 @@ contract CompoundHelper is MakerHelper {
 
 contract Bridge is CompoundHelper {
 
+    /**
+     * @dev MakerDAO to Compound
+     */
     function makerToCompound(uint cdpId, uint ethCol, uint daiDebt) public {
         give(cdpId, getBridgeAddress());
         BridgeInterface bridge = BridgeInterface(getBridgeAddress());
@@ -192,10 +127,13 @@ contract Bridge is CompoundHelper {
         if (daiDebt > 0) {
             borrowDAI(daiAmt);
             setApproval(getDaiAddress(), daiAmt, getBridgeAddress());
-            bridge.takeDebtBack(daiAmt);
+            bridge.refillFunds(daiAmt);
         }
     }
 
+    /**
+     * @dev Compound to MakerDAO
+     */
     function compoundToMaker(uint cdpId, uint ethCol, uint daiDebt) public {
         if (cdpId != 0) {
             give(cdpId, getBridgeAddress());

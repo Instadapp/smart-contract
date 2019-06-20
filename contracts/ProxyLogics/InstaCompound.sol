@@ -78,17 +78,6 @@ contract DSMath {
 contract Helpers is DSMath {
 
     /**
-     * @dev setting allowance to compound for the "user proxy" if required
-     */
-    function setApproval(address erc20, uint srcAmt, address to) internal {
-        ERC20Interface erc20Contract = ERC20Interface(erc20);
-        uint tokenAllowance = erc20Contract.allowance(address(this), to);
-        if (srcAmt > tokenAllowance) {
-            erc20Contract.approve(to, 2**255);
-        }
-    }
-
-    /**
      * @dev get ethereum address for trade
      */
     function getAddressETH() public pure returns (address eth) {
@@ -132,6 +121,17 @@ contract Helpers is DSMath {
             address[] memory toEnter = new address[](1);
             toEnter[0] = cErc20;
             troller.enterMarkets(toEnter);
+        }
+    }
+
+    /**
+     * @dev setting allowance to compound for the "user proxy" if required
+     */
+    function setApproval(address erc20, uint srcAmt, address to) internal {
+        ERC20Interface erc20Contract = ERC20Interface(erc20);
+        uint tokenAllowance = erc20Contract.allowance(address(this), to);
+        if (srcAmt > tokenAllowance) {
+            erc20Contract.approve(to, 2**255);
         }
     }
 
