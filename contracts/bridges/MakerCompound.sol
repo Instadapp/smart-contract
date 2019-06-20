@@ -57,6 +57,7 @@ interface UniswapExchange {
 }
 
 interface CTokenInterface {
+    function mint(uint mintAmount) external returns (uint); // For ERC20
     function redeem(uint redeemTokens) external returns (uint);
     function redeemUnderlying(uint redeemAmount) external returns (uint);
     function exchangeRateCurrent() external returns (uint);
@@ -112,7 +113,11 @@ contract Helper is DSMath {
 
     address public ethAddr = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address public daiAddr = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
+<<<<<<< HEAD
+    address public registryAddr = 0x498b3BfaBE9F73db90D252bCD4Fa9548Cd0Fd981;
+=======
     address public registry = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+>>>>>>> df0071bb08524d1182a161bb2f35e0534e86f9cf
     address public sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
     address public ume = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Uniswap Maker Exchange
     address public ude = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Uniswap DAI Exchange
@@ -150,11 +155,13 @@ contract Helper is DSMath {
      * @param tokenAmt Amount of token To Redeem
      */
     function redeemUnderlying(address cErc20, uint tokenAmt) internal {
-        CTokenInterface cToken = CTokenInterface(cErc20);
-        uint toBurn = cToken.balanceOf(address(this));
-        uint tokenToReturn = wmul(toBurn, cToken.exchangeRateCurrent());
-        tokenToReturn = tokenToReturn > tokenAmt ? tokenAmt : tokenToReturn;
-        require(cToken.redeemUnderlying(tokenToReturn) == 0, "something went wrong");
+        if (tokenAmt > 0) {
+            CTokenInterface cToken = CTokenInterface(cErc20);
+            uint toBurn = cToken.balanceOf(address(this));
+            uint tokenToReturn = wmul(toBurn, cToken.exchangeRateCurrent());
+            tokenToReturn = tokenToReturn > tokenAmt ? tokenAmt : tokenToReturn;
+            require(cToken.redeemUnderlying(tokenToReturn) == 0, "something went wrong");
+        }
     }
 
 }
@@ -263,7 +270,7 @@ contract MakerResolver is Helper {
     }
 
     function lock(uint cdpNum, uint ethAmt) internal {
-        if (msg.value > 0) {
+        if (ethAmt > 0) {
             bytes32 cup = bytes32(cdpNum);
             address tubAddr = sai;
 
@@ -329,6 +336,20 @@ contract CompoundResolver is MakerResolver {
      * @dev Deposit ETH/ERC20 and mint Compound Tokens
      */
     function mintCETH(uint ethAmt) internal {
+<<<<<<< HEAD
+        if (ethAmt > 0) {
+            CETHInterface cToken = CETHInterface(cEth);
+            cToken.mint.value(ethAmt)();
+            uint cEthToReturn = wdiv(ethAmt, CTokenInterface(cEth).exchangeRateCurrent());
+            cToken.transfer(msg.sender, cEthToReturn);
+            emit LogMint(
+                ethAddr,
+                cEth,
+                ethAmt,
+                msg.sender
+            );
+        }
+=======
         CETHInterface cToken = CETHInterface(cEth);
         cToken.mint.value(ethAmt)();
         uint cEthToReturn = wdiv(ethAmt, CTokenInterface(cEth).exchangeRateCurrent());
@@ -339,39 +360,111 @@ contract CompoundResolver is MakerResolver {
             ethAmt,
             msg.sender
         );
+>>>>>>> df0071bb08524d1182a161bb2f35e0534e86f9cf
     }
 
     /**
      * @dev Deposit ETH/ERC20 and mint Compound Tokens
      */
     function mintCDAI(uint tokenAmt) internal {
-        ERC20Interface token = ERC20Interface(daiAddr);
-        uint toDeposit = token.balanceOf(msg.sender);
-        toDeposit = toDeposit > tokenAmt ? tokenAmt : toDeposit;
-        token.transferFrom(msg.sender, address(this), toDeposit);
-        CDAIInterface cToken = CDAIInterface(cDai);
-        assert(cToken.mint(toDeposit) == 0);
-        emit LogMint(
-            daiAddr,
-            cDai,
-            tokenAmt,
-            msg.sender
-        );
+        if (tokenAmt > 0) {
+            ERC20Interface token = ERC20Interface(daiAddr);
+            uint toDeposit = token.balanceOf(msg.sender);
+            toDeposit = toDeposit > tokenAmt ? tokenAmt : toDeposit;
+            token.transferFrom(msg.sender, address(this), toDeposit);
+            CDAIInterface cToken = CDAIInterface(cDai);
+            assert(cToken.mint(toDeposit) == 0);
+            emit LogMint(
+                daiAddr,
+                cDai,
+                tokenAmt,
+                msg.sender
+            );
+        }
     }
 
     function takeCETH(uint ethAmt) internal {
-        CTokenInterface cToken = CTokenInterface(cEth);
-        uint cTokenAmt = wdiv(ethAmt, cToken.exchangeRateCurrent());
-        uint cEthBal = cToken.balanceOf(msg.sender);
-        cTokenAmt = cEthBal > cTokenAmt ? cTokenAmt : cTokenAmt - 1;
-        require(ERC20Interface(cEth).transferFrom(msg.sender, address(this), cTokenAmt), "Contract Approved?");
+        if (ethAmt > 0) {
+            CTokenInterface cToken = CTokenInterface(cEth);
+            uint cTokenAmt = wdiv(ethAmt, cToken.exchangeRateCurrent());
+            uint cEthBal = cToken.balanceOf(msg.sender);
+            cTokenAmt = cEthBal > cTokenAmt ? cTokenAmt : cTokenAmt - 1;
+            require(ERC20Interface(cEth).transferFrom(msg.sender, address(this), cTokenAmt), "Contract Approved?");
+        }
     }
 
 }
 
 
-contract Bridge is CompoundResolver {
+contract BridgeBasics is CompoundResolver {
 
+    mapping (address => uint) public deposited; // amount of CToken deposited
+
+    /**
+     * @dev Deposit DAI for liquidity
+     */
+    function depositDAI(uint amt) public {
+        ERC20Interface(daiAddr).transferFrom(msg.sender, address(this), amt);
+        CTokenInterface cToken = CTokenInterface(cDai);
+        assert(cToken.mint(amt) == 0);
+        uint cDaiAmt = wdiv(amt, cToken.exchangeRateCurrent());
+        deposited[msg.sender] += cDaiAmt;
+    }
+
+    /**
+     * @dev Withdraw DAI from liquidity
+     */
+    function withdrawDAI(uint amt) public {
+        require(deposited[msg.sender] != 0, "Nothing to Withdraw");
+        CTokenInterface cToken = CTokenInterface(cDai);
+        uint withdrawAmt = wdiv(amt, cToken.exchangeRateCurrent());
+        uint daiAmt = amt;
+        if (withdrawAmt > deposited[msg.sender]) {
+            withdrawAmt = deposited[msg.sender];
+            daiAmt = wmul(withdrawAmt, cToken.exchangeRateCurrent());
+        }
+        require(cToken.redeem(withdrawAmt) == 0, "something went wrong");
+        ERC20Interface(daiAddr).transfer(msg.sender, daiAmt);
+        deposited[msg.sender] -= withdrawAmt;
+    }
+
+    /**
+     * @dev Deposit CDAI for liquidity
+     */
+    function depositCDAI(uint amt) public {
+        CTokenInterface cToken = CTokenInterface(cDai);
+        require(cToken.transferFrom(msg.sender, address(this), amt) == true, "Nothing to deposit");
+        deposited[msg.sender] += amt;
+    }
+
+    /**
+     * @dev Withdraw CDAI from liquidity
+     */
+    function withdrawCDAI(uint amt) public {
+        require(deposited[msg.sender] != 0, "Nothing to Withdraw");
+        CTokenInterface cToken = CTokenInterface(cDai);
+        uint withdrawAmt = amt;
+        if (withdrawAmt > deposited[msg.sender]) {
+            withdrawAmt = deposited[msg.sender];
+        }
+        cToken.transfer(msg.sender, withdrawAmt);
+        deposited[msg.sender] -= withdrawAmt;
+    }
+
+}
+
+
+contract Bridge is BridgeBasics {
+
+<<<<<<< HEAD
+    function payUsersDebt(uint daiDebt) internal {
+        if (daiDebt > 0) {
+            redeemUnderlying(cDai, daiDebt);
+            require(CDAIInterface(cDai).repayBorrowBehalf(msg.sender, daiDebt) == 0, "Enough DAI?");
+        }
+    }
+=======
+>>>>>>> df0071bb08524d1182a161bb2f35e0534e86f9cf
 
     function takeDebtBack(uint daiDebt) external {
         require(ERC20Interface(daiAddr).transferFrom(msg.sender, address(this),daiDebt), "Contract Approved?");

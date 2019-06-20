@@ -183,24 +183,44 @@ contract CompoundHelper is MakerHelper {
 }
 
 
-contract InstaBridge is CompoundHelper {
+contract Bridge is CompoundHelper {
 
     function makerToCompound(uint cdpId, uint ethCol, uint daiDebt) public {
         give(cdpId, getBridgeAddress());
         BridgeInterface bridge = BridgeInterface(getBridgeAddress());
         uint daiAmt = bridge.makerToCompound(cdpId, ethCol, daiDebt);
-        borrowDAI(daiAmt);
-        setApproval(getDaiAddress(), daiAmt, getBridgeAddress());
-        bridge.takeDebtBack(daiAmt);
+        if (daiDebt > 0) {
+            borrowDAI(daiAmt);
+            setApproval(getDaiAddress(), daiAmt, getBridgeAddress());
+            bridge.takeDebtBack(daiAmt);
+        }
     }
 
     function compoundToMaker(uint cdpId, uint ethCol, uint daiDebt) public {
         if (cdpId != 0) {
             give(cdpId, getBridgeAddress());
         }
-        BridgeInterface bridge = BridgeInterface(getBridgeAddress());
-        setApproval(getCEthAddress(), 2**150, getBridgeAddress());
-        uint daiAmt = bridge.compoundToMaker(cdpId, ethCol, daiDebt);
+        if (ethCol > 0) {
+            setApproval(getCEthAddress(), 2**150, getBridgeAddress());
+        }
+        BridgeInterface(getBridgeAddress()).compoundToMaker(cdpId, ethCol, daiDebt);
     }
+
+}
+
+
+contract InstaBridge is Bridge {
+
+    uint public version;
+
+    /**
+     * @dev setting up variables on deployment
+     * 1...2...3 versioning in each subsequent deployments
+     */
+    constructor(uint _version) public {
+        version = _version;
+    }
+
+    function() external payable {}
 
 }
