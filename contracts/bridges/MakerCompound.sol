@@ -113,11 +113,7 @@ contract Helper is DSMath {
 
     address public ethAddr = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address public daiAddr = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
-<<<<<<< HEAD
     address public registryAddr = 0x498b3BfaBE9F73db90D252bCD4Fa9548Cd0Fd981;
-=======
-    address public registry = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
->>>>>>> df0071bb08524d1182a161bb2f35e0534e86f9cf
     address public sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
     address public ume = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Uniswap Maker Exchange
     address public ude = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Uniswap DAI Exchange
@@ -336,7 +332,6 @@ contract CompoundResolver is MakerResolver {
      * @dev Deposit ETH/ERC20 and mint Compound Tokens
      */
     function mintCETH(uint ethAmt) internal {
-<<<<<<< HEAD
         if (ethAmt > 0) {
             CETHInterface cToken = CETHInterface(cEth);
             cToken.mint.value(ethAmt)();
@@ -349,18 +344,6 @@ contract CompoundResolver is MakerResolver {
                 msg.sender
             );
         }
-=======
-        CETHInterface cToken = CETHInterface(cEth);
-        cToken.mint.value(ethAmt)();
-        uint cEthToReturn = wdiv(ethAmt, CTokenInterface(cEth).exchangeRateCurrent());
-        cToken.transfer(msg.sender, cEthToReturn);
-        emit LogMint(
-            ethAddr,
-            cEth,
-            ethAmt,
-            msg.sender
-        );
->>>>>>> df0071bb08524d1182a161bb2f35e0534e86f9cf
     }
 
     /**
@@ -456,15 +439,12 @@ contract BridgeBasics is CompoundResolver {
 
 contract Bridge is BridgeBasics {
 
-<<<<<<< HEAD
     function payUsersDebt(uint daiDebt) internal {
         if (daiDebt > 0) {
             redeemUnderlying(cDai, daiDebt);
             require(CDAIInterface(cDai).repayBorrowBehalf(msg.sender, daiDebt) == 0, "Enough DAI?");
         }
     }
-=======
->>>>>>> df0071bb08524d1182a161bb2f35e0534e86f9cf
 
     function takeDebtBack(uint daiDebt) external {
         require(ERC20Interface(daiAddr).transferFrom(msg.sender, address(this),daiDebt), "Contract Approved?");

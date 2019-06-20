@@ -54,7 +54,7 @@ contract Helper is DSMath {
 
     address public daiAddr = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
     address public cdaiAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
-    address public registryAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+    address public registryAddr = 0x498b3BfaBE9F73db90D252bCD4Fa9548Cd0Fd981;
     mapping (address => uint) public deposited; // amount of CToken deposited
     mapping (address => bool) public isAdmin;
 
