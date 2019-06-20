@@ -131,7 +131,7 @@ contract Bridge is Helper {
         give(cdpId, getBridgeAddress());
         BridgeInterface bridge = BridgeInterface(getBridgeAddress());
         uint daiAmt = bridge.makerToCompound(cdpId, ethCol, daiDebt);
-        if (daiDebt > 0) {
+        if (daiAmt > 0) {
             borrowDAI(daiAmt);
             setApproval(getDAIAddress(), daiAmt, getBridgeAddress());
             bridge.refillFunds(daiAmt);
