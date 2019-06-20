@@ -116,8 +116,8 @@ contract Helper is DSMath {
     address public daiAddr = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
     address public registry = 0x498b3BfaBE9F73db90D252bCD4Fa9548Cd0Fd981;
     address public sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
-    address public ume = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Uniswap Maker Exchange
-    address public ude = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Uniswap DAI Exchange
+    address public ume = 0x2C4Bd064b998838076fa341A83d007FC2FA50957; // Uniswap Maker Exchange
+    address public ude = 0x09cabEC1eAd1c0Ba254B09efb3EE13841712bE14; // Uniswap DAI Exchange
     address public cEth = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
     address public cDai = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
 
