@@ -360,9 +360,19 @@ contract MakerResolver is CompoundResolver {
         }
     }
 
-    function wipeAndFree(uint cdpNum, uint jam, uint _wad) internal returns (uint daiAmt) {
-        daiAmt = wipe(cdpNum, _wad);
-        free(cdpNum, jam);
+    function getCDPStats(bytes32 cup) internal returns (uint ethCol, uint daiDebt) {
+        TubInterface tub = TubInterface(sai);
+        ethCol = rmul(tub.ink(cup), tub.per()); // get ETH col from PETH col
+        daiDebt = tub.tab(cup);
+    }
+
+    function wipeAndFree(uint cdpNum, uint jam, uint _wad) internal returns (uint ethAmt, uint daiAmt) {
+        (uint ethCol, uint daiDebt) = getCDPStats(bytes32(cdpNum));
+        daiDebt = _wad < daiDebt ? _wad : daiDebt; // if DAI amount > max debt. Set max debt
+        ethCol = jam < ethCol ? jam : ethCol; // if ETH amount > max Col. Set max col
+        daiAmt = wipe(cdpNum, daiDebt);
+        ethAmt = ethCol;
+        free(cdpNum, ethCol);
     }
 
     function lockAndDraw(uint cdpNum, uint jam, uint _wad) internal {
@@ -472,8 +482,9 @@ contract Bridge is LiquidityProvider {
      * @dev MakerDAO to Compound
      */
     function makerToCompound(uint cdpId, uint ethCol, uint daiDebt) public payable isUserWallet returns (uint daiAmt) {
-        daiAmt = wipeAndFree(cdpId, ethCol, daiDebt);
-        mintCETH(ethCol);
+        uint ethAmt = ethCol;
+        (ethAmt, daiAmt) = wipeAndFree(cdpId, ethCol, daiDebt);
+        mintCETH(ethAmt);
         give(cdpId, msg.sender);
     }
 
