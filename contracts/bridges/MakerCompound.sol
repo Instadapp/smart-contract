@@ -107,6 +107,11 @@ contract DSMath {
         z = add(mul(x, WAD), y / 2) / y;
     }
 
+    function sub(uint a, uint b) internal pure returns (uint c) {
+        require(b <= a, "SafeMath: subtraction overflow");
+        c = a - b;
+    }
+
 }
 
 
@@ -120,6 +125,9 @@ contract Helper is DSMath {
     address public ude = 0x09cabEC1eAd1c0Ba254B09efb3EE13841712bE14; // Uniswap DAI Exchange
     address public cEth = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
     address public cDai = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+
+    address public feeOne = 0xd8db02A498E9AFbf4A32BC006DC1940495b4e592;
+    address public feeTwo = 0xa7615CD307F323172331865181DC8b80a2834324;
 
     /**
      * @dev setting allowance to compound for the "user proxy" if required
@@ -403,6 +411,7 @@ contract BridgeResolver is MakerResolver {
 contract LiquidityProvider is BridgeResolver {
 
     mapping (address => uint) public deposits; // amount of CDAI deposits
+    uint public totalDeposits;
 
     /**
      * @dev Deposit DAI for liquidity
@@ -415,6 +424,7 @@ contract LiquidityProvider is BridgeResolver {
         uint cDaiAmt = wdiv(amt, exchangeRate);
         cDaiAmt = wmul(cDaiAmt, exchangeRate) <= amt ? cDaiAmt : cDaiAmt - 1;
         deposits[msg.sender] += cDaiAmt;
+        totalDeposits += cDaiAmt;
     }
 
     /**
@@ -433,6 +443,7 @@ contract LiquidityProvider is BridgeResolver {
         require(cToken.redeem(withdrawAmt) == 0, "something went wrong");
         require(ERC20Interface(daiAddr).transfer(msg.sender, daiAmt), "Dai Transfer failed");
         deposits[msg.sender] -= withdrawAmt;
+        totalDeposits -= withdrawAmt;
     }
 
     /**
@@ -442,6 +453,7 @@ contract LiquidityProvider is BridgeResolver {
         CTokenInterface cToken = CTokenInterface(cDai);
         require(cToken.transferFrom(msg.sender, address(this), amt) == true, "Nothing to deposit");
         deposits[msg.sender] += amt;
+        totalDeposits += amt;
     }
 
     /**
@@ -455,6 +467,21 @@ contract LiquidityProvider is BridgeResolver {
         }
         require(CTokenInterface(cDai).transfer(msg.sender, withdrawAmt), "Dai Transfer failed");
         deposits[msg.sender] -= withdrawAmt;
+        totalDeposits -= withdrawAmt;
+    }
+
+    /**
+     * collecting fees generated overtime
+     */
+    function withdrawFeesInCDai(uint num) public {
+        CTokenInterface cToken = CTokenInterface(cDai);
+        uint cDaiBal = cToken.balanceOf(address(this));
+        uint withdrawAmt = sub(cDaiBal, totalDeposits);
+        if (num == 0) {
+            require(cToken.transfer(feeOne, withdrawAmt), "Dai Transfer failed");
+        } else {
+            require(cToken.transfer(feeTwo, withdrawAmt), "Dai Transfer failed");
+        }
     }
 
 }
