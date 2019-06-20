@@ -46,28 +46,35 @@ contract Helper {
     }
 
     /**
-     * @dev get Compound Comptroller Address
+     * @dev get DAI Token Addrewss
      */
     function getDAIAddress() public pure returns (address dai) {
         dai = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
     }
 
     /**
-     * @dev get Compound Comptroller Address
+     * @dev get Compound CETH Address
+     */
+    function getCETHAddress() public pure returns (address cDai) {
+        cDai = 0x0000000000000000000000000000000000000000; // CHANGE <BRIDGE ADDRESS>
+    }
+
+    /**
+     * @dev get Compound CDAI Address
      */
     function getCDAIAddress() public pure returns (address cDai) {
         cDai = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
     }
 
     /**
-     * @dev get Compound Comptroller Address
+     * @dev get MakerDAO<>Compound Bridge Contract
      */
     function getBridgeAddress() public pure returns (address bridge) {
-        bridge = ;// <BRIDGE ADDRESS>
+        bridge = 0x0000000000000000000000000000000000000000; // CHANGE <BRIDGE ADDRESS>
     }
 
     /**
-     * @dev setting allowance to compound for the "user proxy" if required
+     * @dev setting allowance if required
      */
     function setApproval(address erc20, uint srcAmt, address to) internal {
         ERC20Interface erc20Contract = ERC20Interface(erc20);
@@ -115,7 +122,7 @@ contract Helper {
 }
 
 
-contract Bridge is CompoundHelper {
+contract Bridge is Helper {
 
     /**
      * @dev MakerDAO to Compound
@@ -126,7 +133,7 @@ contract Bridge is CompoundHelper {
         uint daiAmt = bridge.makerToCompound(cdpId, ethCol, daiDebt);
         if (daiDebt > 0) {
             borrowDAI(daiAmt);
-            setApproval(getDaiAddress(), daiAmt, getBridgeAddress());
+            setApproval(getDAIAddress(), daiAmt, getBridgeAddress());
             bridge.refillFunds(daiAmt);
         }
     }
@@ -139,7 +146,7 @@ contract Bridge is CompoundHelper {
             give(cdpId, getBridgeAddress());
         }
         if (ethCol > 0) {
-            setApproval(getCEthAddress(), 2**150, getBridgeAddress());
+            setApproval(getCETHAddress(), 2**150, getBridgeAddress());
         }
         BridgeInterface(getBridgeAddress()).compoundToMaker(cdpId, ethCol, daiDebt);
     }

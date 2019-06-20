@@ -493,19 +493,15 @@ contract Bridge is LiquidityProvider {
 }
 
 
-contract MakerCompBridge is Bridge {
-
-    uint public version;
+contract MakerCompoundBridge is Bridge {
 
     /**
-     * @dev setting up variables on deployment
-     * 1...2...3 versioning in each subsequent deployments
+     * @dev setting up all required token approvals
      */
-    constructor(uint _version) public {
+    constructor() public {
         setApproval(daiAddr, 10**30, cDai);
         setApproval(cDai, 10**30, cDai);
         setApproval(cEth, 10**30, cEth);
-        version = _version;
     }
 
     function() external payable {}
