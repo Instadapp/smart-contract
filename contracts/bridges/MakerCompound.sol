@@ -151,11 +151,6 @@ contract Helper is DSMath {
 
 contract CompoundResolver is Helper {
 
-    event LogMint(address erc20, address cErc20, uint tokenAmt, address owner);
-    event LogRedeem(address erc20, address cErc20, uint tokenAmt, address owner);
-    event LogBorrow(address erc20, address cErc20, uint tokenAmt, address owner);
-    event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
-
     /**
      * @dev Redeem ETH/ERC20 and mint Compound Tokens
      * @param tokenAmt Amount of token To Redeem
@@ -177,12 +172,6 @@ contract CompoundResolver is Helper {
             uint cEthToReturn = wdiv(ethAmt, exchangeRate);
             cEthToReturn = wmul(cEthToReturn, exchangeRate) <= ethAmt ? cEthToReturn : cEthToReturn - 1;
             require(cToken.transfer(msg.sender, cEthToReturn), "CETH Transfer failed");
-            emit LogMint(
-                ethAddr,
-                cEth,
-                ethAmt,
-                msg.sender
-            );
         }
     }
 
@@ -220,13 +209,7 @@ contract CompoundResolver is Helper {
 contract MakerResolver is CompoundResolver {
 
     event LogOpen(uint cdpNum, address owner);
-    event LogGive(uint cdpNum, address owner, address nextOwner);
-    event LogLock(uint cdpNum, uint amtETH, uint amtPETH, address owner);
-    event LogFree(uint cdpNum, uint amtETH, uint amtPETH, address owner);
-    event LogDraw(uint cdpNum, uint amtDAI, address owner);
-    event LogDrawSend(uint cdpNum, uint amtDAI, address to);
     event LogWipe(uint cdpNum, uint daiAmt, uint mkrFee, uint daiFee, address owner);
-    event LogShut(uint cdpNum);
 
     function open() internal returns (uint) {
         bytes32 cup = TubInterface(sai).open();
@@ -309,13 +292,6 @@ contract MakerResolver is CompoundResolver {
             tub.exit(ink);
             uint freeJam = weth.balanceOf(address(this)); // withdraw possible previous stuck WETH as well
             weth.withdraw(freeJam);
-
-            emit LogFree(
-                cdpNum,
-                freeJam,
-                ink,
-                address(this)
-            );
         }
     }
 
@@ -341,13 +317,6 @@ contract MakerResolver is CompoundResolver {
 
             setAllowance(peth, tubAddr);
             tub.lock(cup, ink);
-
-            emit LogLock(
-                cdpNum,
-                ethAmt,
-                ink,
-                address(this)
-            );
         }
     }
 
@@ -357,8 +326,6 @@ contract MakerResolver is CompoundResolver {
             TubInterface tub = TubInterface(sai);
 
             tub.draw(cup, _wad);
-
-            emit LogDraw(cdpNum, _wad, address(this));
         }
     }
 
@@ -384,6 +351,9 @@ contract MakerResolver is CompoundResolver {
 
 
 contract BridgeResolver is MakerResolver {
+
+    event LogMakerToCompound(uint cdpNum, uint ethAmt, uint daiAmt, uint fees, address owner);
+    event LogCompoundToMaker(uint cdpNum, uint ethAmt, uint daiAmt, uint fees, address owner);
 
     /**
      * @dev initiated from user wallet to reimburse temporary DAI debt
@@ -508,9 +478,17 @@ contract Bridge is LiquidityProvider {
         uint ethAmt;
         (ethAmt, daiAmt) = checkCDP(bytes32(cdpId), ethCol, daiDebt);
         daiAmt = wipeAndFree(cdpId, ethAmt, daiAmt);
+        uint fees = wmul(daiAmt, 2000000000000000);
         daiAmt = wmul(daiAmt, 1002000000000000000); // 0.2% fees
         mintCETH(ethAmt);
         give(cdpId, msg.sender);
+        emit LogMakerToCompound(
+            cdpId,
+            ethAmt,
+            daiAmt,
+            fees,
+            msg.sender
+        );
     }
 
     /**
@@ -522,12 +500,20 @@ contract Bridge is LiquidityProvider {
         fetchCETH(ethAmt);
         redeemUnderlying(cEth, ethAmt);
         uint cdpNum = cdpId > 0 ? cdpId : open();
+        uint fees = wmul(daiAmt, 2000000000000000);
         daiAmt = wmul(daiAmt, 1002000000000000000); // 0.2% fees
         lockAndDraw(cdpNum, ethAmt, daiAmt);
         if (daiAmt > 0) {
             assert(CDAIInterface(cDai).mint(daiAmt) == 0);
         }
         give(cdpNum, msg.sender);
+        emit LogCompoundToMaker(
+            cdpNum,
+            ethAmt,
+            daiAmt,
+            fees,
+            msg.sender
+        );
     }
 
 }
