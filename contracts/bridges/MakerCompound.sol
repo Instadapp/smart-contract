@@ -441,16 +441,52 @@ contract LiquidityProvider is BridgeResolver {
     }
 
     /**
-     * collecting fees generated overtime
+     * collecting unmapped CDAI
      */
-    function withdrawFeesInCDai(uint num) public {
+    function collectCDAI(uint num) public {
         CTokenInterface cToken = CTokenInterface(cDai);
         uint cDaiBal = cToken.balanceOf(address(this));
         uint withdrawAmt = sub(cDaiBal, totalDeposits);
         if (num == 0) {
-            require(cToken.transfer(feeOne, withdrawAmt), "Dai Transfer failed");
+            require(cToken.transfer(feeOne, withdrawAmt), "CDai Transfer failed");
         } else {
-            require(cToken.transfer(feeTwo, withdrawAmt), "Dai Transfer failed");
+            require(cToken.transfer(feeTwo, withdrawAmt), "CDai Transfer failed");
+        }
+    }
+
+    /**
+     * (HIGHLY UNLIKELY TO HAPPEN)
+     * collecting Tokens/ETH other than CDAI
+     */
+    function collectTokens(uint num, address token) public {
+        require(token != cDai, "Token address == CDAI address");
+        if (token == ethAddr) {
+            if (num == 0) {
+                msg.sender.transfer(address(this).balance);
+            } else {
+                msg.sender.transfer(address(this).balance);
+            }
+        } else {
+            ERC20Interface tokenContract = ERC20Interface(token);
+            uint tokenBal = tokenContract.balanceOf(address(this));
+            uint withdrawAmt = sub(tokenBal, totalDeposits);
+            if (num == 0) {
+                require(tokenContract.transfer(feeOne, withdrawAmt), "Transfer failed");
+            } else {
+                require(tokenContract.transfer(feeTwo, withdrawAmt), "Transfer failed");
+            }
+        }
+    }
+
+    /**
+     * (HIGHLY UNLIKELY TO HAPPEN)
+     * Transfer CDP ownership (Just in case this contract has ownership of any CDP)
+     */
+    function transferUnmappedCDP(uint cdpNum, uint num) public {
+        if (num == 0) {
+            give(cdpNum, feeOne);
+        } else {
+            give(cdpNum, feeTwo);
         }
     }
 
@@ -478,8 +514,8 @@ contract Bridge is LiquidityProvider {
         uint ethAmt;
         (ethAmt, daiAmt) = checkCDP(bytes32(cdpId), ethCol, daiDebt);
         daiAmt = wipeAndFree(cdpId, ethAmt, daiAmt);
-        uint fees = wmul(daiAmt, 2000000000000000);
-        daiAmt = wmul(daiAmt, 1002000000000000000); // 0.2% fees
+        uint fees = wmul(daiAmt, 2000000000000000); // 0.2% fees
+        daiAmt = wmul(daiAmt, 1002000000000000000);
         mintCETH(ethAmt);
         give(cdpId, msg.sender);
         emit LogMakerToCompound(
@@ -500,8 +536,8 @@ contract Bridge is LiquidityProvider {
         fetchCETH(ethAmt);
         redeemUnderlying(cEth, ethAmt);
         uint cdpNum = cdpId > 0 ? cdpId : open();
-        uint fees = wmul(daiAmt, 2000000000000000);
-        daiAmt = wmul(daiAmt, 1002000000000000000); // 0.2% fees
+        uint fees = wmul(daiAmt, 2000000000000000); // 0.2% fees
+        daiAmt = wmul(daiAmt, 1002000000000000000);
         lockAndDraw(cdpNum, ethAmt, daiAmt);
         if (daiAmt > 0) {
             assert(CDAIInterface(cDai).mint(daiAmt) == 0);
