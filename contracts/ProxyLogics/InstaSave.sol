@@ -402,7 +402,7 @@ contract GetDetails is MakerHelpers {
         } else {
             destAdd = getAddressWETH();
         }
-        uint eth2DaiPrice = Eth2DaiInterface(getAddressEth2Dai()).getBuyAmount(srcAdd, destAdd, srcAmt);
+        uint eth2DaiPrice = Eth2DaiInterface(getAddressEth2Dai()).getBuyAmount(destAdd, srcAdd, srcAmt);
         if (eth2DaiPrice > kyberPrice) {
             bestRate = eth2DaiPrice;
             isBest = 0;
