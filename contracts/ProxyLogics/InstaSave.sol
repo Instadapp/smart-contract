@@ -602,16 +602,10 @@ contract Save is SaveResolver {
         uint thisBalance = address(this).balance;
         free(cdpID, colToFree);
         uint destAmt = saveSwap(colToFree, daiDebt);
-        // uint destAmt = KyberInterface(getAddressKyber()).trade.value(colToFree)(
-        //     getAddressETH(),
-        //     colToFree,
-        //     getAddressDAI(),
-        //     address(this),
-        //     daiDebt,
-        //     0,
-        //     getAddressAdmin()
-        // );
-        wipe(cdpID, destAmt);
+        uint cut = wmul(destAmt, 2000000000000000);
+        TokenInterface(getAddressDAI()).transfer(getAddressAdmin(), cut);
+        uint wipeAmt = sub(destAmt, cut);
+        wipe(cdpID, wipeAmt);
 
         if (thisBalance < address(this).balance) {
             uint balToLock = sub(address(this).balance, thisBalance);
@@ -641,7 +635,10 @@ contract Save is SaveResolver {
             debtToBorrow = daiToSwap;
         }
         draw(cdpID, debtToBorrow);
-        uint destAmt = loopSwap(debtToBorrow);
+        uint cut = wmul(debtToBorrow, 2000000000000000);
+        uint swapAmt = sub(debtToBorrow, cut);
+        TokenInterface(getAddressDAI()).transfer(getAddressAdmin(), cut);
+        uint destAmt = loopSwap(swapAmt);
         lock(cdpID, destAmt);
 
         emit LogLeverageCDP(cdpID, debtToBorrow, destAmt);
