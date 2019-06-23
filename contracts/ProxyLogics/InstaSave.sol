@@ -433,10 +433,9 @@ contract GetDetails is MakerHelpers {
             colToFree = ethToSwap;
         }
         (uint expectedRate,) = getBest(getAddressETH(), getAddressDAI(), colToFree);
-        uint expectedDAI = wmul(colToFree, expectedRate);
-        if (expectedDAI < daiDebt) {
+        if (expectedRate < daiDebt) {
             finalEthCol = sub(ethCol, colToFree);
-            finalDaiDebt = sub(daiDebt, expectedDAI);
+            finalDaiDebt = sub(daiDebt, expectedRate);
             finalColToUSD = wmul(finalEthCol, usdPerEth);
             canSave = true;
         } else {
@@ -467,9 +466,8 @@ contract GetDetails is MakerHelpers {
             debtToBorrow = daiToSwap;
         }
         (uint expectedRate,) = getBest(getAddressDAI(), getAddressETH(), debtToBorrow);
-        uint expectedETH = wmul(debtToBorrow, expectedRate);
         if (ethCol != 0) {
-            finalEthCol = add(ethCol, expectedETH);
+            finalEthCol = add(ethCol, expectedRate);
             finalDaiDebt = add(daiDebt, debtToBorrow);
             finalColToUSD = wmul(finalEthCol, usdPerEth);
             canLeverage = true;
