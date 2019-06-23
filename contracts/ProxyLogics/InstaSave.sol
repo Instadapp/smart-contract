@@ -185,6 +185,13 @@ contract Helpers is DSMath {
     }
 
     /**
+     * @dev get kyber proxy address
+     */
+    function getAddressEth2Dai() public pure returns (address eth2Dai) {
+        eth2Dai = 0x39755357759cE0d7f32dC8dC45414CCa409AE24e;
+    }
+
+    /**
      * @dev get admin address
      */
     function getAddressAdmin() public pure returns (address payable admin) {
@@ -362,6 +369,28 @@ contract GetDetails is MakerHelpers {
         );
     }
 
+    /**
+     * @param isBest 0 is ETH2DAI, 1 is Kyber
+     */
+    function getBest(address src, address dest, uint srcAmt) public view returns(uint bestRate, uint isBest) {
+        address srcAdd = src;
+        address destAdd = dest;
+        (uint kyberPrice,) = KyberInterface(getAddressKyber()).getExpectedRate(srcAdd, destAdd, srcAmt);
+        if (srcAdd == getAddressETH()) {
+            srcAdd = getAddressWETH();
+        } else {
+            destAdd = getAddressWETH();
+        }
+        uint eth2DaiPrice = Eth2DaiInterface(getAddressEth2Dai()).getBuyAmount(srcAdd, destAdd, srcAmt);
+        if (eth2DaiPrice > kyberPrice) {
+            bestRate = eth2DaiPrice;
+            isBest = 0;
+        } else {
+            bestRate = kyberPrice;
+            isBest = 1;
+        }
+    }
+
     function getLeverage(
         uint cdpID,
         uint daiToSwap
@@ -401,7 +430,7 @@ contract GetDetails is MakerHelpers {
         if (ethToSwap < colToFree) {
             colToFree = ethToSwap;
         }
-        (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressETH(), getAddressDAI(), colToFree);
+        (uint expectedRate,) = getBest(getAddressETH(), getAddressDAI(), colToFree);
         uint expectedDAI = wmul(colToFree, expectedRate);
         if (expectedDAI < daiDebt) {
             finalEthCol = sub(ethCol, colToFree);
@@ -435,7 +464,7 @@ contract GetDetails is MakerHelpers {
         if (daiToSwap < debtToBorrow) {
             debtToBorrow = daiToSwap;
         }
-        (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressDAI(), getAddressETH(), debtToBorrow);
+        (uint expectedRate,) = getBest(getAddressDAI(), getAddressETH(), debtToBorrow);
         uint expectedETH = wmul(debtToBorrow, expectedRate);
         if (ethCol != 0) {
             finalEthCol = add(ethCol, expectedETH);
@@ -449,6 +478,11 @@ contract GetDetails is MakerHelpers {
             canLeverage = false;
         }
     }
+
+}
+
+
+contract SaveResolver is GetDetails {
 
 }
 
