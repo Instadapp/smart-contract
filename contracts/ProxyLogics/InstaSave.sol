@@ -484,6 +484,29 @@ contract GetDetails is MakerHelpers {
 
 contract SaveResolver is GetDetails {
 
+    function saveSwap(uint srcAmt, uint daiDebt) internal returns (uint destAmt) {
+        (,uint isBest) = getBest(getAddressETH(), getAddressDAI(), srcAmt);
+        if (isBest == 0) {
+            TokenInterface(getAddressWETH()).deposit.value(srcAmt)();
+            destAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
+                getAddressWETH(),
+                srcAmt,
+                getAddressDAI(),
+                0
+            );
+        } else {
+            destAmt = KyberInterface(getAddressKyber()).trade.value(srcAmt)(
+                getAddressETH(),
+                srcAmt,
+                getAddressDAI(),
+                address(this),
+                daiDebt,
+                0,
+                getAddressAdmin()
+            );
+        }
+    }
+
 }
 
 
@@ -526,15 +549,16 @@ contract Save is SaveResolver {
         }
         uint thisBalance = address(this).balance;
         free(cdpID, colToFree);
-        uint destAmt = KyberInterface(getAddressKyber()).trade.value(colToFree)(
-            getAddressETH(),
-            colToFree,
-            getAddressDAI(),
-            address(this),
-            daiDebt,
-            0,
-            getAddressAdmin()
-        );
+        uint destAmt = saveSwap(colToFree, daiDebt);
+        // uint destAmt = KyberInterface(getAddressKyber()).trade.value(colToFree)(
+        //     getAddressETH(),
+        //     colToFree,
+        //     getAddressDAI(),
+        //     address(this),
+        //     daiDebt,
+        //     0,
+        //     getAddressAdmin()
+        // );
         wipe(cdpID, destAmt);
 
         if (thisBalance < address(this).balance) {
