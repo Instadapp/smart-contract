@@ -397,6 +397,7 @@ contract GetDetails is MakerHelpers {
         address srcAdd = src;
         address destAdd = dest;
         (uint kyberPrice,) = KyberInterface(getAddressKyber()).getExpectedRate(srcAdd, destAdd, srcAmt);
+        kyberPrice = wmul(srcAmt, kyberPrice);
         if (srcAdd == getAddressETH()) {
             srcAdd = getAddressWETH();
         } else {
