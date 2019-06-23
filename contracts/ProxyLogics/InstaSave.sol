@@ -267,6 +267,7 @@ contract MakerHelpers is Helpers {
             ink = rmul(ink, tub.per()) <= jam ? ink : ink - 1;
             tub.free(cup, ink);
 
+            setAllowance(weth, tubAddr);
             setAllowance(peth, tubAddr);
 
             tub.exit(ink);
@@ -484,6 +485,17 @@ contract GetDetails is MakerHelpers {
 
 contract SaveResolver is GetDetails {
 
+    /**
+     * @param what 0 for ETH2DAI & 1 for Kyber
+     */
+    event LogSwap(
+        uint what,
+        address src,
+        uint srcAmt,
+        address dest,
+        uint destAmt
+    );
+
     function saveSwap(uint srcAmt, uint daiDebt) internal returns (uint destAmt) {
         (,uint isBest) = getBest(getAddressETH(), getAddressDAI(), srcAmt);
         if (isBest == 0) {
@@ -505,6 +517,46 @@ contract SaveResolver is GetDetails {
                 getAddressAdmin()
             );
         }
+        emit LogSwap(
+            isBest,
+            getAddressETH(),
+            srcAmt,
+            getAddressDAI(),
+            destAmt
+        );
+    }
+
+    function loopSwap(uint srcAmt) internal returns (uint destAmt) {
+        (,uint isBest) = getBest(getAddressETH(), getAddressDAI(), srcAmt);
+        if (isBest == 0) {
+            destAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
+                getAddressDAI(),
+                srcAmt,
+                getAddressWETH(),
+                0
+            );
+            TokenInterface weth = TokenInterface(getAddressWETH());
+            setAllowance(weth, getSaiTubAddress());
+            weth.withdraw(destAmt);
+        } else {
+            setAllowance(TokenInterface(getAddressDAI()), getAddressKyber());
+            destAmt = KyberInterface(getAddressKyber()).trade.value(srcAmt)(
+                getAddressDAI(),
+                srcAmt,
+                getAddressETH(),
+                address(this),
+                2**255,
+                0,
+                getAddressAdmin()
+            );
+        }
+        emit LogSwap(
+            isBest,
+            getAddressDAI(),
+            srcAmt,
+            getAddressETH(),
+            destAmt
+        );
     }
 
 }
@@ -589,16 +641,7 @@ contract Save is SaveResolver {
             debtToBorrow = daiToSwap;
         }
         draw(cdpID, debtToBorrow);
-        setAllowance(TokenInterface(getAddressDAI()), getAddressKyber());
-        uint destAmt = KyberInterface(getAddressKyber()).trade.value(0)(
-            getAddressDAI(),
-            debtToBorrow,
-            getAddressETH(),
-            address(this),
-            2**255,
-            0,
-            getAddressAdmin()
-        );
+        uint destAmt = loopSwap(debtToBorrow);
         lock(cdpID, destAmt);
 
         emit LogLeverageCDP(cdpID, debtToBorrow, destAmt);
