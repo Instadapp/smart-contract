@@ -498,7 +498,9 @@ contract SaveResolver is GetDetails {
     function saveSwap(uint srcAmt, uint daiDebt) internal returns (uint destAmt) {
         (,uint isBest) = getBest(getAddressETH(), getAddressDAI(), srcAmt);
         if (isBest == 0) {
-            TokenInterface(getAddressWETH()).deposit.value(srcAmt)();
+            TokenInterface weth = TokenInterface(getAddressWETH());
+            weth.deposit.value(srcAmt)();
+            setAllowance(weth, getAddressEth2Dai());
             destAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
                 getAddressWETH(),
                 srcAmt,
@@ -528,6 +530,7 @@ contract SaveResolver is GetDetails {
     function loopSwap(uint srcAmt) internal returns (uint destAmt) {
         (,uint isBest) = getBest(getAddressETH(), getAddressDAI(), srcAmt);
         if (isBest == 0) {
+            setAllowance(TokenInterface(getAddressDAI()), getAddressEth2Dai());
             destAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
                 getAddressDAI(),
                 srcAmt,
