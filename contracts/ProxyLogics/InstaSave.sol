@@ -72,6 +72,23 @@ interface KyberInterface {
         ) external view returns (uint, uint);
 }
 
+interface Eth2DaiInterface {
+    function getBuyAmount(address dest, address src, uint srcAmt) external view returns(uint);
+	function getPayAmount(address src, address dest, uint destAmt) external view returns (uint);
+	function sellAllAmount(
+        address src,
+        uint srcAmt,
+        address dest,
+        uint minDest
+    ) external returns (uint destAmt);
+	function buyAllAmount(
+        address dest,
+        uint destAmt,
+        address src,
+        uint maxSrc
+    ) external returns (uint srcAmt);
+}
+
 
 contract DSMath {
 
@@ -144,6 +161,13 @@ contract Helpers is DSMath {
      */
     function getAddressETH() public pure returns (address eth) {
         eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    }
+
+    /**
+     * @dev get ethereum address for trade
+     */
+    function getAddressWETH() public pure returns (address weth) {
+        weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     }
 
     /**
@@ -429,7 +453,7 @@ contract GetDetails is MakerHelpers {
 }
 
 
-contract Save is GetDetails {
+contract Save is SaveResolver {
 
     /**
      * @param what 2 for SAVE & 3 for LEVERAGE
