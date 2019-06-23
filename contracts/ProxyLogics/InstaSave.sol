@@ -370,6 +370,26 @@ contract GetDetails is MakerHelpers {
         );
     }
 
+    function getLeverage(
+        uint cdpID,
+        uint daiToSwap
+    ) public view returns (
+        uint finalEthCol,
+        uint finalDaiDebt,
+        uint finalColToUSD,
+        bool canLeverage
+    )
+    {
+        bytes32 cup = bytes32(cdpID);
+        (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
+        (finalEthCol, finalDaiDebt, finalColToUSD, canLeverage) = checkLeverage(
+            ethCol,
+            daiDebt,
+            usdPerEth,
+            daiToSwap
+        );
+    }
+
     /**
      * @param isBest 0 is ETH2DAI, 1 is Kyber
      */
@@ -390,26 +410,6 @@ contract GetDetails is MakerHelpers {
             bestRate = kyberPrice;
             isBest = 1;
         }
-    }
-
-    function getLeverage(
-        uint cdpID,
-        uint daiToSwap
-    ) public view returns (
-        uint finalEthCol,
-        uint finalDaiDebt,
-        uint finalColToUSD,
-        bool canLeverage
-    )
-    {
-        bytes32 cup = bytes32(cdpID);
-        (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
-        (finalEthCol, finalDaiDebt, finalColToUSD, canLeverage) = checkLeverage(
-            ethCol,
-            daiDebt,
-            usdPerEth,
-            daiToSwap
-        );
     }
 
     function checkSave(
