@@ -43,6 +43,7 @@ interface UniswapExchange {
         ) external returns (uint256  tokensSold);
 }
 
+
 interface TokenInterface {
     function allowance(address, address) external view returns (uint);
     function balanceOf(address) external view returns (uint);
@@ -69,23 +70,6 @@ interface KyberInterface {
         address dest,
         uint srcQty
         ) external view returns (uint, uint);
-}
-
-interface Eth2DaiInterface {
-    function getBuyAmount(address dest, address src, uint srcAmt) external view returns(uint);
-	function getPayAmount(address src, address dest, uint destAmt) external view returns (uint);
-	function sellAllAmount(
-        address src,
-        uint srcAmt,
-        address dest,
-        uint minDest
-    ) external returns (uint destAmt);
-	function buyAllAmount(
-        address dest,
-        uint destAmt,
-        address src,
-        uint maxSrc
-    ) external returns (uint srcAmt);
 }
 
 
@@ -165,13 +149,6 @@ contract Helpers is DSMath {
     /**
      * @dev get ethereum address for trade
      */
-    function getAddressWETH() public pure returns (address weth) {
-        weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    }
-
-    /**
-     * @dev get ethereum address for trade
-     */
     function getAddressDAI() public pure returns (address dai) {
         dai = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
     }
@@ -181,13 +158,6 @@ contract Helpers is DSMath {
      */
     function getAddressKyber() public pure returns (address kyber) {
         kyber = 0x818E6FECD516Ecc3849DAf6845e3EC868087B755;
-    }
-
-    /**
-     * @dev get kyber proxy address
-     */
-    function getAddressEth2Dai() public pure returns (address eth2Dai) {
-        eth2Dai = 0x39755357759cE0d7f32dC8dC45414CCa409AE24e;
     }
 
     /**
@@ -266,7 +236,6 @@ contract MakerHelpers is Helpers {
             ink = rmul(ink, tub.per()) <= jam ? ink : ink - 1;
             tub.free(cup, ink);
 
-            setAllowance(weth, tubAddr);
             setAllowance(peth, tubAddr);
 
             tub.exit(ink);
@@ -389,29 +358,6 @@ contract GetDetails is MakerHelpers {
         );
     }
 
-    /**
-     * @param isBest 0 is ETH2DAI, 1 is Kyber
-     */
-    function getBest(address src, address dest, uint srcAmt) public view returns(uint bestRate, uint isBest) {
-        address srcAdd = src;
-        address destAdd = dest;
-        (uint kyberPrice,) = KyberInterface(getAddressKyber()).getExpectedRate(srcAdd, destAdd, srcAmt);
-        kyberPrice = wmul(srcAmt, kyberPrice);
-        if (srcAdd == getAddressETH()) {
-            srcAdd = getAddressWETH();
-        } else {
-            destAdd = getAddressWETH();
-        }
-        uint eth2DaiPrice = Eth2DaiInterface(getAddressEth2Dai()).getBuyAmount(destAdd, srcAdd, srcAmt);
-        if (eth2DaiPrice > kyberPrice) {
-            bestRate = eth2DaiPrice;
-            isBest = 0;
-        } else {
-            bestRate = kyberPrice;
-            isBest = 1;
-        }
-    }
-
     function checkSave(
         uint ethCol,
         uint daiDebt,
@@ -431,10 +377,11 @@ contract GetDetails is MakerHelpers {
         if (ethToSwap < colToFree) {
             colToFree = ethToSwap;
         }
-        (uint expectedRate,) = getBest(getAddressETH(), getAddressDAI(), colToFree);
-        if (expectedRate < daiDebt) {
+        (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressETH(), getAddressDAI(), colToFree);
+        uint expectedDAI = wmul(colToFree, expectedRate);
+        if (expectedDAI < daiDebt) {
             finalEthCol = sub(ethCol, colToFree);
-            finalDaiDebt = sub(daiDebt, expectedRate);
+            finalDaiDebt = sub(daiDebt, expectedDAI);
             finalColToUSD = wmul(finalEthCol, usdPerEth);
             canSave = true;
         } else {
@@ -464,9 +411,10 @@ contract GetDetails is MakerHelpers {
         if (daiToSwap < debtToBorrow) {
             debtToBorrow = daiToSwap;
         }
-        (uint expectedRate,) = getBest(getAddressDAI(), getAddressETH(), debtToBorrow);
+        (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressDAI(), getAddressETH(), debtToBorrow);
+        uint expectedETH = wmul(debtToBorrow, expectedRate);
         if (ethCol != 0) {
-            finalEthCol = add(ethCol, expectedRate);
+            finalEthCol = add(ethCol, expectedETH);
             finalDaiDebt = add(daiDebt, debtToBorrow);
             finalColToUSD = wmul(finalEthCol, usdPerEth);
             canLeverage = true;
@@ -481,153 +429,7 @@ contract GetDetails is MakerHelpers {
 }
 
 
-contract SaveResolver is GetDetails {
-
-    /**
-     * @param what 0 for ETH2DAI & 1 for Kyber
-     */
-    event LogSwap(
-        uint what,
-        address src,
-        uint srcAmt,
-        address dest,
-        uint destAmt
-    );
-
-    function saveSwap(uint srcAmt, uint daiDebt) internal returns (uint destAmt) {
-        (,uint isBest) = getBest(getAddressETH(), getAddressDAI(), srcAmt);
-        if (isBest == 0) {
-            TokenInterface weth = TokenInterface(getAddressWETH());
-            weth.deposit.value(srcAmt)();
-            setAllowance(weth, getAddressEth2Dai());
-            destAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
-                getAddressWETH(),
-                srcAmt,
-                getAddressDAI(),
-                0
-            );
-        } else {
-            destAmt = KyberInterface(getAddressKyber()).trade.value(srcAmt)(
-                getAddressETH(),
-                srcAmt,
-                getAddressDAI(),
-                address(this),
-                daiDebt,
-                0,
-                getAddressAdmin()
-            );
-        }
-        emit LogSwap(
-            isBest,
-            getAddressETH(),
-            srcAmt,
-            getAddressDAI(),
-            destAmt
-        );
-    }
-
-    // function loopSwap(uint srcAmt) internal returns (uint destAmt) {
-    //     (,uint isBest) = getBest(getAddressETH(), getAddressDAI(), srcAmt);
-    //     if (isBest == 0) {
-    //         setAllowance(TokenInterface(getAddressDAI()), getAddressEth2Dai());
-    //         destAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
-    //             getAddressDAI(),
-    //             srcAmt,
-    //             getAddressWETH(),
-    //             0
-    //         );
-    //         destAmt = recursiveloop(srcAmt, 0);
-    //         TokenInterface weth = TokenInterface(getAddressWETH());
-    //         setAllowance(weth, getSaiTubAddress());
-    //         weth.withdraw(destAmt);
-    //     } else {
-    //         setAllowance(TokenInterface(getAddressDAI()), getAddressKyber());
-    //         destAmt = KyberInterface(getAddressKyber()).trade.value(srcAmt)(
-    //             getAddressDAI(),
-    //             srcAmt,
-    //             getAddressETH(),
-    //             address(this),
-    //             2**255,
-    //             0,
-    //             getAddressAdmin()
-    //         );
-    //     }
-    //     emit LogSwap(
-    //         isBest,
-    //         getAddressDAI(),
-    //         srcAmt,
-    //         getAddressETH(),
-    //         destAmt
-    //     );
-    // }
-
-    function loopSwap(uint srcAmt, uint finalAmt, uint splitAmt) internal returns (uint destAmt) {
-        // (,uint isBest) = getBest(getAddressETH(), getAddressDAI(), srcAmt);
-        if (srcAmt > splitAmt) {
-            uint nextSrc = srcAmt - splitAmt;
-            uint swappedAmt = splitSwap(getAddressDAI(), getAddressETH(), splitAmt);
-            // uint swappedAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
-            //     getAddressDAI(),
-            //     15000000000000000000000,
-            //     getAddressWETH(),
-            //     0
-            // );
-            uint nextFinal = finalAmt + swappedAmt;
-            destAmt = recursiveloop(nextSrc, nextFinal);
-        } else {
-            uint swappedAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
-                getAddressDAI(),
-                srcAmt,
-                getAddressWETH(),
-                0
-            );
-            destAmt = finalAmt + swappedAmt;
-        }
-    }
-
-    function recursiveloop(uint srcAmt, uint finalAmt) internal returns (uint destAmt) {
-        if (srcAmt > 15000000000000000000000) {
-            uint nextSrc = srcAmt - 15000000000000000000000;
-            uint swappedAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
-                getAddressDAI(),
-                15000000000000000000000,
-                getAddressWETH(),
-                0
-            );
-            uint nextFinal = finalAmt + swappedAmt;
-            destAmt = recursiveloop(nextSrc, nextFinal);
-        } else {
-            uint swappedAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
-                getAddressDAI(),
-                srcAmt,
-                getAddressWETH(),
-                0
-            );
-            destAmt = finalAmt + swappedAmt;
-        }
-    }
-
-    function splitSwap(address src, address dest, uint srcAmt) internal returns (uint destAmt) {
-        (,uint isBest) = getBest(getAddressETH(), getAddressDAI(), srcAmt);
-        if (isBest)
-    }
-
-    function eth2DaiSwap() internal returns (uint destAmt) {
-
-    }
-
-    function uniswapSwap() internal returns (uint destAmt) {
-        
-    }
-
-    function kyberSwap() internal returns (uint destAmt) {
-        
-    }
-
-}
-
-
-contract Save is SaveResolver {
+contract Save is GetDetails {
 
     /**
      * @param what 2 for SAVE & 3 for LEVERAGE
@@ -666,11 +468,16 @@ contract Save is SaveResolver {
         }
         uint thisBalance = address(this).balance;
         free(cdpID, colToFree);
-        uint destAmt = saveSwap(colToFree, daiDebt);
-        uint cut = wmul(destAmt, 2000000000000000);
-        TokenInterface(getAddressDAI()).transfer(getAddressAdmin(), cut);
-        uint wipeAmt = sub(destAmt, cut);
-        wipe(cdpID, wipeAmt);
+        uint destAmt = KyberInterface(getAddressKyber()).trade.value(colToFree)(
+            getAddressETH(),
+            colToFree,
+            getAddressDAI(),
+            address(this),
+            daiDebt,
+            0,
+            getAddressAdmin()
+        );
+        wipe(cdpID, destAmt);
 
         if (thisBalance < address(this).balance) {
             uint balToLock = sub(address(this).balance, thisBalance);
@@ -700,10 +507,16 @@ contract Save is SaveResolver {
             debtToBorrow = daiToSwap;
         }
         draw(cdpID, debtToBorrow);
-        uint cut = wmul(debtToBorrow, 2000000000000000);
-        uint swapAmt = sub(debtToBorrow, cut);
-        TokenInterface(getAddressDAI()).transfer(getAddressAdmin(), cut);
-        uint destAmt = loopSwap(swapAmt);
+        setAllowance(TokenInterface(getAddressDAI()), getAddressKyber());
+        uint destAmt = KyberInterface(getAddressKyber()).trade.value(0)(
+            getAddressDAI(),
+            debtToBorrow,
+            getAddressETH(),
+            address(this),
+            2**255,
+            0,
+            getAddressAdmin()
+        );
         lock(cdpID, destAmt);
 
         emit LogLeverageCDP(cdpID, debtToBorrow, destAmt);
