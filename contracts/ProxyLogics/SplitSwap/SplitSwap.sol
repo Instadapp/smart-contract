@@ -100,6 +100,7 @@ contract Helper is DSMath {
     address public admin = 0xa7615CD307F323172331865181DC8b80a2834324;
     uint public maxSplitAmtEth = 50000000000000000000;
     uint public maxSplitAmtDai = 20000000000000000000000;
+    uint public cut = 997500000000000000; // 0.25% charge
 
     function setAllowance(TokenInterface _token, address _spender) internal {
         if (_token.allowance(address(this), _spender) != uint(-1)) {
@@ -140,9 +141,13 @@ contract AdminStuffs is Helper {
 contract SplitHelper is Helper {
 
     function getBest(address src, address dest, uint srcAmt) public view returns (uint bestExchange, uint destAmt) {
-        uint eth2DaiPrice = getRateEth2Dai(src, dest, srcAmt);
-        uint kyberPrice = getRateKyber(src, dest, srcAmt);
-        uint uniswapPrice = getRateUniswap(src, dest, srcAmt);
+        uint finalSrcAmt = srcAmt;
+        if (src == daiAddr) {
+            finalSrcAmt = wmul(srcAmt, cut);
+        }
+        uint eth2DaiPrice = getRateEth2Dai(src, dest, finalSrcAmt);
+        uint kyberPrice = getRateKyber(src, dest, finalSrcAmt);
+        uint uniswapPrice = getRateUniswap(src, dest, finalSrcAmt);
         if (eth2DaiPrice > kyberPrice && eth2DaiPrice > uniswapPrice) {
             destAmt = eth2DaiPrice;
             bestExchange = 0;
@@ -152,6 +157,9 @@ contract SplitHelper is Helper {
         } else {
             destAmt = uniswapPrice;
             bestExchange = 2;
+        }
+        if (dest == daiAddr) {
+            destAmt = wmul(destAmt, cut);
         }
         require(destAmt != 0, "Dest Amt = 0");
     }
@@ -283,6 +291,7 @@ contract SplitSwap is SplitResolver {
     function ethToDaiSwap(uint splitAmt, uint slippageAmt) public payable returns (uint destAmt) { // srcAmt = msg.value
         require(maxSplitAmtEth >= splitAmt, "split amt > max");
         destAmt = ethToDaiLoop(msg.value, splitAmt, 0);
+        destAmt = wmul(destAmt, cut);
         require(destAmt > slippageAmt, "Dest Amt < slippage");
         require(TokenInterface(daiAddr).transfer(msg.sender, destAmt), "Not enough DAI to transfer");
     }
@@ -290,7 +299,8 @@ contract SplitSwap is SplitResolver {
     function daiToEthSwap(uint srcAmt, uint splitAmt, uint slippageAmt) public payable returns (uint destAmt) {
         require(maxSplitAmtDai >= splitAmt, "split amt > max");
         require(TokenInterface(daiAddr).transferFrom(msg.sender, address(this), srcAmt), "Token Approved?");
-        destAmt = daiToEthLoop(srcAmt, splitAmt, 0);
+        uint finalSrcAmt = wmul(srcAmt, cut);
+        destAmt = daiToEthLoop(finalSrcAmt, splitAmt, 0);
         require(destAmt > slippageAmt, "Dest Amt < slippage");
         msg.sender.transfer(destAmt);
     }
