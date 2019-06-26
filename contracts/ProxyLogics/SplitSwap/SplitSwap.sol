@@ -173,7 +173,7 @@ contract SplitHelper is AdminStuffs {
         require(destAmt != 0, "Dest Amt = 0");
     }
 
-    function getRateEth2Dai(address src, address dest, uint srcAmt) public view returns (uint destAmt) {
+    function getRateEth2Dai(address src, address dest, uint srcAmt) internal view returns (uint destAmt) {
         if (src == ethAddr) {
             destAmt = Eth2DaiInterface(eth2daiAddr).getBuyAmount(dest, wethAddr, srcAmt);
         } else if (dest == ethAddr) {
@@ -181,12 +181,12 @@ contract SplitHelper is AdminStuffs {
         }
     }
 
-    function getRateKyber(address src, address dest, uint srcAmt) public view returns (uint destAmt) {
+    function getRateKyber(address src, address dest, uint srcAmt) internal view returns (uint destAmt) {
         (uint kyberPrice,) = KyberInterface(kyberAddr).getExpectedRate(src, dest, srcAmt);
         destAmt = wmul(srcAmt, kyberPrice);
     }
 
-    function getRateUniswap(address src, address dest, uint srcAmt) public view returns (uint destAmt) {
+    function getRateUniswap(address src, address dest, uint srcAmt) internal view returns (uint destAmt) {
         if (src == ethAddr) {
             destAmt = UniswapExchange(uniswapAddr).getEthToTokenInputPrice(srcAmt);
         } else if (dest == ethAddr) {
