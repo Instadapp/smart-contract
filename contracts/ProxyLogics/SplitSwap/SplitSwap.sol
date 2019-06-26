@@ -199,6 +199,9 @@ contract SplitHelper is AdminStuffs {
 
 contract SplitResolver is SplitHelper {
 
+    event LogEthToDai(uint srcAmt, uint destAmt);
+    event LogDaiToEth(uint srcAmt, uint destAmt);
+
     function ethToDaiLoop(uint srcAmt, uint splitAmt, uint finalAmt) internal returns (uint destAmt) {
         if (srcAmt > splitAmt) {
             uint amtToSwap = splitAmt;
@@ -214,15 +217,8 @@ contract SplitResolver is SplitHelper {
             }
             destAmt = ethToDaiLoop(nextSrcAmt, splitAmt, ethBought);
         } else if (srcAmt > 0) {
-            (uint bestExchange,) = getBest(ethAddr, daiAddr, srcAmt);
             destAmt = finalAmt;
-            if (bestExchange == 0) {
-                destAmt += swapEth2Dai(wethAddr, daiAddr, srcAmt);
-            } else if (bestExchange == 1) {
-                destAmt += swapKyber(ethAddr, daiAddr, srcAmt);
-            } else {
-                destAmt += swapUniswap(ethAddr, daiAddr, srcAmt);
-            }
+            destAmt += swapKyber(ethAddr, daiAddr, srcAmt);
         } else {
             destAmt = finalAmt;
         }
@@ -243,22 +239,19 @@ contract SplitResolver is SplitHelper {
             }
             destAmt = daiToEthLoop(nextSrcAmt, splitAmt, ethBought);
         } else if (srcAmt > 0) {
-            (uint bestExchange,) = getBest(daiAddr, ethAddr, srcAmt);
             destAmt = finalAmt;
-            if (bestExchange == 0) {
-                destAmt += swapEth2Dai(daiAddr, wethAddr, srcAmt);
-            } else if (bestExchange == 1) {
-                destAmt += swapKyber(daiAddr, ethAddr, srcAmt);
-            } else {
-                destAmt += swapUniswap(daiAddr, ethAddr, srcAmt);
-            }
+            destAmt += swapKyber(daiAddr, ethAddr, srcAmt);
             TokenInterface wethContract = TokenInterface(wethAddr);
             uint balanceWeth = wethContract.balanceOf(address(this));
-            wethContract.withdraw(balanceWeth);
+            if (balanceWeth > 0) {
+                wethContract.withdraw(balanceWeth);
+            }
         } else {
             TokenInterface wethContract = TokenInterface(wethAddr);
             uint balanceWeth = wethContract.balanceOf(address(this));
-            wethContract.withdraw(balanceWeth);
+            if (balanceWeth > 0) {
+                wethContract.withdraw(balanceWeth);
+            }
             destAmt = finalAmt;
         }
     }
@@ -306,15 +299,17 @@ contract SplitSwap is SplitResolver {
         destAmt = wmul(destAmt, cut);
         require(destAmt > slippageAmt, "Dest Amt < slippage");
         require(TokenInterface(daiAddr).transfer(msg.sender, destAmt), "Not enough DAI to transfer");
+        emit LogEthToDai(msg.value, destAmt);
     }
 
-    function daiToEthSwap(uint srcAmt, uint splitAmt, uint slippageAmt) public payable returns (uint destAmt) {
+    function daiToEthSwap(uint srcAmt, uint splitAmt, uint slippageAmt) public returns (uint destAmt) {
         require(maxSplitAmtDai >= splitAmt, "split amt > max");
         require(TokenInterface(daiAddr).transferFrom(msg.sender, address(this), srcAmt), "Token Approved?");
         uint finalSrcAmt = wmul(srcAmt, cut);
         destAmt = daiToEthLoop(finalSrcAmt, splitAmt, 0);
         require(destAmt > slippageAmt, "Dest Amt < slippage");
         msg.sender.transfer(destAmt);
+        emit LogDaiToEth(finalSrcAmt, destAmt);
     }
 
 }
