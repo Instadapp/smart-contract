@@ -147,7 +147,7 @@ contract AdminStuffs is Helper {
 }
 
 
-contract SplitHelper is Helper {
+contract SplitHelper is AdminStuffs {
 
     function getBest(address src, address dest, uint srcAmt) public view returns (uint bestExchange, uint destAmt) {
         uint finalSrcAmt = srcAmt;
@@ -252,6 +252,9 @@ contract SplitResolver is SplitHelper {
             } else {
                 destAmt += swapUniswap(daiAddr, ethAddr, srcAmt);
             }
+            TokenInterface wethContract = TokenInterface(wethAddr);
+            uint balanceWeth = wethContract.balanceOf(address(this));
+            wethContract.withdraw(balanceWeth);
         } else {
             TokenInterface wethContract = TokenInterface(wethAddr);
             uint balanceWeth = wethContract.balanceOf(address(this));
@@ -280,7 +283,7 @@ contract SplitResolver is SplitHelper {
                 address(this),
                 2**255,
                 0,
-                admin
+                adminOne
             );
     }
 
