@@ -269,7 +269,8 @@ contract SplitResolver is SplitHelper {
     }
 
     function swapKyber(address src, address dest, uint srcAmt) internal returns (uint destAmt) {
-        destAmt = KyberInterface(kyberAddr).trade.value(srcAmt)(
+        uint ethAmt = src == ethAddr ? srcAmt : 0;
+        destAmt = KyberInterface(kyberAddr).trade.value(ethAmt)(
                 src,
                 srcAmt,
                 dest,

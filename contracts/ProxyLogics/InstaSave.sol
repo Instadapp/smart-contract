@@ -170,7 +170,8 @@ contract Helpers is DSMath {
      * @dev get admin address
      */
     function getAddressSplitSwap() public pure returns (address payable splitSwap) {
-        splitSwap = 0x1E3A60112f600cb623087bd2C98c7842085a8c3F;
+        splitSwap = // ADDRESS SPLIT SWAP;
+        // splitSwap = 0x1E3A60112f600cb623087bd2C98c7842085a8c3F;
     }
 
     /**
@@ -390,7 +391,6 @@ contract GetDetails is MakerHelpers {
         if (ethToSwap < colToFree) {
             colToFree = ethToSwap;
         }
-        // (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressETH(), getAddressDAI(), colToFree);
         (, uint expectedDAI) = SplitSwapInterface(getAddressSplitSwap()).getBest(getAddressETH(), getAddressDAI(), colToFree);
         if (expectedDAI < daiDebt) {
             finalEthCol = sub(ethCol, colToFree);
@@ -484,15 +484,9 @@ contract Save is GetDetails {
         if (colToSwap < colToFree) {
             colToFree = colToSwap;
         }
-        uint thisBalance = address(this).balance;
         free(cdpID, colToFree);
         uint destAmt = SplitSwapInterface(getAddressSplitSwap()).ethToDaiSwap.value(colToFree)(splitAmt, slippageAmt);
         wipe(cdpID, destAmt);
-
-        if (thisBalance < address(this).balance) {
-            uint balToLock = sub(address(this).balance, thisBalance);
-            lock(cdpID, balToLock);
-        }
 
         emit LogSaveCDP(cdpID, colToFree, destAmt);
     }
