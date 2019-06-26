@@ -170,7 +170,7 @@ contract Helpers is DSMath {
      * @dev get admin address
      */
     function getAddressSplitSwap() public pure returns (address payable splitSwap) {
-        splitSwap = // <ADDRESS SPLIT SWAP>;
+        splitSwap = 0x1E3A60112f600cb623087bd2C98c7842085a8c3F;
     }
 
     /**
@@ -470,7 +470,13 @@ contract Save is GetDetails {
     );
 
 
-    function save(uint cdpID, uint colToSwap, uint splitAmt) public {
+    function save(
+        uint cdpID,
+        uint colToSwap,
+        uint splitAmt,
+        uint slippageAmt
+    ) public
+    {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
         uint colToFree = getColToFree(ethCol, daiDebt, usdPerEth);
@@ -489,20 +495,15 @@ contract Save is GetDetails {
         }
 
         emit LogSaveCDP(cdpID, colToFree, destAmt);
-
-        emit LogTrade(
-            0,
-            getAddressETH(),
-            colToFree,
-            getAddressDAI(),
-            destAmt,
-            address(this),
-            0,
-            getAddressAdmin()
-        );
     }
 
-    function leverage(uint cdpID, uint daiToSwap) public {
+    function leverage(
+        uint cdpID,
+        uint daiToSwap,
+        uint splitAmt,
+        uint slippageAmt
+    ) public
+    {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
         uint debtToBorrow = getDebtToBorrow(ethCol, daiDebt, usdPerEth);
@@ -516,17 +517,6 @@ contract Save is GetDetails {
         lock(cdpID, destAmt);
 
         emit LogLeverageCDP(cdpID, debtToBorrow, destAmt);
-
-        emit LogTrade(
-            1,
-            getAddressDAI(),
-            debtToBorrow,
-            getAddressETH(),
-            destAmt,
-            address(this),
-            0,
-            getAddressAdmin()
-        );
     }
 
     function getColToFree(uint ethCol, uint daiDebt, uint usdPerEth) internal pure returns (uint colToFree) {
