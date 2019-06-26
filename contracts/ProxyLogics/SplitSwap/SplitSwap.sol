@@ -137,9 +137,9 @@ contract AdminStuffs is Helper {
 }
 
 
-contract SplitsRead is Helper {
+contract SplitHelper is Helper {
 
-    function getBest(address src, address dest, uint srcAmt) public returns (uint bestExchange, uint destAmt) {
+    function getBest(address src, address dest, uint srcAmt) public view returns (uint bestExchange, uint destAmt) {
         uint eth2DaiPrice = getRateEth2Dai(src, dest, srcAmt);
         uint kyberPrice = getRateKyber(src, dest, srcAmt);
         uint uniswapPrice = getRateUniswap(src, dest, srcAmt);
@@ -156,7 +156,7 @@ contract SplitsRead is Helper {
         require(destAmt != 0, "Dest Amt = 0");
     }
 
-    function getRateEth2Dai(address src, address dest, uint srcAmt) public returns (uint destAmt) {
+    function getRateEth2Dai(address src, address dest, uint srcAmt) public view returns (uint destAmt) {
         if (src == ethAddr) {
             destAmt = Eth2DaiInterface(eth2daiAddr).getBuyAmount(dest, wethAddr, srcAmt);
         } else if (dest == ethAddr) {
@@ -164,12 +164,12 @@ contract SplitsRead is Helper {
         }
     }
 
-    function getRateKyber(address src, address dest, uint srcAmt) public returns (uint destAmt) {
+    function getRateKyber(address src, address dest, uint srcAmt) public view returns (uint destAmt) {
         (uint kyberPrice,) = KyberInterface(kyberAddr).getExpectedRate(src, dest, srcAmt);
         destAmt = wmul(srcAmt, kyberPrice);
     }
 
-    function getRateUniswap(address src, address dest, uint srcAmt) public returns (uint destAmt) {
+    function getRateUniswap(address src, address dest, uint srcAmt) public view returns (uint destAmt) {
         if (src == ethAddr) {
             destAmt = UniswapExchange(uniswapAddr).getEthToTokenInputPrice(srcAmt);
         } else if (dest == ethAddr) {
@@ -180,7 +180,7 @@ contract SplitsRead is Helper {
 }
 
 
-contract SplitResolver is SplitsRead {
+contract SplitResolver is SplitHelper {
 
     function ethToDaiLoop(uint srcAmt, uint splitAmt, uint finalAmt) internal returns (uint destAmt) {
         if (srcAmt > splitAmt) {
