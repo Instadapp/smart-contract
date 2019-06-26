@@ -72,6 +72,12 @@ interface KyberInterface {
         ) external view returns (uint, uint);
 }
 
+interface SplitSwapInterface {
+    function getBest(address src, address dest, uint srcAmt) external view returns (uint bestExchange, uint destAmt);
+    function ethToDaiSwap(uint splitAmt, uint slippageAmt) external payable returns (uint destAmt);
+    function daiToEthSwap(uint srcAmt, uint splitAmt, uint slippageAmt) external returns (uint destAmt);
+}
+
 
 contract DSMath {
 
@@ -158,6 +164,13 @@ contract Helpers is DSMath {
      */
     function getAddressKyber() public pure returns (address kyber) {
         kyber = 0x818E6FECD516Ecc3849DAf6845e3EC868087B755;
+    }
+
+    /**
+     * @dev get admin address
+     */
+    function getAddressSplitSwap() public pure returns (address payable splitSwap) {
+        splitSwap = // <ADDRESS SPLIT SWAP>;
     }
 
     /**
@@ -377,8 +390,8 @@ contract GetDetails is MakerHelpers {
         if (ethToSwap < colToFree) {
             colToFree = ethToSwap;
         }
-        (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressETH(), getAddressDAI(), colToFree);
-        uint expectedDAI = wmul(colToFree, expectedRate);
+        // (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressETH(), getAddressDAI(), colToFree);
+        (, uint expectedDAI) = SplitSwapInterface(getAddressSplitSwap()).getBest(getAddressETH(), getAddressDAI(), colToFree);
         if (expectedDAI < daiDebt) {
             finalEthCol = sub(ethCol, colToFree);
             finalDaiDebt = sub(daiDebt, expectedDAI);
@@ -411,8 +424,7 @@ contract GetDetails is MakerHelpers {
         if (daiToSwap < debtToBorrow) {
             debtToBorrow = daiToSwap;
         }
-        (uint expectedRate,) = KyberInterface(getAddressKyber()).getExpectedRate(getAddressDAI(), getAddressETH(), debtToBorrow);
-        uint expectedETH = wmul(debtToBorrow, expectedRate);
+        (, uint expectedETH) = SplitSwapInterface(getAddressSplitSwap()).getBest(getAddressDAI(), getAddressETH(), debtToBorrow);
         if (ethCol != 0) {
             finalEthCol = add(ethCol, expectedETH);
             finalDaiDebt = add(daiDebt, debtToBorrow);
@@ -458,7 +470,7 @@ contract Save is GetDetails {
     );
 
 
-    function save(uint cdpID, uint colToSwap) public {
+    function save(uint cdpID, uint colToSwap, uint splitAmt) public {
         bytes32 cup = bytes32(cdpID);
         (uint ethCol, uint daiDebt, uint usdPerEth) = getCDPStats(cup);
         uint colToFree = getColToFree(ethCol, daiDebt, usdPerEth);
@@ -468,15 +480,7 @@ contract Save is GetDetails {
         }
         uint thisBalance = address(this).balance;
         free(cdpID, colToFree);
-        uint destAmt = KyberInterface(getAddressKyber()).trade.value(colToFree)(
-            getAddressETH(),
-            colToFree,
-            getAddressDAI(),
-            address(this),
-            daiDebt,
-            0,
-            getAddressAdmin()
-        );
+        uint destAmt = SplitSwapInterface(getAddressSplitSwap()).ethToDaiSwap.value(colToFree)(splitAmt, slippageAmt);
         wipe(cdpID, destAmt);
 
         if (thisBalance < address(this).balance) {
@@ -507,16 +511,8 @@ contract Save is GetDetails {
             debtToBorrow = daiToSwap;
         }
         draw(cdpID, debtToBorrow);
-        setAllowance(TokenInterface(getAddressDAI()), getAddressKyber());
-        uint destAmt = KyberInterface(getAddressKyber()).trade.value(0)(
-            getAddressDAI(),
-            debtToBorrow,
-            getAddressETH(),
-            address(this),
-            2**255,
-            0,
-            getAddressAdmin()
-        );
+        setAllowance(TokenInterface(getAddressDAI()), getAddressSplitSwap());
+        uint destAmt = SplitSwapInterface(getAddressSplitSwap()).daiToEthSwap(debtToBorrow, splitAmt, slippageAmt);
         lock(cdpID, destAmt);
 
         emit LogLeverageCDP(cdpID, debtToBorrow, destAmt);
