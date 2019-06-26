@@ -43,7 +43,6 @@ interface UniswapExchange {
         ) external returns (uint256  tokensSold);
 }
 
-
 interface TokenInterface {
     function allowance(address, address) external view returns (uint);
     function balanceOf(address) external view returns (uint);
@@ -527,38 +526,102 @@ contract SaveResolver is GetDetails {
         );
     }
 
-    function loopSwap(uint srcAmt) internal returns (uint destAmt) {
-        (,uint isBest) = getBest(getAddressETH(), getAddressDAI(), srcAmt);
-        if (isBest == 0) {
-            setAllowance(TokenInterface(getAddressDAI()), getAddressEth2Dai());
-            destAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
+    // function loopSwap(uint srcAmt) internal returns (uint destAmt) {
+    //     (,uint isBest) = getBest(getAddressETH(), getAddressDAI(), srcAmt);
+    //     if (isBest == 0) {
+    //         setAllowance(TokenInterface(getAddressDAI()), getAddressEth2Dai());
+    //         destAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
+    //             getAddressDAI(),
+    //             srcAmt,
+    //             getAddressWETH(),
+    //             0
+    //         );
+    //         destAmt = recursiveloop(srcAmt, 0);
+    //         TokenInterface weth = TokenInterface(getAddressWETH());
+    //         setAllowance(weth, getSaiTubAddress());
+    //         weth.withdraw(destAmt);
+    //     } else {
+    //         setAllowance(TokenInterface(getAddressDAI()), getAddressKyber());
+    //         destAmt = KyberInterface(getAddressKyber()).trade.value(srcAmt)(
+    //             getAddressDAI(),
+    //             srcAmt,
+    //             getAddressETH(),
+    //             address(this),
+    //             2**255,
+    //             0,
+    //             getAddressAdmin()
+    //         );
+    //     }
+    //     emit LogSwap(
+    //         isBest,
+    //         getAddressDAI(),
+    //         srcAmt,
+    //         getAddressETH(),
+    //         destAmt
+    //     );
+    // }
+
+    function loopSwap(uint srcAmt, uint finalAmt, uint splitAmt) internal returns (uint destAmt) {
+        // (,uint isBest) = getBest(getAddressETH(), getAddressDAI(), srcAmt);
+        if (srcAmt > splitAmt) {
+            uint nextSrc = srcAmt - splitAmt;
+            uint swappedAmt = splitSwap(getAddressDAI(), getAddressETH(), splitAmt);
+            // uint swappedAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
+            //     getAddressDAI(),
+            //     15000000000000000000000,
+            //     getAddressWETH(),
+            //     0
+            // );
+            uint nextFinal = finalAmt + swappedAmt;
+            destAmt = recursiveloop(nextSrc, nextFinal);
+        } else {
+            uint swappedAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
                 getAddressDAI(),
                 srcAmt,
                 getAddressWETH(),
                 0
             );
-            TokenInterface weth = TokenInterface(getAddressWETH());
-            setAllowance(weth, getSaiTubAddress());
-            weth.withdraw(destAmt);
+            destAmt = finalAmt + swappedAmt;
+        }
+    }
+
+    function recursiveloop(uint srcAmt, uint finalAmt) internal returns (uint destAmt) {
+        if (srcAmt > 15000000000000000000000) {
+            uint nextSrc = srcAmt - 15000000000000000000000;
+            uint swappedAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
+                getAddressDAI(),
+                15000000000000000000000,
+                getAddressWETH(),
+                0
+            );
+            uint nextFinal = finalAmt + swappedAmt;
+            destAmt = recursiveloop(nextSrc, nextFinal);
         } else {
-            setAllowance(TokenInterface(getAddressDAI()), getAddressKyber());
-            destAmt = KyberInterface(getAddressKyber()).trade.value(srcAmt)(
+            uint swappedAmt = Eth2DaiInterface(getAddressEth2Dai()).sellAllAmount(
                 getAddressDAI(),
                 srcAmt,
-                getAddressETH(),
-                address(this),
-                2**255,
-                0,
-                getAddressAdmin()
+                getAddressWETH(),
+                0
             );
+            destAmt = finalAmt + swappedAmt;
         }
-        emit LogSwap(
-            isBest,
-            getAddressDAI(),
-            srcAmt,
-            getAddressETH(),
-            destAmt
-        );
+    }
+
+    function splitSwap(address src, address dest, uint srcAmt) internal returns (uint destAmt) {
+        (,uint isBest) = getBest(getAddressETH(), getAddressDAI(), srcAmt);
+        if (isBest)
+    }
+
+    function eth2DaiSwap() internal returns (uint destAmt) {
+
+    }
+
+    function uniswapSwap() internal returns (uint destAmt) {
+        
+    }
+
+    function kyberSwap() internal returns (uint destAmt) {
+        
     }
 
 }
