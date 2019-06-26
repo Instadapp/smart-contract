@@ -195,7 +195,7 @@ contract SplitResolver is SplitsRead {
             } else {
                 ethBought += swapUniswap(ethAddr, daiAddr, amtToSwap);
             }
-            destAmt = daiToEthLoop(nextSrcAmt, splitAmt, ethBought);
+            destAmt = ethToDaiLoop(nextSrcAmt, splitAmt, ethBought);
         } else if (srcAmt > 0) {
             (uint bestExchange,) = getBest(ethAddr, daiAddr, srcAmt);
             destAmt = finalAmt;
