@@ -300,7 +300,7 @@ contract SplitSwap is SplitResolver {
 
 contract InstaSwap is SplitSwap {
 
-    constructor(uint _version) public {
+    constructor() public {
         setAllowance(TokenInterface(daiAddr), eth2daiAddr);
         setAllowance(TokenInterface(daiAddr), kyberAddr);
         setAllowance(TokenInterface(daiAddr), uniswapAddr);
