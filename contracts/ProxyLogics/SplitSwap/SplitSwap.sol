@@ -97,7 +97,8 @@ contract Helper is DSMath {
     address public ethAddr = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address public wethAddr = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public daiAddr = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
-    address public admin = 0xa7615CD307F323172331865181DC8b80a2834324;
+    address public adminOne = 0xa7615CD307F323172331865181DC8b80a2834324;
+    address public adminTwo = 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638;
     uint public maxSplitAmtEth = 50000000000000000000;
     uint public maxSplitAmtDai = 20000000000000000000000;
     uint public cut = 997500000000000000; // 0.25% charge
@@ -109,7 +110,7 @@ contract Helper is DSMath {
     }
 
     modifier isAdmin {
-        require(msg.sender == admin, "Not an Admin");
+        require(msg.sender == adminOne || msg.sender == adminTwo, "Not an Admin");
         _;
     }
 
@@ -133,6 +134,14 @@ contract AdminStuffs is Helper {
 
     function withdrawEth() public payable isAdmin {
         msg.sender.transfer(address(this).balance);
+    }
+
+    function changeFee(uint amt) public isAdmin {
+        if (amt > 997000000000000000) {
+            cut = 997000000000000000; // maximum fees can be 0.3%. Minimum 0%
+        } else {
+            cut = amt;
+        }
     }
 
 }
