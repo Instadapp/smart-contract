@@ -128,6 +128,7 @@ contract Helper is DSMath {
 
     address public feeOne = 0xd8db02A498E9AFbf4A32BC006DC1940495b4e592;
     address public feeTwo = 0xa7615CD307F323172331865181DC8b80a2834324;
+    uint public fees = 0;
 
     /**
      * @dev setting allowance to compound for the "user proxy" if required
@@ -490,6 +491,15 @@ contract LiquidityProvider is BridgeResolver {
         }
     }
 
+    function setFees(uint amt) public {
+        require(msg.sender == feeOne || msg.sender == feeTwo, "Not manager address");
+        if (amt > 3000000000000000) {
+            fees = 3000000000000000; // max fees 0.3%
+        } else {
+            fees = amt;
+        }
+    }
+
 }
 
 
@@ -514,15 +524,15 @@ contract Bridge is LiquidityProvider {
         uint ethAmt;
         (ethAmt, daiAmt) = checkCDP(bytes32(cdpId), ethCol, daiDebt);
         daiAmt = wipeAndFree(cdpId, ethAmt, daiAmt);
-        uint fees = wmul(daiAmt, 2000000000000000); // 0.2% fees
-        daiAmt = wmul(daiAmt, 1002000000000000000);
+        uint cut = wmul(daiAmt, fees);
+        daiAmt = wmul(daiAmt, add(1000000000000000000, fees));
         mintCETH(ethAmt);
         give(cdpId, msg.sender);
         emit LogMakerToCompound(
             cdpId,
             ethAmt,
             daiAmt,
-            fees,
+            cut,
             msg.sender
         );
     }
@@ -536,8 +546,8 @@ contract Bridge is LiquidityProvider {
         fetchCETH(ethAmt);
         redeemUnderlying(cEth, ethAmt);
         uint cdpNum = cdpId > 0 ? cdpId : open();
-        uint fees = wmul(daiAmt, 2000000000000000); // 0.2% fees
-        daiAmt = wmul(daiAmt, 1002000000000000000);
+        uint cut = wmul(daiAmt, fees);
+        daiAmt = wmul(daiAmt, add(1000000000000000000, fees));
         lockAndDraw(cdpNum, ethAmt, daiAmt);
         if (daiAmt > 0) {
             assert(CDAIInterface(cDai).mint(daiAmt) == 0);
@@ -547,7 +557,7 @@ contract Bridge is LiquidityProvider {
             cdpNum,
             ethAmt,
             daiAmt,
-            fees,
+            cut,
             msg.sender
         );
     }
