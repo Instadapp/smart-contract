@@ -70,7 +70,7 @@ contract Helper {
      * @dev get MakerDAO<>Compound Bridge Contract
      */
     function getBridgeAddress() public pure returns (address bridge) {
-        bridge = 0x3861A3C9c3362a5276Ea59be4707ce5700b9c304;
+        bridge = 0x37aCfEf331e6063C8507C2A69c97B4f78c770A5A;
     }
 
     /**
