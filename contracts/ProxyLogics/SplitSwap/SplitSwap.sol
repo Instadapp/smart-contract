@@ -156,16 +156,16 @@ contract SplitHelper is AdminStuffs {
         }
         uint eth2DaiPrice = getRateEth2Dai(src, dest, finalSrcAmt);
         uint kyberPrice = getRateKyber(src, dest, finalSrcAmt);
-        uint uniswapPrice = getRateUniswap(src, dest, finalSrcAmt);
-        if (eth2DaiPrice > kyberPrice && eth2DaiPrice > uniswapPrice) {
+        // uint uniswapPrice = getRateUniswap(src, dest, finalSrcAmt);
+        if (eth2DaiPrice > kyberPrice) {
             destAmt = eth2DaiPrice;
             bestExchange = 0;
-        } else if (kyberPrice > uniswapPrice && kyberPrice > eth2DaiPrice) {
+        } else if (kyberPrice >= eth2DaiPrice) {
             destAmt = kyberPrice;
             bestExchange = 1;
-        } else {
-            destAmt = uniswapPrice;
-            bestExchange = 2;
+        // } else {
+        //     destAmt = uniswapPrice;
+        //     bestExchange = 2;
         }
         if (dest == daiAddr) {
             destAmt = wmul(destAmt, cut);
@@ -186,13 +186,13 @@ contract SplitHelper is AdminStuffs {
         destAmt = wmul(srcAmt, kyberPrice);
     }
 
-    function getRateUniswap(address src, address dest, uint srcAmt) internal view returns (uint destAmt) {
-        if (src == ethAddr) {
-            destAmt = UniswapExchange(uniswapAddr).getEthToTokenInputPrice(srcAmt);
-        } else if (dest == ethAddr) {
-            destAmt = UniswapExchange(uniswapAddr).getTokenToEthInputPrice(srcAmt);
-        }
-    }
+    // function getRateUniswap(address src, address dest, uint srcAmt) internal view returns (uint destAmt) {
+    //     if (src == ethAddr) {
+    //         destAmt = UniswapExchange(uniswapAddr).getEthToTokenInputPrice(srcAmt);
+    //     } else if (dest == ethAddr) {
+    //         destAmt = UniswapExchange(uniswapAddr).getTokenToEthInputPrice(srcAmt);
+    //     }
+    // }
 
 }
 
@@ -207,15 +207,15 @@ contract SplitResolver is SplitHelper {
             uint amtToSwap = splitAmt;
             uint nextSrcAmt = srcAmt - splitAmt;
             (uint bestExchange,) = getBest(ethAddr, daiAddr, amtToSwap);
-            uint ethBought = finalAmt;
+            uint daiBought = finalAmt;
             if (bestExchange == 0) {
-                ethBought += swapEth2Dai(wethAddr, daiAddr, amtToSwap);
+                daiBought += swapEth2Dai(wethAddr, daiAddr, amtToSwap);
             } else if (bestExchange == 1) {
-                ethBought += swapKyber(ethAddr, daiAddr, amtToSwap);
-            } else {
-                ethBought += swapUniswap(ethAddr, daiAddr, amtToSwap);
+                daiBought += swapKyber(ethAddr, daiAddr, amtToSwap);
+            // } else {
+            //     daiBought += swapUniswap(ethAddr, daiAddr, amtToSwap);
             }
-            destAmt = ethToDaiLoop(nextSrcAmt, splitAmt, ethBought);
+            destAmt = ethToDaiLoop(nextSrcAmt, splitAmt, daiBought);
         } else if (srcAmt > 0) {
             destAmt = finalAmt;
             destAmt += swapKyber(ethAddr, daiAddr, srcAmt);
@@ -234,8 +234,8 @@ contract SplitResolver is SplitHelper {
                 ethBought += swapEth2Dai(daiAddr, wethAddr, amtToSwap);
             } else if (bestExchange == 1) {
                 ethBought += swapKyber(daiAddr, ethAddr, amtToSwap);
-            } else {
-                ethBought += swapUniswap(daiAddr, ethAddr, amtToSwap);
+            // } else {
+            //     ethBought += swapUniswap(daiAddr, ethAddr, amtToSwap);
             }
             destAmt = daiToEthLoop(nextSrcAmt, splitAmt, ethBought);
         } else if (srcAmt > 0) {
@@ -281,13 +281,13 @@ contract SplitResolver is SplitHelper {
             );
     }
 
-    function swapUniswap(address src, address dest, uint srcAmt) internal returns (uint destAmt) {
-        if (src == ethAddr) {
-            destAmt = UniswapExchange(uniswapAddr).ethToTokenSwapInput.value(srcAmt)(uint(0), uint(1899063809));
-        } else if (dest == ethAddr) {
-            destAmt = UniswapExchange(uniswapAddr).tokenToEthSwapInput(srcAmt, uint(0), uint(1899063809));
-        }
-    }
+    // function swapUniswap(address src, address dest, uint srcAmt) internal returns (uint destAmt) {
+    //     if (src == ethAddr) {
+    //         destAmt = UniswapExchange(uniswapAddr).ethToTokenSwapInput.value(srcAmt)(uint(0), uint(1899063809));
+    //     } else if (dest == ethAddr) {
+    //         destAmt = UniswapExchange(uniswapAddr).tokenToEthSwapInput(srcAmt, uint(0), uint(1899063809));
+    //     }
+    // }
 
 }
 

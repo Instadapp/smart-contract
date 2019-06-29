@@ -170,7 +170,7 @@ contract Helpers is DSMath {
      * @dev get admin address
      */
     function getAddressSplitSwap() public pure returns (address payable splitSwap) {
-        splitSwap = 0x7CFB3DFb0F7eEE91576eb492FF964B1B59be0713;
+        splitSwap = 0xdAA26F94C5185538830A84eF3B533743afD4baad;
     }
 
     /**
@@ -484,10 +484,12 @@ contract Save is GetDetails {
             colToFree = colToSwap;
         }
         free(cdpID, colToFree);
-        uint destAmt = SplitSwapInterface(getAddressSplitSwap()).ethToDaiSwap.value(colToFree)(splitAmt, slippageAmt);
+        uint ethToSwap = address(this).balance;
+        ethToSwap = ethToSwap < colToFree ? ethToSwap : colToFree;
+        uint destAmt = SplitSwapInterface(getAddressSplitSwap()).ethToDaiSwap.value(ethToSwap)(splitAmt, slippageAmt);
         wipe(cdpID, destAmt);
 
-        emit LogSaveCDP(cdpID, colToFree, destAmt);
+        emit LogSaveCDP(cdpID, ethToSwap, destAmt);
     }
 
     function leverage(
