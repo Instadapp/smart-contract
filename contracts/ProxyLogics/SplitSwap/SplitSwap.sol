@@ -300,7 +300,7 @@ contract SplitResolver is SplitHelper {
 }
 
 
-contract SplitSwap is SplitResolver {
+contract Swap is SplitResolver {
 
     function ethToDaiSwap(uint splitAmt, uint slippageAmt) public payable returns (uint destAmt) { // srcAmt = msg.value
         require(maxSplitAmtEth >= splitAmt, "split amt > max");
@@ -325,7 +325,7 @@ contract SplitSwap is SplitResolver {
 }
 
 
-contract InstaSwap is SplitSwap {
+contract SplitSwap is Swap {
 
     constructor() public {
         setAllowance(TokenInterface(daiAddr), eth2daiAddr);
