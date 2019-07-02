@@ -102,6 +102,8 @@ contract Helper is DSMath {
     uint public maxSplitAmtEth = 60000000000000000000;
     uint public maxSplitAmtDai = 20000000000000000000000;
     uint public cut = 997500000000000000; // 0.25% charge
+    uint public minDai = 200000000000000000000; // DAI < 200 swap with Kyber or Uniswap
+    uint public minEth = 1000000000000000000; // ETH < 1 swap with Kyber or Uniswap
 
     function setAllowance(TokenInterface _token, address _spender) internal {
         if (_token.allowance(address(this), _spender) != uint(-1)) {
@@ -144,6 +146,14 @@ contract AdminStuffs is Helper {
         }
     }
 
+    function changeMinEth(uint amt) public isAdmin {
+        minEth = amt;
+    }
+
+    function changeMinDai(uint amt) public isAdmin {
+        minDai = amt;
+    }
+
 }
 
 
@@ -157,10 +167,10 @@ contract SplitHelper is AdminStuffs {
         uint eth2DaiPrice = getRateEth2Dai(src, dest, finalSrcAmt);
         uint kyberPrice = getRateKyber(src, dest, finalSrcAmt);
         uint uniswapPrice = getRateUniswap(src, dest, finalSrcAmt);
-        if (eth2DaiPrice > kyberPrice && eth2DaiPrice >= uniswapPrice) {
+        if (eth2DaiPrice > kyberPrice && eth2DaiPrice > uniswapPrice) {
             destAmt = eth2DaiPrice;
             bestExchange = 0;
-        } else if (kyberPrice >= eth2DaiPrice && kyberPrice >= uniswapPrice) {
+        } else if (kyberPrice > eth2DaiPrice && kyberPrice > uniswapPrice) {
             destAmt = kyberPrice;
             bestExchange = 1;
         } else {
@@ -219,8 +229,8 @@ contract SplitHelper is AdminStuffs {
 
 contract SplitResolver is SplitHelper {
 
-    event LogEthToDai(uint srcAmt, uint destAmt);
-    event LogDaiToEth(uint srcAmt, uint destAmt);
+    event LogEthToDai(address user, uint srcAmt, uint destAmt);
+    event LogDaiToEth(address user, uint srcAmt, uint destAmt);
 
     function swapEth2Dai(address src, address dest, uint srcAmt) internal returns (uint destAmt) {
         if (src == wethAddr) {
@@ -273,8 +283,12 @@ contract SplitResolver is SplitHelper {
             uint daiBought = finalAmt;
             daiBought += ethToDaiBestSwap(bestExchange, amtToSwap);
             destAmt = ethToDaiLoop(nextSrcAmt, splitAmt, daiBought);
-        } else if (srcAmt > 0) {
+        } else if (srcAmt > minEth) {
             (uint bestExchange,) = getBest(ethAddr, daiAddr, srcAmt);
+            destAmt = finalAmt;
+            destAmt += ethToDaiBestSwap(bestExchange, srcAmt);
+        } else if (srcAmt > 0) {
+            (uint bestExchange,) = getBestUniswapKyber(ethAddr, daiAddr, srcAmt);
             destAmt = finalAmt;
             destAmt += ethToDaiBestSwap(bestExchange, srcAmt);
         } else {
@@ -300,8 +314,12 @@ contract SplitResolver is SplitHelper {
             uint ethBought = finalAmt;
             ethBought += daiToEthBestSwap(bestExchange, amtToSwap);
             destAmt = daiToEthLoop(nextSrcAmt, splitAmt, ethBought);
-        } else if (srcAmt > 0) {
+        } else if (srcAmt > minDai) {
             (uint bestExchange,) = getBest(daiAddr, ethAddr, srcAmt);
+            destAmt = finalAmt;
+            destAmt += daiToEthBestSwap(bestExchange, srcAmt);
+        } else if (srcAmt > 0) {
+            (uint bestExchange,) = getBestUniswapKyber(daiAddr, ethAddr, srcAmt);
             destAmt = finalAmt;
             destAmt += daiToEthBestSwap(bestExchange, srcAmt);
         } else {
@@ -328,7 +346,7 @@ contract Swap is SplitResolver {
         destAmt = wmul(destAmt, cut);
         require(destAmt > slippageAmt, "Dest Amt < slippage");
         require(TokenInterface(daiAddr).transfer(msg.sender, destAmt), "Not enough DAI to transfer");
-        emit LogEthToDai(msg.value, destAmt);
+        emit LogEthToDai(msg.sender, msg.value, destAmt);
     }
 
     function daiToEthSwap(uint srcAmt, uint splitAmt, uint slippageAmt) public returns (uint destAmt) {
@@ -339,7 +357,7 @@ contract Swap is SplitResolver {
         wethToEth();
         require(destAmt > slippageAmt, "Dest Amt < slippage");
         msg.sender.transfer(destAmt);
-        emit LogDaiToEth(finalSrcAmt, destAmt);
+        emit LogDaiToEth(msg.sender, finalSrcAmt, destAmt);
     }
 
 }
