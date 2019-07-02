@@ -170,7 +170,7 @@ contract Helpers is DSMath {
      * @dev get admin address
      */
     function getAddressSplitSwap() public pure returns (address payable splitSwap) {
-        splitSwap = 0x4E4E2c3daCE2dF4c516300F4fB0729d6ac778b49;
+        splitSwap = 0xa4BCA645f9cB9e6F9ad8C56D90a65b07C2f4e1Dd;
     }
 
     /**
