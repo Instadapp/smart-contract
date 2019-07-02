@@ -157,10 +157,30 @@ contract SplitHelper is AdminStuffs {
         uint eth2DaiPrice = getRateEth2Dai(src, dest, finalSrcAmt);
         uint kyberPrice = getRateKyber(src, dest, finalSrcAmt);
         uint uniswapPrice = getRateUniswap(src, dest, finalSrcAmt);
-        if (eth2DaiPrice > kyberPrice) {
+        if (eth2DaiPrice > kyberPrice && eth2DaiPrice >= uniswapPrice) {
             destAmt = eth2DaiPrice;
             bestExchange = 0;
-        } else if (kyberPrice >= eth2DaiPrice) {
+        } else if (kyberPrice >= eth2DaiPrice && kyberPrice >= uniswapPrice) {
+            destAmt = kyberPrice;
+            bestExchange = 1;
+        } else {
+            destAmt = uniswapPrice;
+            bestExchange = 2;
+        }
+        if (dest == daiAddr) {
+            destAmt = wmul(destAmt, cut);
+        }
+        require(destAmt != 0, "Dest Amt = 0");
+    }
+
+    function getBestUniswapKyber(address src, address dest, uint srcAmt) public view returns (uint bestExchange, uint destAmt) {
+        uint finalSrcAmt = srcAmt;
+        if (src == daiAddr) {
+            finalSrcAmt = wmul(srcAmt, cut);
+        }
+        uint kyberPrice = getRateKyber(src, dest, finalSrcAmt);
+        uint uniswapPrice = getRateUniswap(src, dest, finalSrcAmt);
+        if (kyberPrice >= uniswapPrice) {
             destAmt = kyberPrice;
             bestExchange = 1;
         } else {
