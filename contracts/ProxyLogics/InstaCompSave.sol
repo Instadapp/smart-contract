@@ -13,6 +13,7 @@ interface CTokenInterface {
     function supplyRatePerBlock() external view returns (uint);
     function totalReserves() external view returns (uint);
     function reserveFactorMantissa() external view returns (uint);
+    function borrowBalanceCurrent(address account) external returns (uint);
 
     function totalSupply() external view returns (uint256);
     function balanceOf(address owner) external view returns (uint256 balance);
@@ -51,11 +52,25 @@ interface ComptrollerInterface {
     function getAccountLiquidity(address account) external view returns (uint, uint, uint);
 }
 
+interface CompOracleInterface {
+    function getUnderlyingPrice(address) external view returns (uint);
+}
+
+interface SplitSwapInterface {
+    function getBest(address src, address dest, uint srcAmt) external view returns (uint bestExchange, uint destAmt);
+    function ethToDaiSwap(uint splitAmt, uint slippageAmt) external payable returns (uint destAmt);
+    function daiToEthSwap(uint srcAmt, uint splitAmt, uint slippageAmt) external returns (uint destAmt);
+}
+
 
 contract DSMath {
 
     function add(uint x, uint y) internal pure returns (uint z) {
         require((z = x + y) >= x, "math-not-safe");
+    }
+
+    function sub(uint x, uint y) internal pure returns (uint z) {
+        z = x - y <= x ? x - y : 0;
     }
 
     function mul(uint x, uint y) internal pure returns (uint z) {
@@ -85,6 +100,13 @@ contract Helpers is DSMath {
     }
 
     /**
+     * @dev get ethereum address for trade
+     */
+    function getAddressDAI() public pure returns (address dai) {
+        dai = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
+    }
+
+    /**
      * @dev get Compound Comptroller Address
      */
     function getComptrollerAddress() public pure returns (address troller) {
@@ -92,18 +114,31 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev Transfer ETH/ERC20 to user
+     * @dev get Compound Comptroller Address
      */
-    function transferToken(address erc20) internal {
-        if (erc20 == getAddressETH()) {
-            msg.sender.transfer(address(this).balance);
-        } else {
-            ERC20Interface erc20Contract = ERC20Interface(erc20);
-            uint srcBal = erc20Contract.balanceOf(address(this));
-            if (srcBal > 0) {
-                erc20Contract.transfer(msg.sender, srcBal);
-            }
-        }
+    function getCompOracleAddress() public pure returns (address troller) {
+        troller = 0xe7664229833AE4Abf4E269b8F23a86B657E2338D;
+    }
+
+    /**
+     * @dev get Compound Comptroller Address
+     */
+    function getCETHAddress() public pure returns (address cEth) {
+        cEth = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
+    }
+
+    /**
+     * @dev get Compound Comptroller Address
+     */
+    function getCDAIAddress() public pure returns (address cDai) {
+        cDai = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+    }
+
+    /**
+     * @dev get admin address
+     */
+    function getAddressSplitSwap() public pure returns (address payable splitSwap) {
+        splitSwap = 0xa4BCA645f9cB9e6F9ad8C56D90a65b07C2f4e1Dd;
     }
 
     function enterMarket(address cErc20) internal {
@@ -136,7 +171,62 @@ contract Helpers is DSMath {
 }
 
 
-contract CompoundResolver is Helpers {
+contract CompoundHelper is Helpers {
+
+    /**
+     * @dev get user's token supply and borrow in ETH
+     */
+    function compSupplyBorrow(address cTokenAdd, address user) public returns(uint supplyInEth, uint borrowInEth) {
+        CTokenInterface cTokenContract = CTokenInterface(cTokenAdd);
+        uint tokenPriceInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(cTokenAdd);
+        uint cTokenBal = sub(cTokenContract.balanceOf(user), 1);
+        uint cTokenExchangeRate = cTokenContract.exchangeRateCurrent();
+        uint tokenSupply = sub(wmul(cTokenBal, cTokenExchangeRate), 1);
+        supplyInEth = sub(wmul(tokenSupply, tokenPriceInEth), 10);
+        uint tokenBorrowed = cTokenContract.borrowBalanceCurrent(user);
+        borrowInEth = add(wmul(tokenBorrowed, tokenPriceInEth), 10);
+    }
+
+    /**
+     * @dev get users overall details for Compound
+     */
+    function getCompStats(
+        address user,
+        address[] memory cTokenAddr,
+        uint[] memory cTokenFactor
+    ) public returns (uint totalSupply, uint totalBorrow, uint maxBorrow, uint borrowRemain, uint maxWithdraw, uint ratio)
+    {
+        for (uint i = 0; i < cTokenAddr.length; i++) {
+            address cTokenAdd = cTokenAddr[i];
+            uint factor = cTokenFactor[i];
+            (uint supplyInEth, uint borrowInEth) = compSupplyBorrow(cTokenAdd, user);
+            totalSupply += supplyInEth;
+            totalBorrow += borrowInEth;
+            maxBorrow += wmul(supplyInEth, factor);
+        }
+        borrowRemain = sub(maxBorrow, totalBorrow);
+        maxWithdraw = wdiv(borrowRemain, 750000000000000000); // divide it by 0.75 (ETH Factor)
+        uint userEthSupply = getEthSupply(user);
+        maxWithdraw = userEthSupply > maxWithdraw ? maxWithdraw : userEthSupply;
+        ratio = wdiv(totalBorrow, totalSupply);
+    }
+
+    function getEthSupply(address user) internal returns (uint ethSupply) {
+        CTokenInterface cTokenContract = CTokenInterface(getCETHAddress());
+        uint cTokenBal = sub(cTokenContract.balanceOf(user), 1);
+        uint cTokenExchangeRate = cTokenContract.exchangeRateCurrent();
+        ethSupply = wmul(cTokenBal, cTokenExchangeRate);
+    }
+
+    function getDaiRemainBorrow(uint daiInEth) internal view returns (uint daiAmt) {
+        uint tokenPriceInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(getCDAIAddress());
+        daiAmt = sub(wdiv(daiInEth, tokenPriceInEth), 10);
+    }
+
+}
+
+
+contract CompoundResolver is CompoundHelper {
 
     event LogMint(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogRedeem(address erc20, address cErc20, uint tokenAmt, address owner);
@@ -146,49 +236,15 @@ contract CompoundResolver is Helpers {
     /**
      * @dev Deposit ETH/ERC20 and mint Compound Tokens
      */
-    function mintCToken(address erc20, address cErc20, uint tokenAmt) external payable {
-        enterMarket(cErc20);
-        if (erc20 == getAddressETH()) {
-            CETHInterface cToken = CETHInterface(cErc20);
-            cToken.mint.value(msg.value)();
-        } else {
-            ERC20Interface token = ERC20Interface(erc20);
-            uint toDeposit = token.balanceOf(msg.sender);
-            if (toDeposit > tokenAmt) {
-                toDeposit = tokenAmt;
-            }
-            token.transferFrom(msg.sender, address(this), toDeposit);
-            CERC20Interface cToken = CERC20Interface(cErc20);
-            setApproval(erc20, toDeposit, cErc20);
-            assert(cToken.mint(toDeposit) == 0);
-        }
+    function mintCEth(uint tokenAmt) internal {
+        enterMarket(getAddressETH());
+        CETHInterface cToken = CETHInterface(getAddressETH());
+        cToken.mint.value(tokenAmt)();
         emit LogMint(
-            erc20,
-            cErc20,
+            getAddressETH(),
+            getAddressETH(),
             tokenAmt,
             msg.sender
-        );
-    }
-
-    /**
-     * @dev Redeem ETH/ERC20 and burn Compound Tokens
-     * @param cTokenAmt Amount of CToken To burn
-     */
-    function redeemCToken(address erc20, address cErc20, uint cTokenAmt) external {
-        CTokenInterface cToken = CTokenInterface(cErc20);
-        uint toBurn = cToken.balanceOf(address(this));
-        if (toBurn > cTokenAmt) {
-            toBurn = cTokenAmt;
-        }
-        setApproval(cErc20, toBurn, cErc20);
-        require(cToken.redeem(toBurn) == 0, "something went wrong");
-        transferToken(erc20);
-        uint tokenReturned = wmul(toBurn, cToken.exchangeRateCurrent());
-        emit LogRedeem(
-            erc20,
-            cErc20,
-            tokenReturned,
-            address(this)
         );
     }
 
@@ -196,20 +252,14 @@ contract CompoundResolver is Helpers {
      * @dev Redeem ETH/ERC20 and mint Compound Tokens
      * @param tokenAmt Amount of token To Redeem
      */
-    function redeemUnderlying(address erc20, address cErc20, uint tokenAmt) external {
-        CTokenInterface cToken = CTokenInterface(cErc20);
-        setApproval(cErc20, 10**50, cErc20);
-        uint toBurn = cToken.balanceOf(address(this));
-        uint tokenToReturn = wmul(toBurn, cToken.exchangeRateCurrent());
-        if (tokenToReturn > tokenAmt) {
-            tokenToReturn = tokenAmt;
-        }
-        require(cToken.redeemUnderlying(tokenToReturn) == 0, "something went wrong");
-        transferToken(erc20);
+    function redeemEth(uint tokenAmt) internal {
+        CTokenInterface cToken = CTokenInterface(getCETHAddress());
+        setApproval(getCETHAddress(), 10**30, getCETHAddress());
+        require(cToken.redeemUnderlying(tokenAmt) == 0, "something went wrong");
         emit LogRedeem(
-            erc20,
-            cErc20,
-            tokenToReturn,
+            getAddressETH(),
+            getCETHAddress(),
+            tokenAmt,
             address(this)
         );
     }
@@ -217,13 +267,12 @@ contract CompoundResolver is Helpers {
     /**
      * @dev borrow ETH/ERC20
      */
-    function borrow(address erc20, address cErc20, uint tokenAmt) external {
-        enterMarket(cErc20);
-        require(CTokenInterface(cErc20).borrow(tokenAmt) == 0, "got collateral?");
-        transferToken(erc20);
+    function borrow(uint tokenAmt) internal {
+        enterMarket(getCDAIAddress());
+        require(CTokenInterface(getCDAIAddress()).borrow(tokenAmt) == 0, "got collateral?");
         emit LogBorrow(
-            erc20,
-            cErc20,
+            getAddressDAI(),
+            getCDAIAddress(),
             tokenAmt,
             address(this)
         );
@@ -232,43 +281,57 @@ contract CompoundResolver is Helpers {
     /**
      * @dev Pay Debt ETH/ERC20
      */
-    function repayToken(address erc20, address cErc20, uint tokenAmt) external payable {
-        if (erc20 == getAddressETH()) {
-            CETHInterface cToken = CETHInterface(cErc20);
-            uint toRepay = msg.value;
-            uint borrows = cToken.borrowBalanceCurrent(address(this));
-            if (toRepay > borrows) {
-                toRepay = borrows;
-                msg.sender.transfer(msg.value - toRepay);
-            }
-            cToken.repayBorrow.value(toRepay)();
-            emit LogRepay(
-                erc20,
-                cErc20,
-                toRepay,
-                address(this)
-            );
-        } else {
-            CERC20Interface cToken = CERC20Interface(cErc20);
-            ERC20Interface token = ERC20Interface(erc20);
-            uint toRepay = token.balanceOf(msg.sender);
-            uint borrows = cToken.borrowBalanceCurrent(address(this));
-            if (toRepay > tokenAmt) {
-                toRepay = tokenAmt;
-            }
-            if (toRepay > borrows) {
-                toRepay = borrows;
-            }
-            setApproval(erc20, toRepay, cErc20);
-            token.transferFrom(msg.sender, address(this), toRepay);
-            require(cToken.repayBorrow(toRepay) == 0, "transfer approved?");
-            emit LogRepay(
-                erc20,
-                cErc20,
-                toRepay,
-                address(this)
-            );
-        }
+    function repayDai(uint tokenAmt) internal {
+        CERC20Interface cToken = CERC20Interface(getCDAIAddress());
+        setApproval(getAddressDAI(), tokenAmt, getCDAIAddress());
+        require(cToken.repayBorrow(tokenAmt) == 0, "transfer approved?");
+        emit LogRepay(
+            getAddressDAI(),
+            getCDAIAddress(),
+            tokenAmt,
+            address(this)
+        );
+    }
+
+}
+
+
+contract CompoundSave is CompoundResolver {
+
+    event LogSaveCompound(uint srcETH, uint destDAI);
+
+    event LogLeverageCompound(uint srcDAI,uint destETH);
+
+    function save(
+        uint ethToFree,
+        address[] memory cTokenAddr,
+        uint[] memory ctokenFactor,
+        uint splitAmt,
+        uint slippageAmt
+    ) public
+    {
+        (,,,,uint maxWithdraw,) = getCompStats(address(this), cTokenAddr, ctokenFactor);
+        uint ethToSwap = ethToFree < maxWithdraw ? ethToFree : maxWithdraw;
+        redeemEth(ethToSwap);
+        uint destAmt = SplitSwapInterface(getAddressSplitSwap()).ethToDaiSwap.value(ethToSwap)(splitAmt, slippageAmt);
+        repayDai(destAmt);
+        emit LogSaveCompound(ethToSwap, destAmt);
+    }
+
+    function leverage(
+        uint daiToBorrow,
+        address[] memory cTokenAddr,
+        uint[] memory ctokenFactor,
+        uint splitAmt,
+        uint slippageAmt
+    ) public
+    {
+        (,,,uint borrowRemain,,) = getCompStats(address(this), cTokenAddr, ctokenFactor);
+        uint daiToSwap = getDaiRemainBorrow(borrowRemain);
+        daiToSwap = daiToSwap < daiToBorrow ? daiToSwap : daiToBorrow;
+        borrow(daiToSwap);
+        uint destAmt = SplitSwapInterface(getAddressSplitSwap()).daiToEthSwap(daiToSwap, splitAmt, slippageAmt);
+        mintCEth(destAmt);
     }
 
 }
