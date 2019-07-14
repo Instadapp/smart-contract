@@ -211,11 +211,58 @@ contract CompoundHelper is Helpers {
         ratio = wdiv(totalBorrow, totalSupply);
     }
 
+    function getSave(
+        address user,
+        uint ethToFree,
+        address[] memory cTokenAddr,
+        uint[] memory ctokenFactor
+    ) public returns (uint finalColInEth, uint finalDebtInEth, uint daiDebt, bool isOk)
+    {
+        (uint totalSupply, uint totalBorrow,,,uint maxWithdraw,) = getCompStats(user, cTokenAddr, ctokenFactor);
+        uint ethToSwap = ethToFree < maxWithdraw ? ethToFree : maxWithdraw;
+        (, uint expectedDAI) = SplitSwapInterface(getAddressSplitSwap()).getBest(getAddressETH(), getAddressDAI(), ethToSwap);
+        uint daiBorrowed = daiBorrowed(user);
+        uint daiInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(getCDAIAddress());
+        if (daiBorrowed < expectedDAI) {
+            finalColInEth = sub(totalSupply, ethToSwap);
+            finalDebtInEth = sub(totalBorrow, wmul(daiBorrowed, daiInEth));
+            daiDebt = 0;
+            isOk = false;
+        } else {
+            finalColInEth = sub(totalSupply, ethToSwap);
+            finalDebtInEth = sub(totalBorrow, wmul(expectedDAI, daiInEth));
+            daiDebt = sub(daiBorrowed, expectedDAI);
+            isOk = true;
+        }
+    }
+
+    function getLeverage(
+        address user,
+        uint daiToBorrow,
+        address[] memory cTokenAddr,
+        uint[] memory ctokenFactor
+    ) public returns (uint finalColInEth, uint finalDebtInEth, uint ethCol)
+    {
+        (uint totalSupply, uint totalBorrow,, uint borrowRemain,,) = getCompStats(user, cTokenAddr, ctokenFactor);
+        uint daiToSwap = getDaiRemainBorrow(borrowRemain);
+        daiToSwap = daiToSwap < daiToBorrow ? daiToSwap : daiToBorrow;
+        (, uint expectedETH) = SplitSwapInterface(getAddressSplitSwap()).getBest(getAddressDAI(), getAddressETH(), daiToSwap);
+        uint daiInEth = CompOracleInterface(getCompOracleAddress()).getUnderlyingPrice(getCDAIAddress());
+        finalColInEth = add(totalSupply, expectedETH);
+        finalDebtInEth = add(totalBorrow, wmul(daiToSwap, daiInEth));
+        ethCol = add(getEthSupply(user), expectedETH);
+    }
+
     function getEthSupply(address user) internal returns (uint ethSupply) {
         CTokenInterface cTokenContract = CTokenInterface(getCETHAddress());
         uint cTokenBal = sub(cTokenContract.balanceOf(user), 1);
         uint cTokenExchangeRate = cTokenContract.exchangeRateCurrent();
         ethSupply = wmul(cTokenBal, cTokenExchangeRate);
+    }
+
+    function daiBorrowed(address user) internal returns (uint daiAmt) {
+        CTokenInterface cTokenContract = CTokenInterface(getCDAIAddress());
+        daiAmt = cTokenContract.borrowBalanceCurrent(user);
     }
 
     function getDaiRemainBorrow(uint daiInEth) internal view returns (uint daiAmt) {
@@ -304,13 +351,13 @@ contract CompoundSave is CompoundResolver {
 
     function save(
         uint ethToFree,
-        address[] memory cTokenAddr,
+        address[] memory ctokenAddr,
         uint[] memory ctokenFactor,
         uint splitAmt,
         uint slippageAmt
     ) public
     {
-        (,,,,uint maxWithdraw,) = getCompStats(address(this), cTokenAddr, ctokenFactor);
+        (,,,,uint maxWithdraw,) = getCompStats(address(this), ctokenAddr, ctokenFactor);
         uint ethToSwap = ethToFree < maxWithdraw ? ethToFree : maxWithdraw;
         redeemEth(ethToSwap);
         uint destAmt = SplitSwapInterface(getAddressSplitSwap()).ethToDaiSwap.value(ethToSwap)(splitAmt, slippageAmt);
