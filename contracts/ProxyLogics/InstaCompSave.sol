@@ -370,12 +370,13 @@ contract CompoundSave is CompoundResolver {
         setApproval(getAddressDAI(), daiToSwap, getAddressSplitSwap());
         uint destAmt = SplitSwapInterface(getAddressSplitSwap()).daiToEthSwap(daiToSwap, splitAmt, slippageAmt);
         mintCEth(destAmt);
+        emit LogLeverageCompound(daiToSwap, destAmt);
     }
 
 }
 
 
-contract InstaCompSave is CompoundResolver {
+contract InstaCompSave is CompoundSave {
 
     uint public version;
 
