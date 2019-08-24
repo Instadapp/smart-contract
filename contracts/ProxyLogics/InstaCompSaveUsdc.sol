@@ -325,6 +325,7 @@ contract CompoundSave is CompoundResolver {
     function save(
         uint ethToFree,
         uint zrxEthAmt,
+        bool isKyber,
         bytes memory calldataHexString,
         address[] memory ctokenAddr,
         uint[] memory ctokenFactor
@@ -339,7 +340,7 @@ contract CompoundSave is CompoundResolver {
         wethContract.deposit.value(zrxEthAmt)();
         wethContract.approve(getAddressZRXExchange(), zrxEthAmt);
         getAddressZRXExchange().call(calldataHexString);
-        if (address(this).balance > 0) {
+        if (address(this).balance > 0 && isKyber) {
             KyberInterface(getAddressKyberProxy()).trade.value(address(this).balance)(
                     getAddressETH(),
                     address(this).balance,
@@ -352,6 +353,9 @@ contract CompoundSave is CompoundResolver {
         }
         ERC20Interface usdcContract = ERC20Interface(getAddressUSDC());
         uint usdcBal = usdcContract.balanceOf(address(this));
+        uint cut = wmul(2500000000000000, usdcBal);
+        usdcContract.transfer(getAddressAdmin(), cut);
+        usdcBal = sub(usdcBal, cut);
         repayUsdc(usdcBal);
         emit LogSaveCompoundUsdc(ethToSwap, usdcBal);
     }
@@ -360,6 +364,7 @@ contract CompoundSave is CompoundResolver {
         uint usdcToBorrow,
         uint zrxUsdcAmt,
         bytes memory calldataHexString,
+        bool isKyber,
         address[] memory cTokenAddr,
         uint[] memory ctokenFactor
     ) public
@@ -371,14 +376,18 @@ contract CompoundSave is CompoundResolver {
         usdcToSwap = usdcToSwap < usdcToBorrow ? usdcToSwap : usdcToBorrow;
         borrow(usdcToSwap);
         ERC20Interface usdcContract = ERC20Interface(getAddressUSDC());
+        uint usdcBal = usdcContract.balanceOf(address(this));
+        uint cut = wmul(2500000000000000, usdcBal);
+        usdcContract.transfer(getAddressAdmin(), cut);
+        usdcBal = sub(usdcBal, cut);
         usdcContract.approve(getAddressZRXExchange(), zrxUsdcAmt);
         getAddressZRXExchange().call(calldataHexString);
-        uint usdcBal = usdcContract.balanceOf(address(this));
-        if (usdcBal > 0) {
+        usdcBal = usdcContract.balanceOf(address(this));
+        if (usdcBal > 0 && isKyber) {
             usdcContract.approve(getAddressKyberProxy(), usdcBal);
             KyberInterface(getAddressKyberProxy()).trade.value(address(this).balance)(
                     getAddressUSDC(),
-                    address(this).balance,
+                    usdcBal,
                     getAddressETH(),
                     address(this),
                     2**255,
@@ -390,8 +399,8 @@ contract CompoundSave is CompoundResolver {
         uint wethBal = wethContract.balanceOf(address(this));
         wethContract.approve(getAddressWETH(), wethBal);
         wethContract.withdraw(wethBal);
-        mintCEth(address(this).balance);
-        emit LogLeverageCompoundUsdc(usdcToSwap, address(this).balance);
+        mintCEth(wethBal);
+        emit LogLeverageCompoundUsdc(usdcToSwap, wethBal);
     }
 
 }
