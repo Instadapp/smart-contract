@@ -116,6 +116,10 @@ contract Helpers is DSMath {
         zrxExchange = 0x080bf510FCbF18b91105470639e9561022937712;
     }
 
+    function getAddressZRXERC20() public pure returns (address zrxerc20) {
+        zrxerc20 = 0x95E6F48254609A6ee006F7D493c8e5fB97094ceF;
+    }
+
     /**
      * @dev get ethereum address for trade
      */
@@ -338,12 +342,14 @@ contract CompoundSave is CompoundResolver {
         redeemEth(ethToSwap);
         ERC20Interface wethContract = ERC20Interface(getAddressWETH());
         wethContract.deposit.value(zrxEthAmt)();
-        wethContract.approve(getAddressZRXExchange(), zrxEthAmt);
-        getAddressZRXExchange().call(calldataHexString);
-        if (address(this).balance > 0 && isKyber) {
-            KyberInterface(getAddressKyberProxy()).trade.value(address(this).balance)(
+        wethContract.approve(getAddressZRXERC20(), zrxEthAmt);
+        (bool swapSuccess,) = getAddressZRXExchange().call(calldataHexString);
+        assert(swapSuccess);
+        uint remainEth = sub(ethToSwap, zrxEthAmt);
+        if (remainEth > 0 && isKyber) {
+            KyberInterface(getAddressKyberProxy()).trade.value(remainEth)(
                     getAddressETH(),
-                    address(this).balance,
+                    remainEth,
                     getAddressUSDC(),
                     address(this),
                     2**255,
@@ -353,9 +359,6 @@ contract CompoundSave is CompoundResolver {
         }
         ERC20Interface usdcContract = ERC20Interface(getAddressUSDC());
         uint usdcBal = usdcContract.balanceOf(address(this));
-        uint cut = wmul(2500000000000000, usdcBal);
-        usdcContract.transfer(getAddressAdmin(), cut);
-        usdcBal = sub(usdcBal, cut);
         repayUsdc(usdcBal);
         emit LogSaveCompoundUsdc(ethToSwap, usdcBal);
     }
@@ -376,18 +379,15 @@ contract CompoundSave is CompoundResolver {
         usdcToSwap = usdcToSwap < usdcToBorrow ? usdcToSwap : usdcToBorrow;
         borrow(usdcToSwap);
         ERC20Interface usdcContract = ERC20Interface(getAddressUSDC());
-        uint usdcBal = usdcContract.balanceOf(address(this));
-        uint cut = wmul(2500000000000000, usdcBal);
-        usdcContract.transfer(getAddressAdmin(), cut);
-        usdcBal = sub(usdcBal, cut);
-        usdcContract.approve(getAddressZRXExchange(), zrxUsdcAmt);
-        getAddressZRXExchange().call(calldataHexString);
-        usdcBal = usdcContract.balanceOf(address(this));
-        if (usdcBal > 0 && isKyber) {
-            usdcContract.approve(getAddressKyberProxy(), usdcBal);
-            KyberInterface(getAddressKyberProxy()).trade.value(address(this).balance)(
+        usdcContract.approve(getAddressZRXERC20(), zrxUsdcAmt);
+        (bool swapSuccess,) = getAddressZRXExchange().call(calldataHexString);
+        assert(swapSuccess);
+        uint usdcRemain = sub(usdcToSwap, zrxUsdcAmt);
+        if (usdcRemain > 0 && isKyber) {
+            usdcContract.approve(getAddressKyberProxy(), usdcRemain);
+            KyberInterface(getAddressKyberProxy()).trade.value(uint(0))(
                     getAddressUSDC(),
-                    usdcBal,
+                    usdcRemain,
                     getAddressETH(),
                     address(this),
                     2**255,
