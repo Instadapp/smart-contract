@@ -399,14 +399,14 @@ contract CompoundSave is CompoundResolver {
         uint wethBal = wethContract.balanceOf(address(this));
         wethContract.approve(getAddressWETH(), wethBal);
         wethContract.withdraw(wethBal);
-        mintCEth(wethBal);
-        emit LogLeverageCompoundUsdc(usdcToSwap, wethBal);
+        mintCEth(address(this).balance);
+        emit LogLeverageCompoundUsdc(usdcToSwap, address(this).balance);
     }
 
 }
 
 
-contract InstaCompSave is CompoundSave {
+contract InstaCompSaveUsdc is CompoundSave {
 
     uint public version;
 
