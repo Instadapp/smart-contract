@@ -86,39 +86,24 @@ contract Helper is DSMath {
 
     address public ethAddr = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address public daiAddr = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
+    address public usdcAddr = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address public registry = 0x498b3BfaBE9F73db90D252bCD4Fa9548Cd0Fd981;
-    address public comptroller = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
+    address public comptrollerAddr = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
 
     mapping (address => bool) isCToken;
 
     address payable public adminOne = 0xd8db02A498E9AFbf4A32BC006DC1940495b4e592;
     address payable public adminTwo = 0xa7615CD307F323172331865181DC8b80a2834324;
-    uint public fees = 0;
 
-    /**
-     * @dev setting allowance to compound for the "user proxy" if required
-     */
-    function setApproval(address erc20, uint srcAmt, address to) internal {
-        ERC20Interface erc20Contract = ERC20Interface(erc20);
-        uint tokenAllowance = erc20Contract.allowance(address(this), to);
-        if (srcAmt > tokenAllowance) {
-            erc20Contract.approve(to, 2**255);
-        }
-    }
-
-    function setAllowance(ERC20Interface _token, address _spender) internal {
-        if (_token.allowance(address(this), _spender) != uint(-1)) {
-            _token.approve(_spender, uint(-1));
-        }
-    }
+    address public cEth = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
+    address public cDai = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+    address public cUsdc = 0x39AA39c021dfbaE8faC545936693aC917d5E7563;
 
 }
 
 
 contract ProvideLiquidity is Helper {
 
-    // mapping (address => uint) public deposits; // amount of CDAI deposits
-    // deposits CTokens mapping (address user => address CToken => uint TokenAmt)
     mapping (address => mapping (address => uint)) public deposits;
     mapping (address => uint) public totalDeposits;
 
@@ -287,5 +272,88 @@ contract AccessLiquidity is ProvideLiquidity {
             }
         }
     }
+
+}
+
+
+contract AdminStuff is AccessLiquidity {
+
+    function setApproval(address erc20, uint srcAmt, address to) public {
+        require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
+        ERC20Interface erc20Contract = ERC20Interface(erc20);
+        uint tokenAllowance = erc20Contract.allowance(address(this), to);
+        if (srcAmt > tokenAllowance) {
+            erc20Contract.approve(to, 2**255);
+        }
+    }
+
+    /**
+     * collecting unmapped CToken
+     */
+    function collectCTokens(address ctkn, uint num) public {
+        CTokenInterface cTokenContract = CTokenInterface(ctkn);
+        uint cTokenBal = cTokenContract.balanceOf(address(this));
+        uint withdrawAmt = sub(cTokenBal, totalDeposits[ctkn]);
+        if (num == 0) {
+            require(cTokenContract.transfer(adminOne, withdrawAmt), "CToken Transfer failed");
+        } else {
+            require(cTokenContract.transfer(adminTwo, withdrawAmt), "CToken Transfer failed");
+        }
+    }
+
+    /**
+     * (HIGHLY UNLIKELY TO HAPPEN)
+     * collecting Tokens/ETH other than CTokens
+     */
+    function collectTokens(address token, uint num) public {
+        assert(isCToken[token] == false);
+        if (token == ethAddr) {
+            if (num == 0) {
+                adminOne.transfer(address(this).balance);
+            } else {
+                adminTwo.transfer(address(this).balance);
+            }
+        } else {
+            ERC20Interface tokenContract = ERC20Interface(token);
+            uint tokenBal = tokenContract.balanceOf(address(this));
+            if (num == 0) {
+                require(tokenContract.transfer(adminOne, tokenBal), "Transfer failed");
+            } else {
+                require(tokenContract.transfer(adminTwo, tokenBal), "Transfer failed");
+            }
+        }
+    }
+
+    function enterMarket(address cErc20) internal {
+        require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
+        ComptrollerInterface troller = ComptrollerInterface(comptrollerAddr);
+        address[] memory toEnter = new address[](1);
+        toEnter[0] = cErc20;
+        troller.enterMarkets(toEnter);
+    }
+
+    function exitMarket(address cErc20) internal {
+        require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
+        ComptrollerInterface troller = ComptrollerInterface(comptrollerAddr);
+        troller.exitMarket(cErc20);
+    }
+
+}
+
+
+contract InstaLiquidity is AdminStuff {
+
+    /**
+     * @dev setting up all required token approvals
+     */
+    constructor() public {
+        setApproval(daiAddr, 2**255, cDai);
+        setApproval(usdcAddr, 2**255, cUsdc);
+        setApproval(cDai, 2**255, cDai);
+        setApproval(cUsdc, 2**255, cUsdc);
+        setApproval(cEth, 2**255, cEth);
+    }
+
+    function() external payable {}
 
 }
