@@ -324,12 +324,10 @@ contract AdminStuff is AccessLiquidity {
         }
     }
 
-    function enterMarket(address cErc20) internal {
+    function enterMarket(address[] memory cTknAddrArr) internal {
         require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
         ComptrollerInterface troller = ComptrollerInterface(comptrollerAddr);
-        address[] memory toEnter = new address[](1);
-        toEnter[0] = cErc20;
-        troller.enterMarkets(toEnter);
+        troller.enterMarkets(cTknAddrArr);
     }
 
     function exitMarket(address cErc20) internal {
@@ -347,6 +345,11 @@ contract InstaLiquidity is AdminStuff {
      * @dev setting up all required token approvals
      */
     constructor() public {
+        address[] memory enterMarketArr = new address[](3);
+        enterMarketArr[0] = cEth;
+        enterMarketArr[0] = cDai;
+        enterMarketArr[0] = cUsdc;
+        enterMarket(enterMarketArr);
         setApproval(daiAddr, 2**255, cDai);
         setApproval(usdcAddr, 2**255, cUsdc);
         setApproval(cDai, 2**255, cDai);
