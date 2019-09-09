@@ -441,12 +441,12 @@ contract MakerResolver is CompoundHelper {
         ethCol = ethAmt < ethCol ? ethAmt : ethCol; // if ETH amount > max Col. Set max col
     }
 
-    function wipeAndFree(uint cdpNum, uint jam, uint _wad) internal returns (uint daiAmt) {
+    function wipeAndFreeMaker(uint cdpNum, uint jam, uint _wad) internal returns (uint daiAmt) {
         daiAmt = wipe(cdpNum, _wad);
         free(cdpNum, jam);
     }
 
-    function lockAndDraw(uint cdpNum, uint jam, uint _wad) internal {
+    function lockAndDrawMaker(uint cdpNum, uint jam, uint _wad) internal {
         lock(cdpNum, jam);
         draw(cdpNum, _wad);
     }
@@ -478,7 +478,7 @@ contract CompoundResolver is MakerResolver {
         enterMarket(getCDAIAddress());
         require(CTokenInterface(getCDAIAddress()).borrow(tokenAmt) == 0, "got collateral?");
         setApproval(getDAIAddress(), tokenAmt, getBridgeAddress());
-        BridgeInterface(getBridgeAddress()).transferBackDAI(tokenAmt);
+        // BridgeInterface(getBridgeAddress()).transferBackDAI(tokenAmt);
         emit LogBorrow(
             getDAIAddress(),
             getCDAIAddress(),
@@ -512,13 +512,13 @@ contract CompoundResolver is MakerResolver {
      * @dev Redeem CETH
      * @param tokenAmt Amount of token To Redeem
      */
-    function redeemCETH(uint tokenAmt) internal {
+    function redeemCETH(uint tokenAmt) internal returns(uint ethAmtReddemed) {
         CTokenInterface cToken = CTokenInterface(getCETHAddress());
         uint cethBal = cToken.balanceOf(address(this));
         uint exchangeRate = cToken.exchangeRateCurrent();
         uint cethInEth = wmul(cethBal, exchangeRate);
         setApproval(getCETHAddress(), 2**128, getCETHAddress());
-        uint ethAmtReddemed = tokenAmt;
+        ethAmtReddemed = tokenAmt;
         if (tokenAmt > cethInEth) {
             require(cToken.redeem(cethBal) == 0, "something went wrong");
             ethAmtReddemed = cethInEth;
@@ -533,6 +533,31 @@ contract CompoundResolver is MakerResolver {
         );
     }
 
+    function mintAndBorrowComp(uint ethAmt, uint daiAmt) internal {
+        mintCEth(ethAmt);
+        borrowDAIComp(daiAmt);
+    }
+
+    function paybackAndRedeemComp(uint ethCol, uint daiDebt) internal returns (uint ethAmt, uint daiAmt) {
+        daiAmt = repayDaiComp(daiDebt);
+        ethAmt = redeemCETH(ethCol);
+    }
+
+    /**
+     * @dev If col/debt > user's balance/borrow. Then set max
+     */
+    function checkCompound(uint ethAmt, uint daiAmt) internal returns (uint ethCol, uint daiDebt) {
+        CTokenInterface cEthContract = CTokenInterface(getCETHAddress());
+        uint cEthBal = cEthContract.balanceOf(msg.sender);
+        uint ethExchangeRate = cEthContract.exchangeRateCurrent();
+        ethCol = wmul(cEthBal, ethExchangeRate);
+        ethCol = wdiv(ethCol, ethExchangeRate) <= cEthBal ? ethCol : ethCol - 1;
+        ethCol = ethCol <= ethAmt ? ethCol : ethAmt; // Set Max if amount is greater than the Col user have
+
+        daiDebt = CERC20Interface(getCDAIAddress()).borrowBalanceCurrent(msg.sender);
+        daiDebt = daiDebt <= daiAmt ? daiDebt : daiAmt; // Set Max if amount is greater than the Debt user have
+    }
+
 }
 
 
@@ -542,21 +567,30 @@ contract Bridge is CompoundResolver {
      * @dev convert Maker CDP into Compound Collateral
      * @param toConvert ranges from 0 to 1 and has (18 decimals)
      */
-    function makerToCompound(uint cdpId, uint toConvert) public {
-        bytes32 cup = bytes32(cdpId);
-        (uint ethCol, uint daiDebt) = getCDPStats(cup);
-        uint ethFree = ethCol;
-        uint daiAmt = daiDebt;
-        if (toConvert < 10**18) {
-            uint wipeAmt = wmul(daiDebt, toConvert);
-            ethFree = wmul(ethCol, toConvert);
-            daiAmt = wipe(cup, wipeAmt, ethFree);
-            free(cup, ethFree);
-        } else {
-            daiAmt = shut(cup);
-        }
-        mintCEth(ethFree);
-        borrowDAIComp(daiAmt);
+    // function makerToCompound(uint cdpId, uint toConvert) public {
+    //     bytes32 cup = bytes32(cdpId);
+    //     (uint ethCol, uint daiDebt) = getCDPStats(cup);
+    //     uint ethFree = ethCol;
+    //     uint daiAmt = daiDebt;
+    //     if (toConvert < 10**18) {
+    //         uint wipeAmt = wmul(daiDebt, toConvert);
+    //         ethFree = wmul(ethCol, toConvert);
+    //         daiAmt = wipe(cup, wipeAmt, ethFree);
+    //         free(cup, ethFree);
+    //     } else {
+    //         daiAmt = shut(cup);
+    //     }
+    //     mintCEth(ethFree);
+    //     borrowDAIComp(daiAmt);
+    // }
+
+    /**
+     * @dev MakerDAO to Compound
+     */
+    function makerToCompound(uint cdpId, uint ethQty, uint daiQty) public {
+        (uint ethAmt, uint daiDebt) = checkCDP(bytes32(cdpId), ethQty, daiQty);
+        uint daiAmt = wipeAndFreeMaker(cdpId, ethAmt, daiDebt); // Getting Liquidity inside Wipe function
+        mintAndBorrowComp(ethAmt, daiAmt); // Returning Liquidity inside Borrow function
     }
 
     /**
@@ -564,29 +598,34 @@ contract Bridge is CompoundResolver {
      * @param cdpId = 0, if user don't have any CDP
      * @param toConvert ranges from 0 to 1 and has (18 decimals)
      */
-    function compoundToMaker(uint cdpId, uint toConvert) public {
-        bytes32 cup = bytes32(cdpId);
-        if (cdpId == 0) {
-            cup = open();
-        }
-
-        (uint ethCol, uint daiDebt,, uint totalBorrow, uint maxBorrow, uint daiInEth) = getCompoundStats(address(this));
-        uint ethFree = ethCol;
-        uint daiAmt = daiDebt;
-        if (toConvert < 10**18) {
-            daiAmt = wmul(daiDebt, toConvert);
-            ethFree = wmul(ethCol, toConvert);
-        }
-        uint makerFinalRatio = getMakerRatio(cup, ethFree, daiAmt);
-        require(makerFinalRatio < 660000000000000000, "Maker CDP will liquidate");
-        totalBorrow -= wmul(daiAmt, daiInEth);
-        maxBorrow -= wmul(ethFree, 750000000000000000);
-        require(totalBorrow < maxBorrow, "Compound position will liquidate");
-        repayToken(daiAmt);
-        redeemUnderlying(ethFree);
-        lock(cup, ethFree);
-        draw(cup, daiAmt);
+    function compoundToMaker(uint cdpId, uint ethQty, uint daiQty) public {
+        (uint ethCol, uint daiDebt) = checkCompound(ethQty, daiQty);
+        (uint ethAmt, uint daiAmt) = paybackAndRedeemComp(cdpId, ethCol, daiDebt); // Getting Liquidity inside Wipe function
+        lockAndDrawMaker(ethAmt, daiAmt); // Returning Liquidity inside Borrow function
     }
+    // function compoundToMaker(uint cdpId, uint toConvert) public {
+    //     bytes32 cup = bytes32(cdpId);
+    //     if (cdpId == 0) {
+    //         cup = open();
+    //     }
+
+    //     (uint ethCol, uint daiDebt,, uint totalBorrow, uint maxBorrow, uint daiInEth) = getCompoundStats(address(this));
+    //     uint ethFree = ethCol;
+    //     uint daiAmt = daiDebt;
+    //     if (toConvert < 10**18) {
+    //         daiAmt = wmul(daiDebt, toConvert);
+    //         ethFree = wmul(ethCol, toConvert);
+    //     }
+    //     uint makerFinalRatio = getMakerRatio(cup, ethFree, daiAmt);
+    //     require(makerFinalRatio < 660000000000000000, "Maker CDP will liquidate");
+    //     totalBorrow -= wmul(daiAmt, daiInEth);
+    //     maxBorrow -= wmul(ethFree, 750000000000000000);
+    //     require(totalBorrow < maxBorrow, "Compound position will liquidate");
+    //     repayToken(daiAmt);
+    //     redeemUnderlying(ethFree);
+    //     lock(cup, ethFree);
+    //     draw(cup, daiAmt);
+    // }
 
 }
 
