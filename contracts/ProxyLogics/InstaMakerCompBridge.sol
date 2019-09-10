@@ -180,8 +180,8 @@ contract Helper is DSMath {
     /**
      * @dev get uniswap DAI exchange
      */
-    function getBridgeAddress() public pure returns (address bridge) {
-        bridge = 0x9807554C441Bb37F549fc7F77165E5be49e55eD5;
+    function getLiquidityAddr() public pure returns (address liquidity) {
+        // liquidity = ;
     }
 
     /**
@@ -345,7 +345,7 @@ contract MakerResolver is CompoundHelper {
             uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
             daiAmt = add(_wad, daiFeeAmt);
 
-            // redeemUnderlying(getCDAIAddress(), daiAmt);
+            LiquidityInterface(getLiquidityAddr()).borrowTknAndTransfer(getDAIAddress(), getCDAIAddress(), daiAmt);
 
             if (ok && val != 0) {
                 daiEx.tokenToTokenSwapOutput(
@@ -422,6 +422,9 @@ contract MakerResolver is CompoundHelper {
             TubInterface tub = TubInterface(getSaiTubAddress());
 
             tub.draw(cup, _wad);
+
+            require(TokenInterface(getDAIAddress()).transfer(getLiquidityAddr(), _wad), "Not-enough-DAI");
+            LiquidityInterface(getLiquidityAddr()).payBorrowBack(getDAIAddress(), getCDAIAddress(), _wad);
         }
     }
 
@@ -466,15 +469,15 @@ contract CompoundResolver is MakerResolver {
     /**
      * @dev borrow DAI
      */
-    function borrowDAIComp(uint tokenAmt) internal {
+    function borrowDAIComp(uint daiAmt) internal {
         enterMarket(getCDAIAddress());
-        require(CTokenInterface(getCDAIAddress()).borrow(tokenAmt) == 0, "got collateral?");
-        setApproval(getDAIAddress(), tokenAmt, getBridgeAddress());
-        // BridgeInterface(getBridgeAddress()).transferBackDAI(tokenAmt);
+        require(CTokenInterface(getCDAIAddress()).borrow(daiAmt) == 0, "got collateral?");
+        require(TokenInterface(getDAIAddress()).transfer(getLiquidityAddr(), daiAmt), "Not-enough-DAI");
+        LiquidityInterface(getLiquidityAddr()).payBorrowBack(getDAIAddress(), getCDAIAddress(), daiAmt);
         emit LogBorrow(
             getDAIAddress(),
             getCDAIAddress(),
-            tokenAmt,
+            daiAmt,
             address(this)
         );
     }
@@ -489,7 +492,7 @@ contract CompoundResolver is MakerResolver {
         if (tokenAmt > daiBorrowed) {
             wipeAmt = daiBorrowed;
         }
-        // BridgeInterface(getBridgeAddress()).transferDAI(wipeAmt);
+        LiquidityInterface(getLiquidityAddr()).borrowTknAndTransfer(getDAIAddress(), getCDAIAddress(), wipeAmt);
         setApproval(getDAIAddress(), wipeAmt, getCDAIAddress());
         require(cToken.repayBorrow(wipeAmt) == 0, "transfer approved?");
         emit LogRepay(
