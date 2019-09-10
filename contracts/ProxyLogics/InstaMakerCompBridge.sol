@@ -436,7 +436,7 @@ contract MakerResolver is CompoundHelper {
      */
     function checkCDP(bytes32 cup, uint ethAmt, uint daiAmt) internal returns (uint ethCol, uint daiDebt) {
         TubInterface tub = TubInterface(getSaiTubAddress());
-        ethCol = rmul(tub.ink(cup), tub.per()); // get ETH col from PETH col
+        ethCol = rmul(tub.ink(cup), tub.per()) - 1; // get ETH col from PETH col
         daiDebt = tub.tab(cup);
         daiDebt = daiAmt < daiDebt ? daiAmt : daiDebt; // if DAI amount > max debt. Set max debt
         ethCol = ethAmt < ethCol ? ethAmt : ethCol; // if ETH amount > max Col. Set max col
@@ -500,10 +500,7 @@ contract CompoundResolver is MakerResolver {
     function repayDaiComp(uint tokenAmt) internal returns (uint wipeAmt) {
         CERC20Interface cToken = CERC20Interface(getCDAIAddress());
         uint daiBorrowed = cToken.borrowBalanceCurrent(address(this));
-        wipeAmt = tokenAmt;
-        if (tokenAmt > daiBorrowed) {
-            wipeAmt = daiBorrowed;
-        }
+        wipeAmt = tokenAmt < daiBorrowed ? tokenAmt : daiBorrowed;
         LiquidityInterface(getLiquidityAddr()).borrowTknAndTransfer(getDAIAddress(), getCDAIAddress(), wipeAmt);
         setApproval(getDAIAddress(), wipeAmt, getCDAIAddress());
         require(cToken.repayBorrow(wipeAmt) == 0, "transfer approved?");
