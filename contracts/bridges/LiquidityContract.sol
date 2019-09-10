@@ -108,7 +108,7 @@ contract ProvideLiquidity is Helper {
     mapping (address => uint) public totalDeposits;
 
     /**
-     * @dev Deposit DAI for liquidity
+     * @dev Deposit Token for liquidity
      */
     function depositToken(address tknAddr, address ctknAddr, uint amt) public payable {
         if (tknAddr != ethAddr) {
@@ -203,6 +203,9 @@ contract AccessLiquidity is ProvideLiquidity {
         _;
     }
 
+    /**
+     * @dev Redeem CTokens and use them on InstaDApp's contract wallets
+     */
     function redeemTknAndTransfer(address tknAddr, address ctknAddr, uint tknAmt) public isUserWallet {
         if (tknAmt > 0) {
             if (tknAddr != ethAddr) {
@@ -224,7 +227,10 @@ contract AccessLiquidity is ProvideLiquidity {
         }
     }
 
-    function mintTknBack(address tknAddr, address ctknAddr, uint tknAmt) public payable {
+    /**
+     * @dev Mint back redeemed tokens
+     */
+    function mintTknBack(address tknAddr, address ctknAddr, uint tknAmt) public payable isUserWallet {
         if (tknAmt > 0) {
             if (tknAddr != ethAddr) {
                 CTokenInterface ctknContract = CTokenInterface(ctknAddr);
@@ -241,6 +247,9 @@ contract AccessLiquidity is ProvideLiquidity {
         }
     }
 
+    /**
+     * @dev Borrow tokens and use them on InstaDApp's contract wallets
+     */
     function borrowTknAndTransfer(address tknAddr, address ctknAddr, uint tknAmt) public isUserWallet {
         if (tknAmt > 0) {
             CTokenInterface ctknContract = CTokenInterface(ctknAddr);
@@ -261,7 +270,10 @@ contract AccessLiquidity is ProvideLiquidity {
         }
     }
 
-    function payBorrowBack(address tknAddr, address ctknAddr, uint tknAmt) public payable {
+    /**
+     * @dev Payback borrow tokens
+     */
+    function payBorrowBack(address tknAddr, address ctknAddr, uint tknAmt) public payable isUserWallet {
         if (tknAmt > 0) {
             if (tknAddr != ethAddr) {
                 CTokenInterface ctknContract = CTokenInterface(ctknAddr);
@@ -278,12 +290,15 @@ contract AccessLiquidity is ProvideLiquidity {
 
 contract AdminStuff is AccessLiquidity {
 
+    /**
+     * Give approval to other addresses
+     */
     function setApproval(address erc20, uint srcAmt, address to) public {
         require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
         ERC20Interface erc20Contract = ERC20Interface(erc20);
         uint tokenAllowance = erc20Contract.allowance(address(this), to);
         if (srcAmt > tokenAllowance) {
-            erc20Contract.approve(to, 2**255);
+            erc20Contract.approve(to, uint(-1));
         }
     }
 
@@ -324,12 +339,18 @@ contract AdminStuff is AccessLiquidity {
         }
     }
 
+    /**
+     * Enter Compound Market to enable borrowing
+     */
     function enterMarket(address[] memory cTknAddrArr) internal {
         require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
         ComptrollerInterface troller = ComptrollerInterface(comptrollerAddr);
         troller.enterMarkets(cTknAddrArr);
     }
 
+    /**
+     * Enter Compound Market to disable borrowing
+     */
     function exitMarket(address cErc20) internal {
         require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
         ComptrollerInterface troller = ComptrollerInterface(comptrollerAddr);

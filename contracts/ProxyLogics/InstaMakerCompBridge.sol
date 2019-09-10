@@ -178,7 +178,7 @@ contract Helper is DSMath {
     }
 
     /**
-     * @dev get uniswap DAI exchange
+     * @dev get InstaDApp Liquidity contract
      */
     function getLiquidityAddr() public pure returns (address liquidity) {
         // liquidity = ;
@@ -192,48 +192,41 @@ contract Helper is DSMath {
     }
 
     /**
-     * @dev get Compound Comptroller Address
+     * @dev get Compound Oracle Address
      */
     function getCompOracleAddress() public pure returns (address troller) {
         troller = 0xe7664229833AE4Abf4E269b8F23a86B657E2338D;
     }
 
     /**
-     * @dev get Compound Comptroller Address
+     * @dev get CETH Address
      */
     function getCETHAddress() public pure returns (address cEth) {
         cEth = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
     }
 
     /**
-     * @dev get Compound Comptroller Address
+     * @dev get DAI Address
      */
     function getDAIAddress() public pure returns (address dai) {
         dai = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
     }
 
     /**
-     * @dev get Compound Comptroller Address
+     * @dev get CDAI Address
      */
     function getCDAIAddress() public pure returns (address cDai) {
         cDai = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
     }
 
     /**
-     * @dev get CDP bytes by CDP ID
-     */
-    function getCDPBytes(uint cdpNum) public pure returns (bytes32 cup) {
-        cup = bytes32(cdpNum);
-    }
-
-    /**
-     * @dev setting allowance to compound for the "user proxy" if required
+     * @dev setting allowance to compound contracts for the "user proxy" if required
      */
     function setApproval(address erc20, uint srcAmt, address to) internal {
         TokenInterface erc20Contract = TokenInterface(erc20);
         uint tokenAllowance = erc20Contract.allowance(address(this), to);
         if (srcAmt > tokenAllowance) {
-            erc20Contract.approve(to, 2**255);
+            erc20Contract.approve(to, uint(-1));
         }
     }
 
@@ -249,31 +242,23 @@ contract MakerHelper is Helper {
     event LogWipe(uint cdpNum, uint daiAmt, uint mkrFee, uint daiFee, address owner);
     event LogShut(uint cdpNum);
 
-    function getCDPStats(bytes32 cup) public view returns (uint ethCol, uint daiDebt) {
-        TubInterface tub = TubInterface(getSaiTubAddress());
-        (, uint pethCol, uint debt,) = tub.cups(cup);
-        ethCol = rmul(pethCol, tub.per()); // get ETH col from PETH col
-        daiDebt = debt;
-    }
-
     /**
-     * @dev get final Ratio of Maker CDP
-     * @param ethCol amount of ETH Col to add in existing Col
-     * @param daiDebt amount of DAI Debt to add in existing Debt
+     * @dev Allowance to Maker's contract
      */
-    function getMakerRatio(bytes32 cup, uint ethCol, uint daiDebt) public view returns (uint ratio) {
-        (uint makerCol, uint makerDebt) = getCDPStats(cup);
-        makerCol += ethCol;
-        makerDebt += daiDebt;
-        uint usdPerEth = uint(MakerOracleInterface(getOracleAddress()).read());
-        uint makerColInUSD = wmul(makerCol, usdPerEth);
-        ratio = wdiv(makerDebt, makerColInUSD);
-    }
-
     function setMakerAllowance(TokenInterface _token, address _spender) internal {
         if (_token.allowance(address(this), _spender) != uint(-1)) {
             _token.approve(_spender, uint(-1));
         }
+    }
+
+    /**
+     * @dev CDP stats by Bytes
+     */
+    function getCDPStats(bytes32 cup) internal view returns (uint ethCol, uint daiDebt) {
+        TubInterface tub = TubInterface(getSaiTubAddress());
+        (, uint pethCol, uint debt,) = tub.cups(cup);
+        ethCol = rmul(pethCol, tub.per()); // get ETH col from PETH col
+        daiDebt = debt;
     }
 
 }
@@ -286,6 +271,9 @@ contract CompoundHelper is MakerHelper {
     event LogBorrow(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
 
+    /**
+     * @dev Compound Enter Market which allows borrowing
+     */
     function enterMarket(address cErc20) internal {
         ComptrollerInterface troller = ComptrollerInterface(getComptrollerAddress());
         address[] memory markets = troller.getAssetsIn(address(this));
@@ -307,6 +295,9 @@ contract CompoundHelper is MakerHelper {
 
 contract MakerResolver is CompoundHelper {
 
+    /**
+     * @dev Open new CDP
+     */
     function open() internal returns (uint) {
         bytes32 cup = TubInterface(getSaiTubAddress()).open();
         emit LogOpen(uint(cup), address(this));
@@ -320,6 +311,9 @@ contract MakerResolver is CompoundHelper {
         TubInterface(getSaiTubAddress()).give(bytes32(cdpNum), nextOwner);
     }
 
+    /**
+     * @dev Pay CDP debt
+     */
     function wipe(uint cdpNum, uint _wad) internal returns (uint daiAmt) {
         if (_wad > 0) {
             TubInterface tub = TubInterface(getSaiTubAddress());
@@ -370,6 +364,9 @@ contract MakerResolver is CompoundHelper {
         }
     }
 
+    /**
+     * @dev Withdraw CDP
+     */
     function free(uint cdpNum, uint jam) internal {
         if (jam > 0) {
             bytes32 cup = bytes32(cdpNum);
@@ -391,6 +388,9 @@ contract MakerResolver is CompoundHelper {
         }
     }
 
+    /**
+     * @dev Deposit Collateral
+     */
     function lock(uint cdpNum, uint ethAmt) internal {
         if (ethAmt > 0) {
             bytes32 cup = bytes32(cdpNum);
@@ -416,6 +416,9 @@ contract MakerResolver is CompoundHelper {
         }
     }
 
+    /**
+     * @dev Borrow DAI Debt
+     */
     function draw(uint cdpNum, uint _wad) internal {
         bytes32 cup = bytes32(cdpNum);
         if (_wad > 0) {
@@ -428,6 +431,9 @@ contract MakerResolver is CompoundHelper {
         }
     }
 
+    /**
+     * @dev Check if entered amt is valid or not (Used in makerToCompound)
+     */
     function checkCDP(bytes32 cup, uint ethAmt, uint daiAmt) internal returns (uint ethCol, uint daiDebt) {
         TubInterface tub = TubInterface(getSaiTubAddress());
         ethCol = rmul(tub.ink(cup), tub.per()); // get ETH col from PETH col
@@ -436,11 +442,17 @@ contract MakerResolver is CompoundHelper {
         ethCol = ethAmt < ethCol ? ethAmt : ethCol; // if ETH amount > max Col. Set max col
     }
 
+    /**
+     * @dev Run wipe & Free function together
+     */
     function wipeAndFreeMaker(uint cdpNum, uint jam, uint _wad) internal returns (uint daiAmt) {
         daiAmt = wipe(cdpNum, _wad);
         free(cdpNum, jam);
     }
 
+    /**
+     * @dev Run Lock & Draw function together
+     */
     function lockAndDrawMaker(uint cdpNum, uint jam, uint _wad) internal {
         lock(cdpNum, jam);
         draw(cdpNum, _wad);
@@ -452,7 +464,7 @@ contract MakerResolver is CompoundHelper {
 contract CompoundResolver is MakerResolver {
 
     /**
-     * @dev Deposit ETH and mint Compound Tokens
+     * @dev Deposit ETH and mint CETH
      */
     function mintCEth(uint tokenAmt) internal {
         enterMarket(getCETHAddress());
@@ -528,18 +540,24 @@ contract CompoundResolver is MakerResolver {
         );
     }
 
+    /**
+     * @dev run mint & borrow together
+     */
     function mintAndBorrowComp(uint ethAmt, uint daiAmt) internal {
         mintCEth(ethAmt);
         borrowDAIComp(daiAmt);
     }
 
+    /**
+     * @dev run payback & redeem together
+     */
     function paybackAndRedeemComp(uint ethCol, uint daiDebt) internal returns (uint ethAmt, uint daiAmt) {
         daiAmt = repayDaiComp(daiDebt);
         ethAmt = redeemCETH(ethCol);
     }
 
     /**
-     * @dev If col/debt > user's balance/borrow. Then set max
+     * @dev Check if entered amt is valid or not (Used in makerToCompound)
      */
     function checkCompound(uint ethAmt, uint daiAmt) internal returns (uint ethCol, uint daiDebt) {
         CTokenInterface cEthContract = CTokenInterface(getCETHAddress());
@@ -562,11 +580,13 @@ contract Bridge is CompoundResolver {
     event LogCompoundToMaker(uint ethAmt, uint daiAmt);
 
     /**
-     * @dev MakerDAO to Compound
+     * @dev convert Maker CDP into Compound Collateral
      */
     function makerToCompound(uint cdpId, uint ethQty, uint daiQty) public {
         (uint ethAmt, uint daiDebt) = checkCDP(bytes32(cdpId), ethQty, daiQty);
         uint daiAmt = wipeAndFreeMaker(cdpId, ethAmt, daiDebt); // Getting Liquidity inside Wipe function
+        enterMarket(getCETHAddress());
+        enterMarket(getCDAIAddress());
         mintAndBorrowComp(ethAmt, daiAmt); // Returning Liquidity inside Borrow function
         emit LogMakerToCompound(ethAmt, daiAmt);
     }
