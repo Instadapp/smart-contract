@@ -401,8 +401,8 @@ contract InstaLiquidity is AdminStuff {
     constructor() public {
         address[] memory enterMarketArr = new address[](3);
         enterMarketArr[0] = cEth;
-        enterMarketArr[0] = cDai;
-        enterMarketArr[0] = cUsdc;
+        enterMarketArr[1] = cDai;
+        enterMarketArr[2] = cUsdc;
         enterMarket(enterMarketArr);
         setApproval(daiAddr, 2**255, cDai);
         setApproval(usdcAddr, 2**255, cUsdc);
