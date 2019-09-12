@@ -383,7 +383,7 @@ contract AdminStuff is AccessLiquidity {
     /**
      * Enter Compound Market to enable borrowing
      */
-    function enterMarket(address[] memory cTknAddrArr) internal {
+    function enterMarket(address[] memory cTknAddrArr) public {
         require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
         ComptrollerInterface troller = ComptrollerInterface(comptrollerAddr);
         troller.enterMarkets(cTknAddrArr);
@@ -392,7 +392,7 @@ contract AdminStuff is AccessLiquidity {
     /**
      * Enter Compound Market to disable borrowing
      */
-    function exitMarket(address cErc20) internal {
+    function exitMarket(address cErc20) public {
         require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
         ComptrollerInterface troller = ComptrollerInterface(comptrollerAddr);
         troller.exitMarket(cErc20);
@@ -401,7 +401,7 @@ contract AdminStuff is AccessLiquidity {
 }
 
 
-contract InstaLiquidity is AdminStuff {
+contract Liquidity is AdminStuff {
 
     /**
      * @dev setting up all required token approvals
