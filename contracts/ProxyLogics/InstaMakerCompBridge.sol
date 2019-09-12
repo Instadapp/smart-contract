@@ -339,6 +339,7 @@ contract MakerResolver is CompoundHelper {
             uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
             daiAmt = add(_wad, daiFeeAmt);
 
+            // Getting Liquidity from Liquidity Contract
             LiquidityInterface(getLiquidityAddr()).borrowTknAndTransfer(getDAIAddress(), getCDAIAddress(), daiAmt);
 
             if (ok && val != 0) {
@@ -426,6 +427,7 @@ contract MakerResolver is CompoundHelper {
 
             tub.draw(cup, _wad);
 
+            // Returning Liquidity To Liquidity Contract
             require(TokenInterface(getDAIAddress()).transfer(getLiquidityAddr(), _wad), "Not-enough-DAI");
             LiquidityInterface(getLiquidityAddr()).payBorrowBack(getDAIAddress(), getCDAIAddress(), _wad);
         }
@@ -484,6 +486,7 @@ contract CompoundResolver is MakerResolver {
     function borrowDAIComp(uint daiAmt) internal {
         enterMarket(getCDAIAddress());
         require(CTokenInterface(getCDAIAddress()).borrow(daiAmt) == 0, "got collateral?");
+        // Returning Liquidity to Liquidity Contract
         require(TokenInterface(getDAIAddress()).transfer(getLiquidityAddr(), daiAmt), "Not-enough-DAI");
         LiquidityInterface(getLiquidityAddr()).payBorrowBack(getDAIAddress(), getCDAIAddress(), daiAmt);
         emit LogBorrow(
@@ -501,6 +504,7 @@ contract CompoundResolver is MakerResolver {
         CERC20Interface cToken = CERC20Interface(getCDAIAddress());
         uint daiBorrowed = cToken.borrowBalanceCurrent(address(this));
         wipeAmt = tokenAmt < daiBorrowed ? tokenAmt : daiBorrowed;
+        // Getting Liquidity from Liquidity Contract
         LiquidityInterface(getLiquidityAddr()).borrowTknAndTransfer(getDAIAddress(), getCDAIAddress(), wipeAmt);
         setApproval(getDAIAddress(), wipeAmt, getCDAIAddress());
         require(cToken.repayBorrow(wipeAmt) == 0, "transfer approved?");
