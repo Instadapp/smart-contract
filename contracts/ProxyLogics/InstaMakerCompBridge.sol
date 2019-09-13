@@ -608,17 +608,7 @@ contract Bridge is CompoundResolver {
 }
 
 
-contract InstaBridge is Bridge {
-
-    uint public version;
-
-    /**
-     * @dev setting up variables on deployment
-     * 1...2...3 versioning in each subsequent deployments
-     */
-    constructor(uint _version) public {
-        version = _version;
-    }
+contract InstaMakerCompBridge is Bridge {
 
     function() external payable {}
 
