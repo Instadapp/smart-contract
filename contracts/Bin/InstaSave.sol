@@ -195,7 +195,7 @@ contract Helpers is DSMath {
 
     /**
      * @dev setting allowance to kyber for the "user proxy" if required
-     * @param token is the token
+     * @param tknContract is the token
      * @param srcAmt is the amount of token to sell
      */
     function setApproval(IERC20 tknContract, uint srcAmt) internal returns (uint) {
@@ -203,15 +203,6 @@ contract Helpers is DSMath {
         if (srcAmt > tokenAllowance) {
             tknContract.approve(getAddressKyber(), 2**255);
         }
-    }
-
-    /**
-     * @dev setting allowance to kyber for the "user proxy" if required
-     * @param token is the token
-     * @param srcAmt is the amount of token to sell
-     */
-    function getCDPRatio(uint ethCol, uint daiDebt) internal returns (uint ratio) {
-        TubInterface tub = TubInterface(getSaiTubAddress());
     }
 
 }
