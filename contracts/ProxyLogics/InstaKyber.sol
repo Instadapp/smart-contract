@@ -105,7 +105,7 @@ contract Helper {
 
     /**
      * @dev setting allowance to kyber for the "user proxy" if required
-     * @param token is the token
+     * @param tknContract is the token
      * @param srcAmt is the amount of token to sell
      */
     function setApproval(IERC20 tknContract, uint srcAmt) internal returns (uint) {
