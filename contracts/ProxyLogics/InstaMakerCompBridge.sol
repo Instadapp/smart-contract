@@ -583,7 +583,7 @@ contract Bridge is CompoundResolver {
     /**
      * @dev convert Maker CDP into Compound Collateral
      */
-    function makerToCompound(uint cdpId, uint ethQty, uint daiQty) public {
+    function makerToCompound(uint cdpId, uint ethQty, uint daiQty) external {
         (uint ethAmt, uint daiDebt) = checkCDP(bytes32(cdpId), ethQty, daiQty);
         uint daiAmt = wipeAndFreeMaker(cdpId, ethAmt, daiDebt); // Getting Liquidity inside Wipe function
         enterMarket(getCETHAddress());
@@ -596,7 +596,7 @@ contract Bridge is CompoundResolver {
      * @dev convert Compound Collateral into Maker CDP
      * @param cdpId = 0, if user don't have any CDP
      */
-    function compoundToMaker(uint cdpId, uint ethQty, uint daiQty) public {
+    function compoundToMaker(uint cdpId, uint ethQty, uint daiQty) external {
         uint cdpNum = cdpId > 0 ? cdpId : open();
         (uint ethCol, uint daiDebt) = checkCompound(ethQty, daiQty);
         (uint ethAmt, uint daiAmt) = paybackAndRedeemComp(ethCol, daiDebt); // Getting Liquidity inside Wipe function
@@ -604,11 +604,6 @@ contract Bridge is CompoundResolver {
         lockAndDrawMaker(cdpNum, ethAmt, daiAmt); // Returning Liquidity inside Borrow function
         emit LogCompoundToMaker(ethAmt, daiAmt);
     }
-
-}
-
-
-contract InstaMakerCompBridge is Bridge {
 
     function() external payable {}
 
