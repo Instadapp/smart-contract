@@ -575,7 +575,7 @@ contract CompoundResolver is MakerResolver {
 }
 
 
-contract Bridge is CompoundResolver {
+contract InstaMakerCompBridge is CompoundResolver {
 
     event LogMakerToCompound(uint ethAmt, uint daiAmt);
     event LogCompoundToMaker(uint ethAmt, uint daiAmt);
