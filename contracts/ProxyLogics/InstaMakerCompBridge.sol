@@ -562,13 +562,13 @@ contract CompoundResolver is MakerResolver {
      */
     function checkCompound(uint ethAmt, uint daiAmt) internal returns (uint ethCol, uint daiDebt) {
         CTokenInterface cEthContract = CTokenInterface(getCETHAddress());
-        uint cEthBal = cEthContract.balanceOf(msg.sender);
+        uint cEthBal = cEthContract.balanceOf(address(this));
         uint ethExchangeRate = cEthContract.exchangeRateCurrent();
         ethCol = wmul(cEthBal, ethExchangeRate);
         ethCol = wdiv(ethCol, ethExchangeRate) <= cEthBal ? ethCol : ethCol - 1;
         ethCol = ethCol <= ethAmt ? ethCol : ethAmt; // Set Max if amount is greater than the Col user have
 
-        daiDebt = CERC20Interface(getCDAIAddress()).borrowBalanceCurrent(msg.sender);
+        daiDebt = CERC20Interface(getCDAIAddress()).borrowBalanceCurrent(address(this));
         daiDebt = daiDebt <= daiAmt ? daiDebt : daiAmt; // Set Max if amount is greater than the Debt user have
     }
 
