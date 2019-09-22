@@ -101,7 +101,7 @@ contract Helper is DSMath {
     address public adminTwo = 0x7284a8451d9a0e7Dc62B3a71C0593eA2eC5c5638;
     uint public maxSplitAmtEth = 60000000000000000000;
     uint public maxSplitAmtDai = 20000000000000000000000;
-    uint public cut = 997500000000000000; // 0.25% charge
+    uint public cut = 1000000000000000000; // 0% charge
     uint public minDai = 200000000000000000000; // DAI < 200 swap with Kyber or Uniswap
     uint public minEth = 1000000000000000000; // ETH < 1 swap with Kyber or Uniswap
 
@@ -139,7 +139,7 @@ contract AdminStuffs is Helper {
     }
 
     function changeFee(uint amt) public isAdmin {
-        if (amt > 997000000000000000) {
+        if (amt < 997000000000000000) {
             cut = 997000000000000000; // maximum fees can be 0.3%. Minimum 0%
         } else {
             cut = amt;
