@@ -126,7 +126,7 @@ contract Helpers is DSMath {
      * @dev get admin address
      */
     function getAddressSplitSwap() public pure returns (address payable splitSwap) {
-        splitSwap = 0xa4BCA645f9cB9e6F9ad8C56D90a65b07C2f4e1Dd;
+        splitSwap = 0x5D05EA343C7a13cee09b14e56FCBe985c25521b7;
     }
 
     function enterMarket(address cErc20) internal {
@@ -367,7 +367,7 @@ contract CompoundSave is CompoundResolver {
         uint daiToSwap = getDaiRemainBorrow(borrowRemain);
         daiToSwap = daiToSwap < daiToBorrow ? daiToSwap : daiToBorrow;
         borrow(daiToSwap);
-        setApproval(getAddressDAI(), daiToSwap, getAddressSplitSwap());
+        ERC20Interface(getAddressDAI()).approve(getAddressSplitSwap(), daiToSwap);
         uint destAmt = SplitSwapInterface(getAddressSplitSwap()).daiToEthSwap(daiToSwap, splitAmt, slippageAmt);
         mintCEth(destAmt);
         emit LogLeverageCompound(daiToSwap, destAmt);

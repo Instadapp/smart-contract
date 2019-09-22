@@ -170,7 +170,7 @@ contract Helpers is DSMath {
      * @dev get admin address
      */
     function getAddressSplitSwap() public pure returns (address payable splitSwap) {
-        splitSwap = 0xa4BCA645f9cB9e6F9ad8C56D90a65b07C2f4e1Dd;
+        splitSwap = 0x5D05EA343C7a13cee09b14e56FCBe985c25521b7;
     }
 
     /**
@@ -507,7 +507,7 @@ contract Save is GetDetails {
             debtToBorrow = daiToSwap;
         }
         draw(cdpID, debtToBorrow);
-        setAllowance(TokenInterface(getAddressDAI()), getAddressSplitSwap());
+        TokenInterface(getAddressDAI()).approve(getAddressSplitSwap(), debtToBorrow);
         uint destAmt = SplitSwapInterface(getAddressSplitSwap()).daiToEthSwap(debtToBorrow, splitAmt, slippageAmt);
         lock(cdpID, destAmt);
 
