@@ -116,6 +116,8 @@ contract ProvideLiquidity is Helper {
 
     /**
      * @dev Deposit Token for liquidity
+     * TODO: remove "tknAddr" and check for msg.value
+     * TIP: find "underlying" in the cToken address
      */
     function depositToken(address tknAddr, address ctknAddr, uint amt) public payable {
         if (tknAddr != ethAddr) {
