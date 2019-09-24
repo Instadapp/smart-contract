@@ -29,6 +29,7 @@ interface CTokenInterface {
     function balanceOf(address) external view returns (uint);
     function repayBorrow(uint repayAmount) external returns (uint); // For ERC20
     function borrowBalanceCurrent(address account) external returns (uint);
+    function underlying() external view returns (address);
 }
 
 interface CETHInterface {
@@ -107,7 +108,6 @@ contract Helper is DSMath {
 contract ProvideLiquidity is Helper {
 
     mapping (address => mapping (address => uint)) public deposits;
-    mapping (address => uint) public totalDeposits;
 
     event LogDepositToken(address tknAddr, address ctknAddr, uint amt);
     event LogWithdrawToken(address tknAddr, address ctknAddr, uint amt);
@@ -116,69 +116,57 @@ contract ProvideLiquidity is Helper {
 
     /**
      * @dev Deposit Token for liquidity
-     * TODO: remove "tknAddr" and check for msg.value
-     * TIP: find "underlying" in the cToken address
      */
-    function depositToken(address tknAddr, address ctknAddr, uint amt) public payable {
-        if (tknAddr != ethAddr) {
-            ERC20Interface tknContract = ERC20Interface(tknAddr);
-            require(tknContract.transferFrom(msg.sender, address(this), amt), "Not enough tkn to deposit");
+    function depositToken(address ctknAddr, uint amt) public payable {
+        if (ctknAddr != cEth) {
             CTokenInterface cTokenContract = CTokenInterface(ctknAddr);
-            uint intialBal = tknContract.balanceOf(address(this));
+            address tknAddr = cTokenContract.underlying();
+            require(ERC20Interface(tknAddr).transferFrom(msg.sender, address(this), amt), "Not enough tkn to deposit");
             assert(cTokenContract.mint(amt) == 0);
-            uint finalBal = tknContract.balanceOf(address(this));
-            assert(intialBal != finalBal);
             uint exchangeRate = cTokenContract.exchangeRateCurrent();
             uint cTknAmt = wdiv(amt, exchangeRate);
             cTknAmt = wmul(cTknAmt, exchangeRate) <= amt ? cTknAmt : cTknAmt - 1;
             deposits[msg.sender][ctknAddr] += cTknAmt;
-            totalDeposits[ctknAddr] += cTknAmt;
-            emit LogDepositToken(tknAddr, ctknAddr, amt);
+            emit LogDepositCToken(ctknAddr, cTknAmt);
         } else {
             CETHInterface cEthContract = CETHInterface(ctknAddr);
-            uint intialBal = address(this).balance;
             cEthContract.mint.value(msg.value)();
-            uint finalBal = address(this).balance;
-            assert(intialBal != finalBal);
             uint exchangeRate = cEthContract.exchangeRateCurrent();
             uint cEthAmt = wdiv(msg.value, exchangeRate);
             cEthAmt = wmul(cEthAmt, exchangeRate) <= msg.value ? cEthAmt : cEthAmt - 1;
             deposits[msg.sender][ctknAddr] += cEthAmt;
-            totalDeposits[ctknAddr] += cEthAmt;
-            emit LogDepositToken(tknAddr, ctknAddr, msg.value);
+            emit LogDepositCToken(ctknAddr, cEthAmt);
         }
     }
 
     /**
      * @dev Withdraw Token from liquidity
      */
-    function withdrawToken(address tknAddr, address ctknAddr, uint amt) public {
+    function withdrawToken(address ctknAddr, uint amt) public {
         require(deposits[msg.sender][ctknAddr] != 0, "Nothing to Withdraw");
         CTokenInterface cTokenContract = CTokenInterface(ctknAddr);
         uint exchangeRate = cTokenContract.exchangeRateCurrent();
         uint withdrawAmt = wdiv(amt, exchangeRate);
         uint tknAmt = amt;
         if (withdrawAmt > deposits[msg.sender][ctknAddr]) {
-            withdrawAmt = deposits[msg.sender][ctknAddr] - 1;
+            withdrawAmt = deposits[msg.sender][ctknAddr];
             tknAmt = wmul(withdrawAmt, exchangeRate);
         }
-        if (tknAddr != ethAddr) {
+        if (ctknAddr != cEth) {
+            address tknAddr = cTokenContract.underlying();
             ERC20Interface tknContract = ERC20Interface(tknAddr);
-            uint initialTknBal = tknContract.balanceOf(address(this));
-            require(cTokenContract.redeemUnderlying(tknAmt) == 0, "something went wrong");
-            uint finalTknBal = tknContract.balanceOf(address(this));
-            assert(initialTknBal != finalTknBal);
+            require(cTokenContract.redeem(withdrawAmt) == 0, "something went wrong");
+            uint tknBal = tknContract.balanceOf(address(this));
+            tknAmt = tknAmt < tknBal ? tknAmt : tknBal;
             require(ERC20Interface(tknAddr).transfer(msg.sender, tknAmt), "not enough tkn to Transfer");
         } else {
-            uint initialTknBal = address(this).balance;
-            require(cTokenContract.redeemUnderlying(tknAmt) == 0, "something went wrong");
-            uint finalTknBal = address(this).balance;
-            assert(initialTknBal != finalTknBal);
+            require(cTokenContract.redeem(withdrawAmt) == 0, "something went wrong");
+            uint tknBal = address(this).balance;
+            tknAmt = tknAmt < tknBal ? tknAmt : tknBal;
             msg.sender.transfer(tknAmt);
         }
         deposits[msg.sender][ctknAddr] -= withdrawAmt;
-        totalDeposits[ctknAddr] -= withdrawAmt;
-        emit LogWithdrawToken(tknAddr, ctknAddr, tknAmt);
+        emit LogWithdrawCToken(ctknAddr, withdrawAmt);
     }
 
     /**
@@ -187,7 +175,6 @@ contract ProvideLiquidity is Helper {
     function depositCTkn(address ctknAddr, uint amt) public {
         require(CTokenInterface(ctknAddr).transferFrom(msg.sender, address(this), amt), "Nothing to deposit");
         deposits[msg.sender][ctknAddr] += amt;
-        totalDeposits[ctknAddr] += amt;
         emit LogDepositCToken(ctknAddr, amt);
     }
 
@@ -199,7 +186,6 @@ contract ProvideLiquidity is Helper {
         uint withdrawAmt = amt < deposits[msg.sender][ctknAddr] ? amt : deposits[msg.sender][ctknAddr];
         assert(CTokenInterface(ctknAddr).transfer(msg.sender, withdrawAmt));
         deposits[msg.sender][ctknAddr] -= withdrawAmt;
-        totalDeposits[ctknAddr] -= withdrawAmt;
         emit LogWithdrawCToken(ctknAddr, withdrawAmt);
     }
 
@@ -228,104 +214,72 @@ contract AccessLiquidity is ProvideLiquidity {
     /**
      * @dev Redeem CTokens and use them on InstaDApp's contract wallets
      */
-    function redeemTknAndTransfer(address tknAddr, address ctknAddr, uint tknAmt) public isUserWallet {
+    function redeemTknAndTransfer(address ctknAddr, uint tknAmt) public isUserWallet {
         if (tknAmt > 0) {
-            if (tknAddr != ethAddr) {
-                CTokenInterface ctknContract = CTokenInterface(ctknAddr);
-                ERC20Interface tknContract = ERC20Interface(tknAddr);
-                uint initialTknBal = tknContract.balanceOf(address(this));
+            CTokenInterface ctknContract = CTokenInterface(ctknAddr);
+            if (ctknAddr != cEth) {
+                address tknAddr = ctknContract.underlying();
                 assert(ctknContract.redeemUnderlying(tknAmt) == 0);
-                uint finalTknBal = tknContract.balanceOf(address(this));
-                assert(initialTknBal != finalTknBal);
-                assert(tknContract.transfer(msg.sender, tknAmt));
+                assert(ERC20Interface(tknAddr).transfer(msg.sender, tknAmt));
+                emit LogRedeemTknAndTransfer(tknAddr, ctknAddr, tknAmt);
             } else {
-                CTokenInterface ctknContract = CTokenInterface(ctknAddr);
-                uint initialTknBal = address(this).balance;
                 assert(ctknContract.redeemUnderlying(tknAmt) == 0);
-                uint finalTknBal = address(this).balance;
-                assert(initialTknBal != finalTknBal);
                 msg.sender.transfer(tknAmt);
+                emit LogRedeemTknAndTransfer(ethAddr, ctknAddr, tknAmt);
             }
-            emit LogRedeemTknAndTransfer(tknAddr, ctknAddr, tknAmt);
         }
     }
 
     /**
      * @dev Mint back redeemed tokens
      */
-    function mintTknBack(address tknAddr, address ctknAddr, uint tknAmt) public payable isUserWallet {
-        mintCTkn(tknAddr, ctknAddr, tknAmt);
+    function mintTknBack(address ctknAddr, uint tknAmt) public payable isUserWallet {
+        if (tknAmt > 0) {
+            if (ctknAddr != cEth) {
+                CTokenInterface ctknContract = CTokenInterface(ctknAddr);
+                address tknAddr = ctknContract.underlying();
+                assert(ctknContract.mint(tknAmt) == 0);
+                emit LogMintTknBack(tknAddr, ctknAddr, tknAmt);
+            } else {
+                CETHInterface(ctknAddr).mint.value(tknAmt)();
+                emit LogMintTknBack(ethAddr, ctknAddr, tknAmt);
+            }
+        }
     }
 
     /**
      * @dev Borrow tokens and use them on InstaDApp's contract wallets
      */
-    function borrowTknAndTransfer(address tknAddr, address ctknAddr, uint tknAmt) public isUserWallet {
+    function borrowTknAndTransfer(address ctknAddr, uint tknAmt) public isUserWallet {
         if (tknAmt > 0) {
             CTokenInterface ctknContract = CTokenInterface(ctknAddr);
-            if (tknAddr != ethAddr) {
-                ERC20Interface tknContract = ERC20Interface(tknAddr);
-                uint initialBal = tknContract.balanceOf(address(this));
+            if (ctknAddr != cEth) {
+                address tknAddr = ctknContract.underlying();
                 assert(ctknContract.borrow(tknAmt) == 0);
-                uint finalBal = tknContract.balanceOf(address(this));
-                assert(initialBal != finalBal);
-                assert(tknContract.transfer(msg.sender, tknAmt));
+                assert(ERC20Interface(tknAddr).transfer(msg.sender, tknAmt));
+                emit LogBorrowTknAndTransfer(tknAddr, ctknAddr, tknAmt);
             } else {
-                uint initialBal = address(this).balance;
                 assert(ctknContract.borrow(tknAmt) == 0);
-                uint finalBal = address(this).balance;
-                assert(initialBal != finalBal);
                 msg.sender.transfer(tknAmt);
+                emit LogBorrowTknAndTransfer(ethAddr, ctknAddr, tknAmt);
             }
-            emit LogBorrowTknAndTransfer(tknAddr, ctknAddr, tknAmt);
         }
     }
 
     /**
      * @dev Payback borrow tokens
      */
-    function payBorrowBack(address tknAddr, address ctknAddr, uint tknAmt) public payable isUserWallet {
+    function payBorrowBack(address ctknAddr, uint tknAmt) public payable isUserWallet {
         if (tknAmt > 0) {
-            if (tknAddr != ethAddr) {
-                ERC20Interface tknContract = ERC20Interface(tknAddr);
+            if (ctknAddr != cEth) {
                 CTokenInterface ctknContract = CTokenInterface(ctknAddr);
-                uint borrowBal = ctknContract.borrowBalanceCurrent(address(this));
-                uint initialBal = tknContract.balanceOf(address(this));
-                assert(ctknContract.repayBorrow(borrowBal) == 0);
-                uint finalBal = tknContract.balanceOf(address(this));
-                assert(initialBal != finalBal);
-                emit LogPayBorrowBack(tknAddr, ctknAddr, borrowBal);
+                address tknAddr = ctknContract.underlying();
+                assert(ctknContract.repayBorrow(tknAmt) == 0);
+                emit LogPayBorrowBack(tknAddr, ctknAddr, tknAmt);
             } else {
                 CETHInterface cEthContract = CETHInterface(ctknAddr);
-                uint borrowBal = cEthContract.borrowBalanceCurrent(address(this));
-                uint initialBal = address(this).balance;
-                cEthContract.repayBorrow.value(borrowBal);
-                uint finalBal = address(this).balance;
-                assert(initialBal != finalBal);
-                emit LogPayBorrowBack(tknAddr, ctknAddr, borrowBal);
-            }
-        }
-    }
-
-    function mintCTkn(address tknAddr, address ctknAddr, uint tknAmt) internal {
-        if (tknAmt > 0) {
-            if (tknAddr != ethAddr) {
-                CTokenInterface ctknContract = CTokenInterface(ctknAddr);
-                ERC20Interface tknContract = ERC20Interface(tknAddr);
-                uint tknBal = tknContract.balanceOf(address(this));
-                assert(tknBal >= tknAmt);
-                assert(ctknContract.mint(tknBal) == 0);
-                uint finalTknBal = tknContract.balanceOf(address(this));
-                assert(tknBal != finalTknBal);
-                emit LogMintTknBack(tknAddr, ctknAddr, tknBal);
-            } else {
-                CETHInterface cEthContract = CETHInterface(ctknAddr);
-                uint tknBal = address(this).balance;
-                assert(tknBal >= tknAmt);
-                cEthContract.mint.value(tknBal)();
-                uint finalTknBal = address(this).balance;
-                assert(tknBal != finalTknBal);
-                emit LogMintTknBack(tknAddr, ctknAddr, tknBal);
+                cEthContract.repayBorrow.value(tknAmt);
+                emit LogPayBorrowBack(ethAddr, ctknAddr, tknAmt);
             }
         }
     }
@@ -348,38 +302,12 @@ contract AdminStuff is AccessLiquidity {
     }
 
     /**
-     * collect unmapped CToken
-     */
-    function collectCTokens(address ctkn) public {
-        require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
-        CTokenInterface cTokenContract = CTokenInterface(ctkn);
-        uint cTokenBal = cTokenContract.balanceOf(address(this));
-        uint withdrawAmt = sub(cTokenBal, totalDeposits[ctkn]);
-        require(cTokenContract.transfer(msg.sender, withdrawAmt), "CToken Transfer failed");
-    }
-
-    /**
      * (HIGHLY UNLIKELY TO HAPPEN)
-     * collecting Tokens/ETH other than CTokens
+     * collecting ETH if this contract has it
      */
-    function collectTokens(address token) public {
+    function collectEth() public {
         require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
-        assert(isCToken[token] == false);
-        if (token == ethAddr) {
-            msg.sender.transfer(address(this).balance);
-        } else {
-            ERC20Interface tokenContract = ERC20Interface(token);
-            uint tokenBal = tokenContract.balanceOf(address(this));
-            require(tokenContract.transfer(msg.sender, tokenBal), "Transfer failed");
-        }
-    }
-
-    /**
-     * @dev Mint back redeemed tokens
-     */
-    function mintCollectedTkns(address tknAddr, address ctknAddr, uint tknAmt) public payable {
-        require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
-        mintCTkn(tknAddr, ctknAddr, tknAmt);
+        msg.sender.transfer(address(this).balance);
     }
 
     /**
