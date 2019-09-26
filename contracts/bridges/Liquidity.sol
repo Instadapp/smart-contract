@@ -109,13 +109,13 @@ contract ProvideLiquidity is Helper {
 
     mapping (address => mapping (address => uint)) public deposits;
 
-    event LogDepositToken(address tknAddr, address ctknAddr, uint amt);
-    event LogWithdrawToken(address tknAddr, address ctknAddr, uint amt);
+    // event LogDepositToken(address tknAddr, address ctknAddr, uint amt);
+    // event LogWithdrawToken(address tknAddr, address ctknAddr, uint amt);
     event LogDepositCToken(address ctknAddr, uint amt);
     event LogWithdrawCToken(address ctknAddr, uint amt);
 
     /**
-     * @dev Deposit Token for liquidity
+     * @dev Deposit Token for liquidity. Shift this to logic proxy
      */
     function depositToken(address ctknAddr, uint amt) public payable {
         if (ctknAddr != cEth) {
@@ -140,7 +140,7 @@ contract ProvideLiquidity is Helper {
     }
 
     /**
-     * @dev Withdraw Token from liquidity
+     * @dev Withdraw Token from liquidity. Shift this to logic proxy
      */
     function withdrawToken(address ctknAddr, uint amt) public {
         require(deposits[msg.sender][ctknAddr] != 0, "Nothing to Withdraw");
@@ -194,8 +194,6 @@ contract ProvideLiquidity is Helper {
 
 contract AccessLiquidity is ProvideLiquidity {
 
-    event LogRedeemTknAndTransfer(address tknAddr, address ctknAddr, uint amt);
-    event LogMintTknBack(address tknAddr, address ctknAddr, uint amt);
     event LogBorrowTknAndTransfer(address tknAddr, address ctknAddr, uint amt);
     event LogPayBorrowBack(address tknAddr, address ctknAddr, uint amt);
 
@@ -212,45 +210,9 @@ contract AccessLiquidity is ProvideLiquidity {
     }
 
     /**
-     * @dev Redeem CTokens and use them on InstaDApp's contract wallets
-     */
-    function redeemTknAndTransfer(address ctknAddr, uint tknAmt) public isUserWallet {
-        if (tknAmt > 0) {
-            CTokenInterface ctknContract = CTokenInterface(ctknAddr);
-            if (ctknAddr != cEth) {
-                address tknAddr = ctknContract.underlying();
-                assert(ctknContract.redeemUnderlying(tknAmt) == 0);
-                assert(ERC20Interface(tknAddr).transfer(msg.sender, tknAmt));
-                emit LogRedeemTknAndTransfer(tknAddr, ctknAddr, tknAmt);
-            } else {
-                assert(ctknContract.redeemUnderlying(tknAmt) == 0);
-                msg.sender.transfer(tknAmt);
-                emit LogRedeemTknAndTransfer(ethAddr, ctknAddr, tknAmt);
-            }
-        }
-    }
-
-    /**
-     * @dev Mint back redeemed tokens
-     */
-    function mintTknBack(address ctknAddr, uint tknAmt) public payable isUserWallet {
-        if (tknAmt > 0) {
-            if (ctknAddr != cEth) {
-                CTokenInterface ctknContract = CTokenInterface(ctknAddr);
-                address tknAddr = ctknContract.underlying();
-                assert(ctknContract.mint(tknAmt) == 0);
-                emit LogMintTknBack(tknAddr, ctknAddr, tknAmt);
-            } else {
-                CETHInterface(ctknAddr).mint.value(tknAmt)();
-                emit LogMintTknBack(ethAddr, ctknAddr, tknAmt);
-            }
-        }
-    }
-
-    /**
      * @dev Borrow tokens and use them on InstaDApp's contract wallets
      */
-    function borrowTknAndTransfer(address ctknAddr, uint tknAmt) public isUserWallet {
+    function borrowTknAndTransfer42514(address ctknAddr, uint tknAmt) public isUserWallet {
         if (tknAmt > 0) {
             CTokenInterface ctknContract = CTokenInterface(ctknAddr);
             if (ctknAddr != cEth) {
@@ -269,7 +231,7 @@ contract AccessLiquidity is ProvideLiquidity {
     /**
      * @dev Payback borrow tokens
      */
-    function payBorrowBack(address ctknAddr, uint tknAmt) public payable isUserWallet {
+    function payBorrowBack42514(address ctknAddr, uint tknAmt) public payable isUserWallet {
         if (tknAmt > 0) {
             if (ctknAddr != cEth) {
                 CTokenInterface ctknContract = CTokenInterface(ctknAddr);
@@ -292,29 +254,22 @@ contract AdminStuff is AccessLiquidity {
     /**
      * Give approval to other addresses
      */
-    function setApproval(address erc20, uint srcAmt, address to) public {
-        require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
-        ERC20Interface erc20Contract = ERC20Interface(erc20);
-        uint tokenAllowance = erc20Contract.allowance(address(this), to);
-        if (srcAmt > tokenAllowance) {
-            erc20Contract.approve(to, uint(-1));
-        }
+    function setApproval42514(address erc20, address to) public isUserWallet {
+        ERC20Interface(erc20).approve(to, uint(-1));
     }
 
     /**
      * (HIGHLY UNLIKELY TO HAPPEN)
      * collecting ETH if this contract has it
      */
-    function collectEth() public {
-        require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
+    function collectEth42514() public isUserWallet {
         msg.sender.transfer(address(this).balance);
     }
 
     /**
      * Enter Compound Market to enable borrowing
      */
-    function enterMarket(address[] memory cTknAddrArr) public {
-        require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
+    function enterMarket42514(address[] memory cTknAddrArr) public isUserWallet {
         ComptrollerInterface troller = ComptrollerInterface(comptrollerAddr);
         troller.enterMarkets(cTknAddrArr);
     }
@@ -322,8 +277,7 @@ contract AdminStuff is AccessLiquidity {
     /**
      * Enter Compound Market to disable borrowing
      */
-    function exitMarket(address cErc20) public {
-        require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
+    function exitMarket42514(address cErc20) public isUserWallet {
         ComptrollerInterface troller = ComptrollerInterface(comptrollerAddr);
         troller.exitMarket(cErc20);
     }
@@ -337,16 +291,16 @@ contract Liquidity is AdminStuff {
      * @dev setting up all required token approvals
      */
     constructor() public {
-        address[] memory enterMarketArr = new address[](3);
-        enterMarketArr[0] = cEth;
-        enterMarketArr[1] = cDai;
-        enterMarketArr[2] = cUsdc;
-        enterMarket(enterMarketArr);
-        setApproval(daiAddr, 2**255, cDai);
-        setApproval(usdcAddr, 2**255, cUsdc);
-        setApproval(cDai, 2**255, cDai);
-        setApproval(cUsdc, 2**255, cUsdc);
-        setApproval(cEth, 2**255, cEth);
+        // address[] memory enterMarketArr = new address[](3);
+        // enterMarketArr[0] = cEth;
+        // enterMarketArr[1] = cDai;
+        // enterMarketArr[2] = cUsdc;
+        // enterMarket(enterMarketArr);
+        // setApproval(daiAddr, 2**255, cDai);
+        // setApproval(usdcAddr, 2**255, cUsdc);
+        // setApproval(cDai, 2**255, cDai);
+        // setApproval(cUsdc, 2**255, cUsdc);
+        // setApproval(cEth, 2**255, cEth);
     }
 
     function() external payable {}
