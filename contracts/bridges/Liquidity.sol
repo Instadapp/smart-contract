@@ -86,6 +86,9 @@ contract Helper is DSMath {
 
 contract ProvideLiquidity is Helper {
 
+    /**
+     * @dev user's address => CToken Address => CToken Amount Deposited
+     */
     mapping (address => mapping (address => uint)) public deposits;
 
     event LogDepositCToken(address user, address ctknAddr, uint amt);
@@ -132,7 +135,7 @@ contract AccessLiquidity is ProvideLiquidity {
     }
 
     /**
-     * @dev Borrow tokens and use them on InstaDApp's contract wallets
+     * @dev Borrow token and use them on InstaDApp's contract wallets
      */
     function borrowTknAndTransfer(address ctknAddr, uint tknAmt) public isUserWallet {
         if (tknAmt > 0) {
@@ -151,7 +154,7 @@ contract AccessLiquidity is ProvideLiquidity {
     }
 
     /**
-     * @dev Payback borrow tokens
+     * @dev Payback borrowed token and from InstaDApp's contract wallets
      */
     function payBorrowBack(address ctknAddr, uint tknAmt) public payable isUserWallet {
         if (tknAmt > 0) {
@@ -218,11 +221,6 @@ contract Liquidity is AdminStuff {
      * @dev setting up all required token approvals
      */
     constructor() public {
-        // address[] memory enterMarketArr = new address[](3);
-        // enterMarketArr[0] = cEth;
-        // enterMarketArr[1] = cDai;
-        // enterMarketArr[2] = cUsdc;
-        // enterMarket(enterMarketArr);
         ERC20Interface(daiAddr).approve(cDai, uint(-1));
         ERC20Interface(usdcAddr).approve(cUsdc, uint(-1));
         ERC20Interface(cDai).approve(cDai, uint(-1));
