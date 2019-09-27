@@ -179,7 +179,7 @@ contract Helper is DSMath {
      * @dev get InstaDApp Liquidity contract
      */
     function getLiquidityAddr() public pure returns (address liquidity) {
-        // liquidity = 0x22BE7F22E7ca2D4949d2B369d02bC9283CE7d285;
+        liquidity = 0x7281Db02c62e2966d5Cd20504B7C4C6eF4bD48E1;
     }
 
     /**

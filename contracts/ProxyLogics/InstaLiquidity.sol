@@ -6,42 +6,27 @@ interface ERC20Interface {
     function approve(address, uint) external;
     function transfer(address, uint) external returns (bool);
     function transferFrom(address, address, uint) external returns (bool);
-    function deposit() external payable;
-    function withdraw(uint) external;
 }
 
 interface CTokenInterface {
     function mint(uint mintAmount) external returns (uint); // For ERC20
     function redeem(uint redeemTokens) external returns (uint);
-    function redeemUnderlying(uint redeemAmount) external returns (uint);
     function borrow(uint borrowAmount) external returns (uint);
     function exchangeRateCurrent() external returns (uint);
     function transfer(address, uint) external returns (bool);
     function transferFrom(address, address, uint) external returns (bool);
     function balanceOf(address) external view returns (uint);
-    function repayBorrow(uint repayAmount) external returns (uint); // For ERC20
-    function borrowBalanceCurrent(address account) external returns (uint);
     function underlying() external view returns (address);
 }
 
 interface CETHInterface {
     function exchangeRateCurrent() external returns (uint);
     function mint() external payable; // For ETH
-    function repayBorrow() external payable; // For ETH
     function transfer(address, uint) external returns (bool);
-    function borrowBalanceCurrent(address account) external returns (uint);
     function balanceOf(address) external view returns (uint);
 }
 
-interface ComptrollerInterface {
-    function enterMarkets(address[] calldata cTokens) external returns (uint[] memory);
-    function exitMarket(address cTokenAddress) external returns (uint);
-    function getAssetsIn(address account) external view returns (address[] memory);
-    function getAccountLiquidity(address account) external view returns (uint, uint, uint);
-}
-
 interface LiquidityInterface {
-    function deposits(address userWallet, address ctkn) external view returns(uint ctknAmt);
     function depositCTkn(address ctknAddr, uint amt) external;
     function withdrawCTkn(address ctknAddr, uint amt) external returns(uint ctknAmt);
 }
@@ -93,7 +78,7 @@ contract Helper is DSMath {
     }
 
     function getLiquidityAddr() public pure returns (address liquidity) {
-        // liquidity = ;
+        liquidity = 0x7281Db02c62e2966d5Cd20504B7C4C6eF4bD48E1;
     }
 
     /**
@@ -191,5 +176,12 @@ contract ProvideLiquidity is Helper {
         assert(CTokenInterface(ctknAddr).transfer(msg.sender, withdrawAmt));
         emit LogWithdrawCToken(ctknAddr, withdrawAmt);
     }
+
+}
+
+
+contract InstaLiquidity is ProvideLiquidity {
+
+    function() external payable {}
 
 }
