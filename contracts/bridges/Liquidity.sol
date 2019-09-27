@@ -14,37 +14,27 @@ interface ERC20Interface {
     function approve(address, uint) external;
     function transfer(address, uint) external returns (bool);
     function transferFrom(address, address, uint) external returns (bool);
-    function deposit() external payable;
-    function withdraw(uint) external;
 }
 
 interface CTokenInterface {
     function mint(uint mintAmount) external returns (uint); // For ERC20
     function redeem(uint redeemTokens) external returns (uint);
-    function redeemUnderlying(uint redeemAmount) external returns (uint);
     function borrow(uint borrowAmount) external returns (uint);
-    function exchangeRateCurrent() external returns (uint);
     function transfer(address, uint) external returns (bool);
     function transferFrom(address, address, uint) external returns (bool);
-    function balanceOf(address) external view returns (uint);
     function repayBorrow(uint repayAmount) external returns (uint); // For ERC20
-    function borrowBalanceCurrent(address account) external returns (uint);
     function underlying() external view returns (address);
 }
 
 interface CETHInterface {
-    function exchangeRateCurrent() external returns (uint);
     function mint() external payable; // For ETH
     function repayBorrow() external payable; // For ETH
     function transfer(address, uint) external returns (bool);
-    function borrowBalanceCurrent(address account) external returns (uint);
 }
 
 interface ComptrollerInterface {
     function enterMarkets(address[] calldata cTokens) external returns (uint[] memory);
     function exitMarket(address cTokenAddress) external returns (uint);
-    function getAssetsIn(address account) external view returns (address[] memory);
-    function getAccountLiquidity(address account) external view returns (uint, uint, uint);
 }
 
 
@@ -59,15 +49,6 @@ contract DSMath {
     }
 
     uint constant WAD = 10 ** 18;
-    uint constant RAY = 10 ** 27;
-
-    function rmul(uint x, uint y) internal pure returns (uint z) {
-        z = add(mul(x, y), RAY / 2) / RAY;
-    }
-
-    function rdiv(uint x, uint y) internal pure returns (uint z) {
-        z = add(mul(x, RAY), y / 2) / y;
-    }
 
     function wmul(uint x, uint y) internal pure returns (uint z) {
         z = add(mul(x, y), WAD / 2) / WAD;
@@ -93,8 +74,6 @@ contract Helper is DSMath {
     address public registry = 0x498b3BfaBE9F73db90D252bCD4Fa9548Cd0Fd981;
     address public comptrollerAddr = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
 
-    mapping (address => bool) isCToken;
-
     address payable public adminOne = 0xd8db02A498E9AFbf4A32BC006DC1940495b4e592;
     address payable public adminTwo = 0x0f0EBD0d7672362D11e0b6d219abA30b0588954E;
 
@@ -109,65 +88,8 @@ contract ProvideLiquidity is Helper {
 
     mapping (address => mapping (address => uint)) public deposits;
 
-    // event LogDepositToken(address tknAddr, address ctknAddr, uint amt);
-    // event LogWithdrawToken(address tknAddr, address ctknAddr, uint amt);
-    event LogDepositCToken(address ctknAddr, uint amt);
-    event LogWithdrawCToken(address ctknAddr, uint amt);
-
-    /**
-     * @dev Deposit Token for liquidity. Shift this to logic proxy
-     */
-    function depositToken(address ctknAddr, uint amt) public payable {
-        if (ctknAddr != cEth) {
-            CTokenInterface cTokenContract = CTokenInterface(ctknAddr);
-            address tknAddr = cTokenContract.underlying();
-            require(ERC20Interface(tknAddr).transferFrom(msg.sender, address(this), amt), "Not enough tkn to deposit");
-            assert(cTokenContract.mint(amt) == 0);
-            uint exchangeRate = cTokenContract.exchangeRateCurrent();
-            uint cTknAmt = wdiv(amt, exchangeRate);
-            cTknAmt = wmul(cTknAmt, exchangeRate) <= amt ? cTknAmt : cTknAmt - 1;
-            deposits[msg.sender][ctknAddr] += cTknAmt;
-            emit LogDepositCToken(ctknAddr, cTknAmt);
-        } else {
-            CETHInterface cEthContract = CETHInterface(ctknAddr);
-            cEthContract.mint.value(msg.value)();
-            uint exchangeRate = cEthContract.exchangeRateCurrent();
-            uint cEthAmt = wdiv(msg.value, exchangeRate);
-            cEthAmt = wmul(cEthAmt, exchangeRate) <= msg.value ? cEthAmt : cEthAmt - 1;
-            deposits[msg.sender][ctknAddr] += cEthAmt;
-            emit LogDepositCToken(ctknAddr, cEthAmt);
-        }
-    }
-
-    /**
-     * @dev Withdraw Token from liquidity. Shift this to logic proxy
-     */
-    function withdrawToken(address ctknAddr, uint amt) public {
-        require(deposits[msg.sender][ctknAddr] != 0, "Nothing to Withdraw");
-        CTokenInterface cTokenContract = CTokenInterface(ctknAddr);
-        uint exchangeRate = cTokenContract.exchangeRateCurrent();
-        uint withdrawAmt = wdiv(amt, exchangeRate);
-        uint tknAmt = amt;
-        if (withdrawAmt > deposits[msg.sender][ctknAddr]) {
-            withdrawAmt = deposits[msg.sender][ctknAddr];
-            tknAmt = wmul(withdrawAmt, exchangeRate);
-        }
-        if (ctknAddr != cEth) {
-            address tknAddr = cTokenContract.underlying();
-            ERC20Interface tknContract = ERC20Interface(tknAddr);
-            require(cTokenContract.redeem(withdrawAmt) == 0, "something went wrong");
-            uint tknBal = tknContract.balanceOf(address(this));
-            tknAmt = tknAmt < tknBal ? tknAmt : tknBal;
-            require(ERC20Interface(tknAddr).transfer(msg.sender, tknAmt), "not enough tkn to Transfer");
-        } else {
-            require(cTokenContract.redeem(withdrawAmt) == 0, "something went wrong");
-            uint tknBal = address(this).balance;
-            tknAmt = tknAmt < tknBal ? tknAmt : tknBal;
-            msg.sender.transfer(tknAmt);
-        }
-        deposits[msg.sender][ctknAddr] -= withdrawAmt;
-        emit LogWithdrawCToken(ctknAddr, withdrawAmt);
-    }
+    event LogDepositCToken(address user, address ctknAddr, uint amt);
+    event LogWithdrawCToken(address user, address ctknAddr, uint amt);
 
     /**
      * @dev Deposit CToken for liquidity
@@ -175,18 +97,18 @@ contract ProvideLiquidity is Helper {
     function depositCTkn(address ctknAddr, uint amt) public {
         require(CTokenInterface(ctknAddr).transferFrom(msg.sender, address(this), amt), "Nothing to deposit");
         deposits[msg.sender][ctknAddr] += amt;
-        emit LogDepositCToken(ctknAddr, amt);
+        emit LogDepositCToken(msg.sender, ctknAddr, amt);
     }
 
     /**
      * @dev Withdraw CToken from liquidity
      */
-    function withdrawCTkn(address ctknAddr, uint amt) public {
+    function withdrawCTkn(address ctknAddr, uint amt) public returns(uint withdrawAmt) {
         require(deposits[msg.sender][ctknAddr] != 0, "Nothing to Withdraw");
-        uint withdrawAmt = amt < deposits[msg.sender][ctknAddr] ? amt : deposits[msg.sender][ctknAddr];
+        withdrawAmt = amt < deposits[msg.sender][ctknAddr] ? amt : deposits[msg.sender][ctknAddr];
         assert(CTokenInterface(ctknAddr).transfer(msg.sender, withdrawAmt));
         deposits[msg.sender][ctknAddr] -= withdrawAmt;
-        emit LogWithdrawCToken(ctknAddr, withdrawAmt);
+        emit LogWithdrawCToken(msg.sender, ctknAddr, withdrawAmt);
     }
 
 }
@@ -212,7 +134,7 @@ contract AccessLiquidity is ProvideLiquidity {
     /**
      * @dev Borrow tokens and use them on InstaDApp's contract wallets
      */
-    function borrowTknAndTransfer42514(address ctknAddr, uint tknAmt) public isUserWallet {
+    function borrowTknAndTransfer(address ctknAddr, uint tknAmt) public isUserWallet {
         if (tknAmt > 0) {
             CTokenInterface ctknContract = CTokenInterface(ctknAddr);
             if (ctknAddr != cEth) {
@@ -231,7 +153,7 @@ contract AccessLiquidity is ProvideLiquidity {
     /**
      * @dev Payback borrow tokens
      */
-    function payBorrowBack42514(address ctknAddr, uint tknAmt) public payable isUserWallet {
+    function payBorrowBack(address ctknAddr, uint tknAmt) public payable isUserWallet {
         if (tknAmt > 0) {
             if (ctknAddr != cEth) {
                 CTokenInterface ctknContract = CTokenInterface(ctknAddr);
@@ -251,10 +173,15 @@ contract AccessLiquidity is ProvideLiquidity {
 
 contract AdminStuff is AccessLiquidity {
 
+    modifier isAdmin {
+        require(msg.sender == adminOne || msg.sender == adminTwo, "Not admin address");
+        _;
+    }
+
     /**
      * Give approval to other addresses
      */
-    function setApproval42514(address erc20, address to) public isUserWallet {
+    function setApproval(address erc20, address to) public isAdmin {
         ERC20Interface(erc20).approve(to, uint(-1));
     }
 
@@ -262,14 +189,14 @@ contract AdminStuff is AccessLiquidity {
      * (HIGHLY UNLIKELY TO HAPPEN)
      * collecting ETH if this contract has it
      */
-    function collectEth42514() public isUserWallet {
+    function collectEth() public isAdmin {
         msg.sender.transfer(address(this).balance);
     }
 
     /**
      * Enter Compound Market to enable borrowing
      */
-    function enterMarket42514(address[] memory cTknAddrArr) public isUserWallet {
+    function enterMarket(address[] memory cTknAddrArr) public isAdmin {
         ComptrollerInterface troller = ComptrollerInterface(comptrollerAddr);
         troller.enterMarkets(cTknAddrArr);
     }
@@ -277,7 +204,7 @@ contract AdminStuff is AccessLiquidity {
     /**
      * Enter Compound Market to disable borrowing
      */
-    function exitMarket42514(address cErc20) public isUserWallet {
+    function exitMarket(address cErc20) public isAdmin {
         ComptrollerInterface troller = ComptrollerInterface(comptrollerAddr);
         troller.exitMarket(cErc20);
     }
@@ -296,11 +223,11 @@ contract Liquidity is AdminStuff {
         // enterMarketArr[1] = cDai;
         // enterMarketArr[2] = cUsdc;
         // enterMarket(enterMarketArr);
-        // setApproval(daiAddr, 2**255, cDai);
-        // setApproval(usdcAddr, 2**255, cUsdc);
-        // setApproval(cDai, 2**255, cDai);
-        // setApproval(cUsdc, 2**255, cUsdc);
-        // setApproval(cEth, 2**255, cEth);
+        ERC20Interface(daiAddr).approve(cDai, uint(-1));
+        ERC20Interface(usdcAddr).approve(cUsdc, uint(-1));
+        ERC20Interface(cDai).approve(cDai, uint(-1));
+        ERC20Interface(cUsdc).approve(cUsdc, uint(-1));
+        ERC20Interface(cEth).approve(cEth, uint(-1));
     }
 
     function() external payable {}
