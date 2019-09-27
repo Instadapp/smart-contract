@@ -53,10 +53,8 @@ interface UniswapExchange {
 }
 
 interface LiquidityInterface {
-    function redeemTknAndTransfer(address tknAddr, address ctknAddr, uint tknAmt) external;
-    function mintTknBack(address tknAddr, address ctknAddr, uint tknAmt) external;
-    function borrowTknAndTransfer(address tknAddr, address ctknAddr, uint tknAmt) external;
-    function payBorrowBack(address tknAddr, address ctknAddr, uint tknAmt) external;
+    function borrowTknAndTransfer(address ctknAddr, uint tknAmt) external;
+    function payBorrowBack(address ctknAddr, uint tknAmt) external;
 }
 
 interface CTokenInterface {
@@ -181,7 +179,7 @@ contract Helper is DSMath {
      * @dev get InstaDApp Liquidity contract
      */
     function getLiquidityAddr() public pure returns (address liquidity) {
-        liquidity = 0x22BE7F22E7ca2D4949d2B369d02bC9283CE7d285;
+        // liquidity = 0x22BE7F22E7ca2D4949d2B369d02bC9283CE7d285;
     }
 
     /**
@@ -340,7 +338,7 @@ contract MakerResolver is CompoundHelper {
             daiAmt = add(_wad, daiFeeAmt);
 
             // Getting Liquidity from Liquidity Contract
-            LiquidityInterface(getLiquidityAddr()).borrowTknAndTransfer(getDAIAddress(), getCDAIAddress(), daiAmt);
+            LiquidityInterface(getLiquidityAddr()).borrowTknAndTransfer(getCDAIAddress(), daiAmt);
 
             if (ok && val != 0) {
                 daiEx.tokenToTokenSwapOutput(
@@ -429,7 +427,7 @@ contract MakerResolver is CompoundHelper {
 
             // Returning Liquidity To Liquidity Contract
             require(TokenInterface(getDAIAddress()).transfer(getLiquidityAddr(), _wad), "Not-enough-DAI");
-            LiquidityInterface(getLiquidityAddr()).payBorrowBack(getDAIAddress(), getCDAIAddress(), _wad);
+            LiquidityInterface(getLiquidityAddr()).payBorrowBack(getCDAIAddress(), _wad);
         }
     }
 
@@ -488,7 +486,7 @@ contract CompoundResolver is MakerResolver {
         require(CTokenInterface(getCDAIAddress()).borrow(daiAmt) == 0, "got collateral?");
         // Returning Liquidity to Liquidity Contract
         require(TokenInterface(getDAIAddress()).transfer(getLiquidityAddr(), daiAmt), "Not-enough-DAI");
-        LiquidityInterface(getLiquidityAddr()).payBorrowBack(getDAIAddress(), getCDAIAddress(), daiAmt);
+        LiquidityInterface(getLiquidityAddr()).payBorrowBack(getCDAIAddress(), daiAmt);
         emit LogBorrow(
             getDAIAddress(),
             getCDAIAddress(),
@@ -505,7 +503,7 @@ contract CompoundResolver is MakerResolver {
         uint daiBorrowed = cToken.borrowBalanceCurrent(address(this));
         wipeAmt = tokenAmt < daiBorrowed ? tokenAmt : daiBorrowed;
         // Getting Liquidity from Liquidity Contract
-        LiquidityInterface(getLiquidityAddr()).borrowTknAndTransfer(getDAIAddress(), getCDAIAddress(), wipeAmt);
+        LiquidityInterface(getLiquidityAddr()).borrowTknAndTransfer(getCDAIAddress(), wipeAmt);
         setApproval(getDAIAddress(), wipeAmt, getCDAIAddress());
         require(cToken.repayBorrow(wipeAmt) == 0, "transfer approved?");
         emit LogRepay(
