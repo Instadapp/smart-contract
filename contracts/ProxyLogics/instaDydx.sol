@@ -35,7 +35,6 @@ contract SoloMarginContract {
         Wei, // the amount is denominated in wei
         Par  // the amount is denominated in par
     }
-
     
     enum AssetReference {
         Delta, // the amount is given as a delta from the current value
@@ -85,7 +84,7 @@ contract PayableProxySoloMarginContract {
 }
 
 
-contract DSMath{
+contract DSMath {
 
     function add(uint x, uint y) internal pure returns (uint z) {
         require((z = x + y) >= x, "math-not-safe");
@@ -154,7 +153,7 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev setting allowance to compound for the "user proxy" if required
+     * @dev setting allowance to dydx for the "user proxy" if required
      */
     function setApproval(address erc20, uint srcAmt, address to) internal {
         ERC20Interface erc20Contract = ERC20Interface(erc20);
@@ -164,31 +163,20 @@ contract Helpers is DSMath {
         }
     }
 
-}
-
-
-contract DydxResolver is Helpers {
-
-    event LogDeposit(address erc20Addr, uint tokenAmt, address owner);
-    event LogWithdraw(address erc20Addr, uint tokenAmt, address owner);
-    
-    
-    function getActionsArgs( uint256 marketId, uint256 tokenAmt, bool sign) public returns ( SoloMarginContract.ActionArgs[] memory) {
+    /**
+    * @dev getting actions arg
+    */
+    function getActionsArgs( uint256 marketId, uint256 tokenAmt, bool sign) internal returns ( SoloMarginContract.ActionArgs[] memory) {
         SoloMarginContract.ActionArgs[] memory actions = new SoloMarginContract.ActionArgs[](1);
-
         SoloMarginContract.AssetAmount memory amount = SoloMarginContract.AssetAmount(
             sign,
             SoloMarginContract.AssetDenomination.Wei,
             SoloMarginContract.AssetReference.Delta,
             tokenAmt
         );
-        
         bytes memory empty;
-        
         address otherAddr = marketId == 0 ? getSoloPayableAddress() : address(this);
-
         SoloMarginContract.ActionType action = sign ? SoloMarginContract.ActionType.Deposit : SoloMarginContract.ActionType.Withdraw;
-
         actions[0] = SoloMarginContract.ActionArgs(
             action,
             0,
@@ -199,15 +187,38 @@ contract DydxResolver is Helpers {
             0,
             empty
         );
-        
         return actions;
     }
 
-    function getAccountArgs() public returns ( SoloMarginContract.Info[] memory) {
+     /**
+     * @dev getting acccount arg
+     */
+    function getAccountArgs() internal returns ( SoloMarginContract.Info[] memory) {
         SoloMarginContract.Info[] memory accounts = new SoloMarginContract.Info[](1);
         accounts[0] = (SoloMarginContract.Info(address(this), 0));
         return accounts;
     }
+
+    /**
+     * @dev getting dydx balance
+     */
+    function getDydxBal(uint256 marketId) internal returns (uint) {
+        SoloMarginContract solo = SoloMarginContract(getSoloAddress());
+        SoloMarginContract.Wei memory tokenWeiBal = solo.getAccountWei(getAccountArgs()[0],marketId);
+        uint tokenBal = tokenWeiBal.value;
+        return tokenBal;
+    }
+
+}
+
+
+contract DydxResolver is Helpers {
+
+    event LogDeposit(address erc20Addr, uint tokenAmt, address owner);
+    event LogWithdraw(address erc20Addr, uint tokenAmt, address owner);
+    event LogBorrow(address erc20Addr, uint tokenAmt, address owner);
+    event LogPayback(address erc20Addr, uint tokenAmt, address owner);
+
 
     /**
      * @dev Deposit ETH/ERC20
@@ -239,7 +250,7 @@ contract DydxResolver is Helpers {
     }
 
     /**
-     * @dev Payback borrowed ETH/ERC20
+     * @dev Payback ETH/ERC20
      */
     function payback(
         uint256 marketId,
@@ -247,21 +258,20 @@ contract DydxResolver is Helpers {
         uint256 tokenAmt
     ) public payable
     {
-        
         if (erc20Addr == getAddressETH()) {
             PayableProxySoloMarginContract soloPayable = PayableProxySoloMarginContract(getSoloPayableAddress());
-            
-            uint toDeposit = soloPayable.getAccountWei(getAccountArgs()[0],marketId).value; Check For ETh
+            uint toDeposit = getDydxBal(marketId);
             if (toDeposit > tokenAmt) {
                 toDeposit = tokenAmt;
             }
             soloPayable.operate.value(toDeposit)(getAccountArgs(), getActionsArgs(marketId, toDeposit, true), msg.sender);
-            msg.sender.transfer(address(this).balance)
+            msg.sender.transfer(address(this).balance);
+            emit LogPayback(erc20Addr, toDeposit, msg.sender);
         } else {
             SoloMarginContract solo = SoloMarginContract(getSoloAddress());
             ERC20Interface token = ERC20Interface(erc20Addr);
 
-            uint toDeposit = soloPayable.getAccountWei(getAccountArgs()[0],marketId).value;
+            uint toDeposit = getDydxBal(marketId);
             if (toDeposit > tokenAmt) {
                 toDeposit = tokenAmt;
             }
@@ -269,8 +279,8 @@ contract DydxResolver is Helpers {
             token.transferFrom(msg.sender, address(this), toDeposit);
             setApproval(erc20Addr, 2**255, getSoloAddress());
             solo.operate(getAccountArgs(), getActionsArgs(marketId, toDeposit, true));
+            emit LogPayback(erc20Addr, toDeposit, msg.sender);
         }
-        emit LogDeposit(erc20Addr, tokenAmt, msg.sender);
     }
 
     /**
@@ -284,26 +294,28 @@ contract DydxResolver is Helpers {
     {
         if (erc20Addr == getAddressETH()) {
             PayableProxySoloMarginContract soloPayable = PayableProxySoloMarginContract(getSoloPayableAddress());
-            uint toDeposit = soloPayable.getAccountWei(getAccountArgs()[0],marketId).value;
+            uint toDeposit = getDydxBal(marketId);
             if (toDeposit > tokenAmt) {
                 toDeposit = tokenAmt;
             }
-            solo.operate(getAccountArgs(), getActionsArgs(marketId, toDeposit, false), msg.sender);
+            soloPayable.operate(getAccountArgs(), getActionsArgs(marketId, toDeposit, false), msg.sender);
             ERC20Interface weth = ERC20Interface(getAddressWETH());
             setApproval(getAddressWETH(), 2**255, getAddressWETH());
-            weth.withdraw(tokenAmt);
+            weth.withdraw(toDeposit);
             transferToken(getAddressETH());
+            emit LogWithdraw(erc20Addr, toDeposit, msg.sender);
+
         } else {
             SoloMarginContract solo = SoloMarginContract(getSoloAddress());
-            uint toDeposit = soloPayable.getAccountWei(getAccountArgs()[0],marketId).value;
+            uint toDeposit = getDydxBal(marketId);
             if (toDeposit > tokenAmt) {
                 toDeposit = tokenAmt;
             }
             solo.operate(getAccountArgs(), getActionsArgs(marketId, toDeposit, false));
             setApproval(erc20Addr, 2**255, msg.sender);
             transferToken(erc20Addr);
+            emit LogWithdraw(erc20Addr, toDeposit, msg.sender);
         }
-        emit LogWithdraw(erc20Addr, tokenAmt, msg.sender);
     }
 
 /**
@@ -317,18 +329,18 @@ contract DydxResolver is Helpers {
     {
         if (erc20Addr == getAddressETH()) {
             PayableProxySoloMarginContract soloPayable = PayableProxySoloMarginContract(getSoloPayableAddress());
-            soloPayable.operate(accounts, actions,  msg.sender);
+            soloPayable.operate(getAccountArgs(), getActionsArgs(marketId, tokenAmt, false), msg.sender);
             ERC20Interface weth = ERC20Interface(getAddressWETH());
             setApproval(getAddressWETH(), 2**255, getAddressWETH());
             weth.withdraw(tokenAmt);
             transferToken(getAddressETH());
         } else {
             SoloMarginContract solo = SoloMarginContract(getSoloAddress());
-            solo.operate(accounts, actions);
+            solo.operate(getAccountArgs(), getActionsArgs(marketId, tokenAmt, false));
             setApproval(erc20Addr, 2**255, msg.sender);
             transferToken(erc20Addr);
         }
-        emit LogWithdraw(erc20Addr, tokenAmt, msg.sender);
+        emit LogBorrow(erc20Addr, tokenAmt, msg.sender);
     }
 }
 
