@@ -1,8 +1,19 @@
-pragma solidity ^0.5.10;
+pragma solidity ^0.5.8;
 pragma experimental ABIEncoderV2;
+
+interface ERC20Interface {
+    function allowance(address, address) external view returns (uint);
+    function balanceOf(address) external view returns (uint);
+    function approve(address, uint) external;
+    function transfer(address, uint) external returns (bool);
+    function transferFrom(address, address, uint) external returns (bool);
+    function deposit() external payable;
+    function withdraw(uint) external;
+}
 
 
 contract SoloMarginContract {
+
     struct Info {
         address owner;  // The address that owns the account
         uint256 number; // A nonce that allows a single address to control many accounts
@@ -20,7 +31,7 @@ contract SoloMarginContract {
         Call       // send arbitrary data to an address
     }
 
-     enum AssetDenomination {
+    enum AssetDenomination {
         Wei, // the amount is denominated in wei
         Par  // the amount is denominated in par
     }
@@ -48,44 +59,22 @@ contract SoloMarginContract {
         bytes data;
     }
 
-
-
-        function operate(Info[] memory accounts, ActionArgs[] memory actions
-    )
-        public;
+    function operate(Info[] memory accounts, ActionArgs[] memory actions) public;
 }
 
 
 contract PayableProxySoloMarginContract {
 
-        function operate(SoloMarginContract.Info[] memory accounts, SoloMarginContract.ActionArgs[] memory actions, address payable sendEthTo
-    )
-        public
-        payable;
-}
+    function operate(
+        SoloMarginContract.Info[] memory accounts,
+        SoloMarginContract.ActionArgs[] memory actions,
+        address payable sendEthTo
+    ) public payable;
 
-interface ERC20Interface {
-    function allowance(address, address) external view returns (uint);
-    function balanceOf(address) external view returns (uint);
-    function approve(address, uint) external;
-    function transfer(address, uint) external returns (bool);
-    function transferFrom(address, address, uint) external returns (bool);
 }
 
 
-interface WethInterface {
-    function allowance(address, address) external view returns (uint);
-    function balanceOf(address) external view returns (uint);
-    function approve(address, uint) external;
-    function transfer(address, uint) external returns (bool);
-    function transferFrom(address, address, uint) external returns (bool);
-    function deposit() external payable;
-    function withdraw(uint) external;
-}
-
-
-
-contract DSMath{
+contract DSMath {
 
     function add(uint x, uint y) internal pure returns (uint z) {
         require((z = x + y) >= x, "math-not-safe");
@@ -138,8 +127,6 @@ contract Helpers is DSMath {
         addr = 0xa8b39829cE2246f89B31C013b8Cde15506Fb9A76;
     }
 
-
-
     /**
      * @dev Transfer ETH/ERC20 to user
      */
@@ -155,7 +142,6 @@ contract Helpers is DSMath {
         }
     }
 
-
     /**
      * @dev setting allowance to compound for the "user proxy" if required
      */
@@ -167,70 +153,66 @@ contract Helpers is DSMath {
         }
     }
 
-
-
 }
 
 
-contract dydxResolver is Helpers {
+contract DydxResolver is Helpers {
+
     event LogDeposit(address erc20Addr, uint tokenAmt, address owner);
     event LogWithdraw(address erc20Addr, uint tokenAmt, address owner);
-
 
     /**
      * @dev Deposit ETH/ERC20 or Payback borrowed ETH/ERC20
      */
-    function Deposit(SoloMarginContract.Info[] memory accounts, SoloMarginContract.ActionArgs[] memory actions, address erc20Addr, uint256 tokenAmt) public payable {
-
-         if (erc20Addr == getAddressETH()) {
+    function deposit(
+        SoloMarginContract.Info[] memory accounts,
+        SoloMarginContract.ActionArgs[] memory actions,
+        address erc20Addr,
+        uint256 tokenAmt
+    ) public payable
+    {
+        if (erc20Addr == getAddressETH()) {
             PayableProxySoloMarginContract soloPayable = PayableProxySoloMarginContract(getSoloPayableAddress());
             soloPayable.operate.value(msg.value)(accounts, actions, msg.sender);
-        }else{
+        } else {
             SoloMarginContract solo = SoloMarginContract(getSoloAddress());
             ERC20Interface token = ERC20Interface(erc20Addr);
             token.transferFrom(msg.sender, address(this), tokenAmt);
             setApproval(erc20Addr, 2**255, getSoloAddress());
             solo.operate(accounts, actions);
         }
-        emit LogDeposit(erc20Addr, tokenAmt , msg.sender);
+        emit LogDeposit(erc20Addr, tokenAmt, msg.sender);
     }
 
     /**
      * @dev Withdraw ETH/ERC20 or Borrow ETH/ERC20
      */
-    function Withdraw(SoloMarginContract.Info[] memory accounts, SoloMarginContract.ActionArgs[] memory actions, address erc20Addr, uint tokenAmt) public {
-
+    function withdraw(
+        SoloMarginContract.Info[] memory accounts,
+        SoloMarginContract.ActionArgs[] memory actions,
+        address erc20Addr,
+        uint tokenAmt
+    ) public
+    {
         if (erc20Addr == getAddressETH()) {
             PayableProxySoloMarginContract soloPayable = PayableProxySoloMarginContract(getSoloPayableAddress());
             soloPayable.operate(accounts, actions,  msg.sender);
-            WethInterface weth = WethInterface(getAddressWETH());
+            ERC20Interface weth = ERC20Interface(getAddressWETH());
             setApproval(getAddressWETH(), 2**255, getAddressWETH());
             weth.withdraw(tokenAmt);
             transferToken(getAddressETH());
-        }else{
-
+        } else {
             SoloMarginContract solo = SoloMarginContract(getSoloAddress());
             solo.operate(accounts, actions);
             setApproval(erc20Addr, 2**255, msg.sender);
             transferToken(erc20Addr);
         }
-
         emit LogWithdraw(erc20Addr, tokenAmt, msg.sender);
     }
 }
 
 
-contract InstaDydx is dydxResolver {
-
-    uint public version;
-
-    /**
-     * @dev setting up variables on deployment
-     * 1...2...3 versioning in each subsequent deployments
-     */
-    constructor(uint _version) public {
-        version = _version;
-    }
+contract InstaDydx is DydxResolver {
 
     function() external payable {}
 
