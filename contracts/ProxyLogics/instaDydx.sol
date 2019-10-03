@@ -67,13 +67,11 @@ contract SoloMarginContract {
 
     function operate(Info[] memory accounts, ActionArgs[] memory actions) public;
     function getAccountWei(
-        Account.Info memory account,
+        Info memory account,
         uint256 marketId
     )
         public
-        view
-        returns (Wei memory)
-    {
+        returns (Wei memory);
 }
 
 
@@ -84,7 +82,6 @@ contract PayableProxySoloMarginContract {
         SoloMarginContract.ActionArgs[] memory actions,
         address payable sendEthTo
     ) public payable;
-
 }
 
 
@@ -254,17 +251,17 @@ contract DydxResolver is Helpers {
         if (erc20Addr == getAddressETH()) {
             PayableProxySoloMarginContract soloPayable = PayableProxySoloMarginContract(getSoloPayableAddress());
             
-            // uint toDeposit = soloPayable.getAccountWei(marketId).value; Check For ETh
-            // if (toDeposit > tokenAmt) {
-            //     toDeposit = tokenAmt;
-            // }
-            soloPayable.operate.value(msg.value)(getAccountArgs(), getActionsArgs(marketId, msg.value, true), msg.sender);
-
+            uint toDeposit = soloPayable.getAccountWei(getAccountArgs()[0],marketId).value; Check For ETh
+            if (toDeposit > tokenAmt) {
+                toDeposit = tokenAmt;
+            }
+            soloPayable.operate.value(toDeposit)(getAccountArgs(), getActionsArgs(marketId, toDeposit, true), msg.sender);
+            msg.sender.transfer(address(this).balance)
         } else {
             SoloMarginContract solo = SoloMarginContract(getSoloAddress());
             ERC20Interface token = ERC20Interface(erc20Addr);
 
-            uint toDeposit = soloPayable.getAccountWei(marketId).value;
+            uint toDeposit = soloPayable.getAccountWei(getAccountArgs()[0],marketId).value;
             if (toDeposit > tokenAmt) {
                 toDeposit = tokenAmt;
             }
@@ -287,7 +284,7 @@ contract DydxResolver is Helpers {
     {
         if (erc20Addr == getAddressETH()) {
             PayableProxySoloMarginContract soloPayable = PayableProxySoloMarginContract(getSoloPayableAddress());
-            uint toDeposit = soloPayable.getAccountWei(marketId).value;
+            uint toDeposit = soloPayable.getAccountWei(getAccountArgs()[0],marketId).value;
             if (toDeposit > tokenAmt) {
                 toDeposit = tokenAmt;
             }
@@ -298,7 +295,7 @@ contract DydxResolver is Helpers {
             transferToken(getAddressETH());
         } else {
             SoloMarginContract solo = SoloMarginContract(getSoloAddress());
-            uint toDeposit = soloPayable.getAccountWei(marketId).value;
+            uint toDeposit = soloPayable.getAccountWei(getAccountArgs()[0],marketId).value;
             if (toDeposit > tokenAmt) {
                 toDeposit = tokenAmt;
             }
