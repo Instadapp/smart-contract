@@ -135,21 +135,6 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev Transfer ETH/ERC20 to user
-     */
-    function transferToken(address erc20) internal {
-        if (erc20 == getAddressETH()) {
-            msg.sender.transfer(address(this).balance);
-        } else {
-            ERC20Interface erc20Contract = ERC20Interface(erc20);
-            uint srcBal = erc20Contract.balanceOf(address(this));
-            if (srcBal > 0) {
-                erc20Contract.transfer(msg.sender, srcBal);
-            }
-        }
-    }
-
-    /**
      * @dev setting allowance to dydx for the "user proxy" if required
      */
     function setApproval(address erc20, uint srcAmt, address to) internal {
