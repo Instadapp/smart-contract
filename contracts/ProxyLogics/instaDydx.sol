@@ -211,8 +211,7 @@ contract DydxResolver is Helpers {
         } else {
             require(ERC20Interface(erc20Addr).transferFrom(msg.sender, address(this), tokenAmt), "Allowance or not enough bal");
             setApproval(erc20Addr, tokenAmt, getSoloAddress());
-            SoloMarginContract solo = SoloMarginContract(getSoloAddress());
-            solo.operate(getAccountArgs(), getActionsArgs(marketId, tokenAmt, true));
+            SoloMarginContract(getSoloAddress()).operate(getAccountArgs(), getActionsArgs(marketId, tokenAmt, true));
         }
         emit LogDeposit(erc20Addr, tokenAmt, address(this));
     }
@@ -230,8 +229,7 @@ contract DydxResolver is Helpers {
         } else {
             require(ERC20Interface(erc20Addr).transferFrom(msg.sender, address(this), toPayback), "Allowance or not enough bal");
             setApproval(erc20Addr, toPayback, getSoloAddress());
-            SoloMarginContract solo = SoloMarginContract(getSoloAddress());
-            solo.operate(getAccountArgs(), getActionsArgs(marketId, toPayback, true));
+            SoloMarginContract(getSoloAddress()).operate(getAccountArgs(), getActionsArgs(marketId, toPayback, true));
         }
         emit LogPayback(erc20Addr, toPayback, address(this));
     }
@@ -245,6 +243,9 @@ contract DydxResolver is Helpers {
         if (erc20Addr == getAddressETH()) {
             PayableProxySoloMarginContract soloPayable = PayableProxySoloMarginContract(getSoloPayableAddress());
             soloPayable.operate(getAccountArgs(), getActionsArgs(marketId, toWithdraw, false), msg.sender);
+            ERC20Interface wethContract = ERC20Interface(getAddressWETH());
+            uint wethBal = wethContract.balanceOf(address(this));
+            toWithdraw = toWithdraw < wethBal ? wethBal : toWithdraw;
             setApproval(getAddressWETH(), toWithdraw, getAddressWETH());
             ERC20Interface(getAddressWETH()).withdraw(toWithdraw);
             msg.sender.transfer(toWithdraw);
@@ -267,8 +268,7 @@ contract DydxResolver is Helpers {
             ERC20Interface(getAddressWETH()).withdraw(tokenAmt);
             msg.sender.transfer(tokenAmt);
         } else {
-            SoloMarginContract solo = SoloMarginContract(getSoloAddress());
-            solo.operate(getAccountArgs(), getActionsArgs(marketId, tokenAmt, false));
+            SoloMarginContract(getSoloAddress()).operate(getAccountArgs(), getActionsArgs(marketId, tokenAmt, false));
             require(ERC20Interface(erc20Addr).transfer(msg.sender, tokenAmt), "Allowance or not enough bal");
         }
         emit LogBorrow(erc20Addr, tokenAmt, address(this));
