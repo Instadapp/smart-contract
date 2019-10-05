@@ -243,8 +243,6 @@ contract DydxResolver is Helpers {
         if (erc20Addr == getAddressETH()) {
             PayableProxySoloMarginContract soloPayable = PayableProxySoloMarginContract(getSoloPayableAddress());
             soloPayable.operate(getAccountArgs(), getActionsArgs(marketId, toWithdraw, false), msg.sender);
-            SoloMarginContract solo = SoloMarginContract(getSoloAddress());
-            solo.operate(getAccountArgs(), getActionsArgs(marketId, toWithdraw, false));
             ERC20Interface wethContract = ERC20Interface(getAddressWETH());
             uint wethBal = wethContract.balanceOf(address(this));
             toWithdraw = toWithdraw < wethBal ? wethBal : toWithdraw;
