@@ -168,7 +168,7 @@ contract CompoundResolver is Helpers {
             erc20,
             cErc20,
             tokenAmt,
-            msg.sender
+            address(this)
         );
     }
 
