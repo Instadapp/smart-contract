@@ -28,8 +28,8 @@ interface ComptrollerInterface {
 }
 
 interface PoolInterface {
-    function accessToken(uint useLiqFrom, address[] calldata ctknAddr, uint[] calldata tknAmt) external;
-    function paybackToken(uint useLiqFrom, address[] calldata ctknAddr) external payable;
+    function accessToken(address[] calldata ctknAddr, uint[] calldata tknAmt, bool isCompound) external;
+    function paybackToken(address[] calldata ctknAddr, bool isCompound) external payable;
 }
 
 
@@ -113,9 +113,9 @@ contract Helpers is DSMath {
 
 
 contract ImportResolver is Helpers {
-    event LogCompoundImport(address owner, uint percentage, uint usedAssetsFrom, address[] markets, address[] borrowAddr, uint[] borrowAmt);
+    event LogCompoundImport(address owner, uint percentage, bool isCompound, address[] markets, address[] borrowAddr, uint[] borrowAmt);
 
-    function importAssets(uint toConvert, uint getLiqFrom) external {
+    function importAssets(uint toConvert, bool isCompound) external {
         uint initialBal = sub(liquidityAddr.balance, 10000000000);
         address[] memory markets = enteredMarkets();
         address[] memory borrowAddr;
@@ -133,7 +133,7 @@ contract ImportResolver is Helpers {
         }
 
         // Get liquidity assets to payback user wallet borrowed assets
-        PoolInterface(liquidityAddr).accessToken(getLiqFrom, borrowAddr, borrowAmt);
+        PoolInterface(liquidityAddr).accessToken(borrowAddr, borrowAmt, isCompound);
 
         // payback user wallet borrowed assets
         for (uint i = 0; i < borrowAddr.length; i++) {
@@ -176,13 +176,13 @@ contract ImportResolver is Helpers {
         }
 
         //payback InstaDApp liquidity
-        PoolInterface(liquidityAddr).paybackToken(getLiqFrom, borrowAddr);
+        PoolInterface(liquidityAddr).paybackToken(borrowAddr, isCompound);
         assert(liquidityAddr.balance >= initialBal);
 
         emit LogCompoundImport(
             msg.sender,
             toConvert,
-            getLiqFrom,
+            isCompound,
             markets,
             borrowAddr,
             borrowAmt
