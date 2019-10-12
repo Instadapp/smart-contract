@@ -116,7 +116,7 @@ contract ImportResolver is Helpers {
     event LogCompoundImport(address owner, uint percentage, bool isCompound, address[] markets, address[] borrowAddr, uint[] borrowAmt);
 
     function importAssets(uint toConvert, bool isCompound) external {
-        uint initialBal = sub(liquidityAddr.balance, 10000000000);
+        uint initialBal = sub(liquidityAddr.balance, 10000000000); // subtracting 0.00000001 ETH from initial balance.
         address[] memory markets = enteredMarkets();
         address[] memory borrowAddr;
         uint[] memory borrowAmt;
