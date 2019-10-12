@@ -144,6 +144,7 @@ contract CompoundResolver is Helpers {
     event LogRedeem(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogBorrow(address erc20, address cErc20, uint tokenAmt, address owner);
     event LogRepay(address erc20, address cErc20, uint tokenAmt, address owner);
+    event LogRepayBehalf(address borrower, address erc20, address cErc20, uint tokenAmt, address owner);
 
     /**
      * @dev Deposit ETH/ERC20 and mint Compound Tokens
@@ -286,13 +287,14 @@ contract CompoundResolver is Helpers {
         if (erc20 == getAddressETH()) {
             CETHInterface cToken = CETHInterface(cErc20);
             uint toRepay = msg.value;
-            uint borrows = cToken.borrowBalanceCurrent(address(this));
+            uint borrows = cToken.borrowBalanceCurrent(borrower);
             if (toRepay > borrows) {
                 toRepay = borrows;
                 msg.sender.transfer(msg.value - toRepay);
             }
             cToken.repayBorrowBehalf.value(toRepay)(borrower);
-            emit LogRepay(
+            emit LogRepayBehalf(
+                borrower,
                 erc20,
                 cErc20,
                 toRepay,
@@ -302,7 +304,7 @@ contract CompoundResolver is Helpers {
             CERC20Interface cToken = CERC20Interface(cErc20);
             ERC20Interface token = ERC20Interface(erc20);
             uint toRepay = token.balanceOf(msg.sender);
-            uint borrows = cToken.borrowBalanceCurrent(address(this));
+            uint borrows = cToken.borrowBalanceCurrent(borrower);
             if (toRepay > tokenAmt) {
                 toRepay = tokenAmt;
             }
@@ -312,7 +314,8 @@ contract CompoundResolver is Helpers {
             setApproval(erc20, toRepay, cErc20);
             token.transferFrom(msg.sender, address(this), toRepay);
             require(cToken.repayBorrowBehalf(borrower, tokenAmt) == 0, "transfer approved?");
-            emit LogRepay(
+            emit LogRepayBehalf(
+                borrower,
                 erc20,
                 cErc20,
                 toRepay,
