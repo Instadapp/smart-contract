@@ -313,7 +313,7 @@ contract CompoundResolver is Helpers {
             }
             setApproval(erc20, toRepay, cErc20);
             token.transferFrom(msg.sender, address(this), toRepay);
-            require(cToken.repayBorrowBehalf(borrower, tokenAmt) == 0, "transfer approved?");
+            require(cToken.repayBorrowBehalf(borrower, toRepay) == 0, "transfer approved?");
             emit LogRepayBehalf(
                 borrower,
                 erc20,
