@@ -64,7 +64,7 @@ contract Helpers is DSMath {
 
     address public comptrollerAddr = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
 
-    address payable public liquidityAddr = 0x8179d350fFFc69A8b256e781ADDE8A1bb915766E;
+    address payable public liquidityAddr = 0xb3718681BE40694dB7E8E5D1e6dDF6e6b4bFdb60;
 
     address public cEthAddr = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
 
