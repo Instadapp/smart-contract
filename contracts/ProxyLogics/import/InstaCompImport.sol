@@ -88,7 +88,7 @@ contract Helpers is DSMath {
     function enterMarket(address[] memory cErc20) internal {
         ComptrollerInterface troller = ComptrollerInterface(getComptrollerAddress());
         address[] memory markets = troller.getAssetsIn(address(this));
-        address[] memory toEnter = new address[](7);
+        address[] memory toEnter = new address[](cErc20.length);
         uint count = 0;
         for (uint j = 0; j < cErc20.length; j++) {
             bool isEntered = false;
@@ -131,8 +131,9 @@ contract Helpers is DSMath {
 contract ImportResolver is Helpers {
     event LogCompoundImport(address owner, uint percentage, bool isCompound, address[] markets, address[] borrowAddr, uint[] borrowAmt);
 
+    // subtracting 0.00000001 ETH from initialPoolBal to solve Compound 8 decimal CETH error.
     function importAssets(uint toConvert, bool isCompound, uint borrowedTokens) external {
-        uint initialBal = sub(getPoolAddress().balance, 10000000000); // subtracting 0.00000001 ETH from initial balance.
+        uint initialPoolBal = sub(getPoolAddress().balance, 10000000000);
         address[] memory markets = enteredMarkets(msg.sender);
         address[] memory borrowAddr = new address[](borrowedTokens);
         uint[] memory borrowAmt = new uint[](borrowedTokens);
@@ -196,7 +197,9 @@ contract ImportResolver is Helpers {
 
         //payback InstaDApp liquidity
         PoolInterface(getPoolAddress()).paybackToken(borrowAddr, isCompound);
-        assert(getPoolAddress().balance >= initialBal);
+
+        uint finalPoolBal = getPoolAddress().balance;
+        assert(finalPoolBal >= initialPoolBal);
 
         emit LogCompoundImport(
             msg.sender,
