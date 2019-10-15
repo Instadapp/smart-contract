@@ -1,10 +1,10 @@
-pragma solidity ^0.5.8;
+pragma solidity ^0.5.7;
 
 interface CTokenInterface {
     function borrow(uint borrowAmount) external returns (uint);
     function repayBorrowBehalf(address borrower, uint repayAmount) external returns (uint); // For ERC20
     function borrowBalanceCurrent(address account) external returns (uint);
-
+    function exchangeRateCurrent() external returns (uint);
     function balanceOf(address owner) external view returns (uint256 balance);
     function transferFrom(address, address, uint) external returns (bool);
     function underlying() external view returns (address);
@@ -61,20 +61,35 @@ contract DSMath {
 
 
 contract Helpers is DSMath {
+    /**
+     * @dev get Compound ETH Address
+     */
+    function getCETHAddress() public pure returns (address cEthAddr) {
+        cEthAddr = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5; // main
+    }
 
-    address public comptrollerAddr = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
+    /**
+     * @dev get Compound Comptroller Address
+     */
+    function getComptrollerAddress() public pure returns (address troller) {
+        troller = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
+    }
 
-    address payable public liquidityAddr = 0xb3718681BE40694dB7E8E5D1e6dDF6e6b4bFdb60;
-
-    address public cEthAddr = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
+    /**
+     * @dev get InstaDApp Liquidity Address
+     */
+    function getPoolAddress() public pure returns (address payable liqAddr) {
+        liqAddr = 0x2b10e1970Ba95C27C6fe3d496DD5d624A1e68D56;
+    }
 
     /**
      * @dev check if the user has entered the market and enter if not
      */
     function enterMarket(address[] memory cErc20) internal {
-        ComptrollerInterface troller = ComptrollerInterface(comptrollerAddr);
+        ComptrollerInterface troller = ComptrollerInterface(getComptrollerAddress());
         address[] memory markets = troller.getAssetsIn(address(this));
-        address[] memory toEnter;
+        address[] memory toEnter = new address[](7);
+        uint count = 0;
         for (uint j = 0; j < cErc20.length; j++) {
             bool isEntered = false;
             for (uint i = 0; i < markets.length; i++) {
@@ -84,7 +99,8 @@ contract Helpers is DSMath {
                 }
             }
             if (!isEntered) {
-                toEnter[toEnter.length] = cErc20[j];
+                toEnter[count] = cErc20[j];
+                count += 1;
             }
         }
         troller.enterMarkets(toEnter);
@@ -93,8 +109,8 @@ contract Helpers is DSMath {
     /**
      * @dev get markets address owner has entered
      */
-    function enteredMarkets() internal view returns (address[] memory) {
-        address[] memory markets = ComptrollerInterface(comptrollerAddr).getAssetsIn(msg.sender);
+    function enteredMarkets(address owner) internal view returns (address[] memory) {
+        address[] memory markets = ComptrollerInterface(getComptrollerAddress()).getAssetsIn(owner);
         return markets;
     }
 
@@ -115,11 +131,12 @@ contract Helpers is DSMath {
 contract ImportResolver is Helpers {
     event LogCompoundImport(address owner, uint percentage, bool isCompound, address[] markets, address[] borrowAddr, uint[] borrowAmt);
 
-    function importAssets(uint toConvert, bool isCompound) external {
-        uint initialBal = sub(liquidityAddr.balance, 10000000000); // subtracting 0.00000001 ETH from initial balance.
-        address[] memory markets = enteredMarkets();
-        address[] memory borrowAddr;
-        uint[] memory borrowAmt;
+    function importAssets(uint toConvert, bool isCompound, uint borrowedTokens) external {
+        uint initialBal = sub(getPoolAddress().balance, 10000000000); // subtracting 0.00000001 ETH from initial balance.
+        address[] memory markets = enteredMarkets(msg.sender);
+        address[] memory borrowAddr = new address[](borrowedTokens);
+        uint[] memory borrowAmt = new uint[](borrowedTokens);
+        uint borrowCount = 0;
 
         // create an array of borrowed address and amount
         for (uint i = 0; i < markets.length; i++) {
@@ -127,19 +144,21 @@ contract ImportResolver is Helpers {
             uint toPayback = CTokenInterface(cErc20).borrowBalanceCurrent(msg.sender);
             toPayback = wmul(toPayback, toConvert);
             if (toPayback > 0) {
-                borrowAddr[borrowAddr.length] = cErc20;
-                borrowAmt[borrowAmt.length] = toPayback;
+                borrowAddr[borrowCount] = cErc20;
+                borrowAmt[borrowCount] = toPayback;
+                borrowCount += 1;
             }
         }
 
+        assert(borrowCount == borrowedTokens);
         // Get liquidity assets to payback user wallet borrowed assets
-        PoolInterface(liquidityAddr).accessToken(borrowAddr, borrowAmt, isCompound);
+        PoolInterface(getPoolAddress()).accessToken(borrowAddr, borrowAmt, isCompound);
 
-        // payback user wallet borrowed assets
+        // // payback user wallet borrowed assets
         for (uint i = 0; i < borrowAddr.length; i++) {
             address cErc20 = borrowAddr[i];
             uint toPayback = borrowAmt[i];
-            if (cErc20 == cEthAddr) {
+            if (cErc20 == getCETHAddress()) {
                 CETHInterface(cErc20).repayBorrowBehalf.value(toPayback)(msg.sender);
             } else {
                 CTokenInterface ctknContract = CTokenInterface(cErc20);
@@ -160,24 +179,24 @@ contract ImportResolver is Helpers {
             }
         }
 
-        // borrow and transfer assets to payback liquidity
+        // // borrow and transfer assets to payback liquidity
         enterMarket(markets);
         for (uint i = 0; i < borrowAddr.length; i++) {
             address cErc20 = borrowAddr[i];
             uint toBorrow = borrowAmt[i];
             CTokenInterface ctknContract = CTokenInterface(cErc20);
-            address erc20 = ctknContract.underlying();
             require(ctknContract.borrow(toBorrow) == 0, "got collateral?");
-            if (cErc20 == cEthAddr) {
-                liquidityAddr.transfer(toBorrow);
+            if (cErc20 == getCETHAddress()) {
+                getPoolAddress().transfer(toBorrow);
             } else {
-                require(ERC20Interface(erc20).transfer(liquidityAddr, toBorrow), "Not-enough-amt");
+                address erc20 = ctknContract.underlying();
+                require(ERC20Interface(erc20).transfer(getPoolAddress(), toBorrow), "Not-enough-amt");
             }
         }
 
         //payback InstaDApp liquidity
-        PoolInterface(liquidityAddr).paybackToken(borrowAddr, isCompound);
-        assert(liquidityAddr.balance >= initialBal);
+        PoolInterface(getPoolAddress()).paybackToken(borrowAddr, isCompound);
+        assert(getPoolAddress().balance >= initialBal);
 
         emit LogCompoundImport(
             msg.sender,
@@ -192,6 +211,6 @@ contract ImportResolver is Helpers {
 }
 
 
-contract InstaCompImport is ImportResolver {
+contract CompImport is ImportResolver {
     function() external payable {}
 }
