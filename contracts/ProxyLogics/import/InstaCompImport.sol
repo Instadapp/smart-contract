@@ -213,6 +213,6 @@ contract ImportResolver is Helpers {
 }
 
 
-contract CompImport is ImportResolver {
+contract InstaCompImport is ImportResolver {
     function() external payable {}
 }
