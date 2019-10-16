@@ -79,7 +79,7 @@ contract Helpers is DSMath {
      * @dev get InstaDApp Liquidity Address
      */
     function getPoolAddress() public pure returns (address payable liqAddr) {
-        liqAddr = 0x2b10e1970Ba95C27C6fe3d496DD5d624A1e68D56; //Check Thrilok
+        liqAddr = 0x1564D040EC290C743F67F5cB11f3C1958B39872A;
     }
 
     /**
@@ -135,8 +135,8 @@ contract ImportResolver is Helpers {
         // subtracting 0.00000001 ETH from initialPoolBal to solve Compound 8 decimal CETH error.
         uint initialPoolBal = sub(getPoolAddress().balance, 10000000000);
         address[] memory markets = enteredMarkets(msg.sender);
-        address[] memory borrowAddr = new address[](markets.length); //Check Thrilok
-        uint[] memory borrowAmt = new uint[](markets.length); //Check Thrilok
+        address[] memory borrowAddr = new address[](markets.length);
+        uint[] memory borrowAmt = new uint[](markets.length);
         uint borrowCount = 0;
 
         // create an array of borrowed address and amount
@@ -155,10 +155,9 @@ contract ImportResolver is Helpers {
         PoolInterface(getPoolAddress()).accessToken(borrowAddr, borrowAmt, isCompound);
 
         // // payback user wallet borrowed assets
-        for (uint i = 0; i < borrowCount; i++) { //Check Thrilok
+        for (uint i = 0; i < borrowCount; i++) {
             address cErc20 = borrowAddr[i];
             uint toPayback = borrowAmt[i];
-            assert(cErc20 != address(0)); //Check Thrilok
             if (cErc20 == getCETHAddress()) {
                 CETHInterface(cErc20).repayBorrowBehalf.value(toPayback)(msg.sender);
             } else {
@@ -182,10 +181,9 @@ contract ImportResolver is Helpers {
 
         // // borrow and transfer assets to payback liquidity
         enterMarket(markets);
-        for (uint i = 0; i < borrowCount; i++) { //Check Thrilok
+        for (uint i = 0; i < borrowCount; i++) {
             address cErc20 = borrowAddr[i];
             uint toBorrow = borrowAmt[i];
-            assert(cErc20 != address(0)); //Check Thrilok
             CTokenInterface ctknContract = CTokenInterface(cErc20);
             require(ctknContract.borrow(toBorrow) == 0, "got collateral?");
             if (cErc20 == getCETHAddress()) {
