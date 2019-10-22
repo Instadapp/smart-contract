@@ -113,16 +113,22 @@ contract DSMath {
 contract Helpers is DSMath {
 
     /**
-     * @dev get MakerDAO CDP engine
+     * @dev get MakerDAO SCD CDP engine
      */
     function getSaiTubAddress() public pure returns (address sai) {
         sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
     }
 
+    /**
+     * @dev get Sai (Dai v1) address
+     */
     function getSaiAddress() public pure returns (address sai) {
         sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
     }
 
+    /**
+     * @dev get Dai (Dai v2) address
+     */
     function getDaiAddress() public pure returns (address dai) {
         dai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
     }
@@ -135,7 +141,7 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get Compound OTC Address
+     * @dev get OTC Address
      */
     function getOtcAddress() public pure returns (address otcAddr) {
         otcAddr = 0x39755357759cE0d7f32dC8dC45414CCa409AE24e; // main
@@ -146,13 +152,6 @@ contract Helpers is DSMath {
      */
     function getUniswapMKRExchange() public pure returns (address ume) {
         ume = 0x2C4Bd064b998838076fa341A83d007FC2FA50957;
-    }
-
-    /**
-     * @dev get uniswap DAI exchange
-     */
-    function getUniswapDAIExchange() public pure returns (address ude) {
-        ude = 0x09cabEC1eAd1c0Ba254B09efb3EE13841712bE14;
     }
 
     /**
@@ -170,13 +169,13 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev setting allowance to compound for the "user proxy" if required
+     * @dev setting allowance if required
      */
     function setApproval(address erc20, uint srcAmt, address to) internal {
         TokenInterface erc20Contract = TokenInterface(erc20);
         uint tokenAllowance = erc20Contract.allowance(address(this), to);
         if (srcAmt > tokenAllowance) {
-            erc20Contract.approve(to, 2**255);
+            erc20Contract.approve(to, uint(-1));
         }
     }
 
@@ -185,7 +184,7 @@ contract Helpers is DSMath {
 
 contract SCDResolver is Helpers {
 
-    function open() public returns (bytes32 cup) {
+    function open() internal returns (bytes32 cup) {
         cup = TubInterface(getSaiTubAddress()).open();
     }
 
@@ -352,10 +351,33 @@ contract MCDResolver is MkrResolver {
 }
 
 
-contract MigrateResolver is MCDResolver {
+contract LiquidityResolver is MCDResolver {
+    //Had to write seprate for pool, remix was showing error.
+    function getLiquidity(uint _wad) internal {
+        uint[] memory _wadArr = new uint[](1);
+        _wadArr[0] = _wad;
+
+        address[] memory addrArr = new address[](1);
+        addrArr[0] = address(0);
+
+        // Get liquidity assets to payback user wallet borrowed assets
+        PoolInterface(getPoolAddress()).accessToken(addrArr, _wadArr, false);
+    }
+
+    function paybackLiquidity(uint _wad) internal {
+        address[] memory addrArr = new address[](1);
+        addrArr[0] = address(0);
+
+        require(TokenInterface(getSaiAddress()).transfer(getPoolAddress(), _wad), "Not-enough-dai");
+        PoolInterface(getPoolAddress()).paybackToken(addrArr, false);
+    }
+}
+
+
+contract MigrateResolver is LiquidityResolver {
     event LogMigrate(uint scdCdp, uint toConvert, address payFeeWith, uint mcdCdp);
     function migrate(
-        bytes32 scdCup,
+        uint scdCDP,
         // uint mcdCDP, for merge
         uint toConvert,
         address payFeeWith,
@@ -363,8 +385,11 @@ contract MigrateResolver is MCDResolver {
     ) external payable returns (uint cdp)
     {
         TubInterface tub = TubInterface(getSaiTubAddress());
+        bytes32 scdCup = bytes32(scdCDP);
+
         uint _jam = rmul(tub.ink(scdCup), tub.per());
         uint _wad = tub.tab(scdCup);
+
         if (toConvert < 10**18) {
             uint initialPoolBal = sub(getPoolAddress().balance, 10000000000);
             bytes32 splitCup = TubInterface(getSaiTubAddress()).open();
@@ -372,22 +397,19 @@ contract MigrateResolver is MCDResolver {
             _jam = wmul(_jam, toConvert);
             _wad = wmul(_wad, toConvert);
 
-
-            uint[] memory _wadArr = new uint[](1);
-            _wadArr[0] = _wad;
-
-            address[] memory addrArr = new address[](1);
-            addrArr[0] = address(0);
-
-            // Get liquidity assets to payback user wallet borrowed assets
-            PoolInterface(getPoolAddress()).accessToken(addrArr, _wadArr, false);
+            //get liquidity from InstaDApp Pool.
+            getLiquidity(_wad);
 
             (bytes32 val, bool ok) = tub.pep().peek();
 
             if (ok && val != 0) {
                 // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
-                uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(scdCup), tub.tab(scdCup))), uint(val));
-                swapToMkrUniswap(payFeeWith, mkrFee);
+                uint mkrFee = rdiv(tub.rap(scdCup), tub.tab(scdCup)); // I had to split because it was showing error in remix.
+                mkrFee = rmul(_wad, mkrFee);
+                mkrFee = wdiv(mkrFee, uint(val));
+
+                // swapToMkrUniswap(payFeeWith, mkrFee); //Uniswap
+                swapToMkrOtc(payFeeWith, mkrFee); //otc
             }
 
             wipe(scdCup, _wad);
@@ -396,8 +418,8 @@ contract MigrateResolver is MCDResolver {
             lock(splitCup, _jam);
             draw(splitCup, _wad);
 
-            require(TokenInterface(getSaiAddress()).transfer(getPoolAddress(), _wad), "Not-enough-dai");
-            PoolInterface(getPoolAddress()).paybackToken(addrArr, false);
+            //transfer and payback liquidity to InstaDApp Pool.
+            paybackLiquidity(_wad);
 
             uint finalPoolBal = getPoolAddress().balance;
             assert(finalPoolBal >= initialPoolBal);
@@ -406,6 +428,11 @@ contract MigrateResolver is MCDResolver {
         } else {
             cdp = migrateToMCD(scdMcdMigration, scdCup, payFeeWith);
         }
+
+        TokenInterface weth = TokenInterface(getWETHAddress());
+        weth.withdraw(weth.balanceOf(address(this))); //withdraw WETH, if any leftover.
+        msg.sender.transfer(address(this).balance); //transfer leftover ETH.
+
         emit LogMigrate(
             uint(scdCup),
             toConvert,
