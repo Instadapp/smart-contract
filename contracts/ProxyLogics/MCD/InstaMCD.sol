@@ -89,7 +89,6 @@ interface TokenInterface {
 }
 
 
-
 contract DSMath {
 
     function add(uint x, uint y) internal pure returns (uint z) {
@@ -138,57 +137,39 @@ contract DSMath {
 contract Helpers is DSMath {
 
     /**
-     * @dev get MakerDAO CDP engine
+     * @dev get MCD Manager Address
      */
-    function getSaiTubAddress() public pure returns (address sai) {
-        sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
-    }
-
-    /**
-     * @dev get uniswap MKR exchange
-     */
-    function getUniswapMKRExchange() public pure returns (address ume) {
-        ume = 0x2C4Bd064b998838076fa341A83d007FC2FA50957;
-    }
-
-    /**
-     * @dev get uniswap DAI exchange
-     */
-    function getUniswapDAIExchange() public pure returns (address ude) {
-        ude = 0x09cabEC1eAd1c0Ba254B09efb3EE13841712bE14;
-    }
-
-    /**
-     * @dev get CDP bytes by CDP ID
-     */
-    function getCDPBytes(uint cdpNum) public pure returns (bytes32 cup) {
-        cup = bytes32(cdpNum);
+    function getmanagerAddress() public pure returns (address managerAddr) { // not in use
+        managerAddr;
     }
 
 }
 
 
 contract CDPResolver is Helpers {
-
-
+    event LogOpen(uint cdpNum, address owner);
+    event LogGive(uint cdpNum, address owner, address nextOwner);
+    event LogLock(uint cdpNum, uint amtETH, address owner);
+    event LogFree(uint cdpNum, uint amtETH, address owner);
+    event LogDraw(uint cdpNum, uint amtDAI, address owner);
+    event LogWipe(uint cdpNum, uint daiAmt, address owner);
 
     function open(address manager) public returns (uint cdp) {
         bytes32 ilk = 0x4554482d41000000000000000000000000000000000000000000000000000000;
         cdp = ManagerLike(manager).open(ilk);
+        emit LogOpen(cdp, address(this));
     }
 
-    function lockETH(
-        address manager,
-        address ethJoin,
-        uint cdp
-    ) public payable
-    {
-        // Receives ETH amount, converts it to WETH and joins it into the vat
+    function give(address manager, uint cdp,address nextOwner) public {
+        ManagerLike(manager).give(cdp, nextOwner);
+        emit LogGive(cdp, address(this), nextOwner);
+    }
+
+    function lockETH(address manager, address ethJoin, uint cdp) public payable {
         GemJoinLike(ethJoin).gem().deposit.value(msg.value)();
-        // Approves adapter to take the WETH amount
         GemJoinLike(ethJoin).gem().approve(address(ethJoin), msg.value);
-        // Joins WETH collateral into the vat
         GemJoinLike(ethJoin).join(address(this), msg.value);
+
         // Locks WETH amount into the CDP
         VatLike(ManagerLike(manager).vat()).frob(
             ManagerLike(manager).ilks(cdp),
@@ -198,6 +179,7 @@ contract CDPResolver is Helpers {
             int(msg.value),
             0
         );
+        emit LogLock(cdp, msg.value, address(this));
     }
 
     function freeETH(
@@ -207,19 +189,18 @@ contract CDPResolver is Helpers {
         uint wad
     ) public
     {
-        // Unlocks WETH amount from the CDP
         ManagerLike(manager).frob(
             cdp,
             address(this),
             -int(wad),
             0
         );
-        // Exits WETH amount to proxy address as a token
         GemJoinLike(ethJoin).exit(address(this), wad);
+
         // Converts WETH to ETH
         GemJoinLike(ethJoin).gem().withdraw(wad);
-        // Sends ETH back to the user's wallet
         msg.sender.transfer(wad);
+        emit LogFree(cdp, wad, address(this));
     }
 
     function draw(
@@ -235,7 +216,7 @@ contract CDPResolver is Helpers {
         bytes32 ilk = ManagerLike(manager).ilks(cdp);
         // Updates stability fee rate before generating new debt
         JugLike(jug).drip(ilk);
-        // Generates debt in the CDP
+
         int dart;
         // Gets actual rate from the vat
         (, uint rate,,,) = VatLike(vat).ilks(ilk);
@@ -250,8 +231,6 @@ contract CDPResolver is Helpers {
             dart = mul(uint(dart), rate) < mul(wad, RAY) ? dart + 1 : dart;
         }
 
-
-
         ManagerLike(manager).frob(cdp, 0, dart);
         // Moves the DAI amount (balance in the vat in rad) to proxy's address
         ManagerLike(manager).move(cdp, address(this), toRad(wad));
@@ -259,8 +238,8 @@ contract CDPResolver is Helpers {
         if (VatLike(vat).can(address(this), address(daiJoin)) == 0) {
             VatLike(vat).hope(daiJoin);
         }
-        // Exits DAI to the user's wallet as a token
         DaiJoinLike(daiJoin).exit(msg.sender, wad);
+        emit LogDraw(cdp, wad, address(this));
     }
 
     function wipe (
@@ -275,58 +254,47 @@ contract CDPResolver is Helpers {
         bytes32 ilk = ManagerLike(manager).ilks(cdp);
 
         address own = ManagerLike(manager).owns(cdp);
+
+        (, uint rate,,,) = VatLike(vat).ilks(ilk);
+        (, uint art) = VatLike(vat).urns(ilk, urn);
+
         DaiJoinLike(daiJoin).dai().transferFrom(msg.sender, address(this), wad);
-        // Approves adapter to take the DAI amount
         DaiJoinLike(daiJoin).dai().approve(daiJoin, wad);
+
+        int dart;
+
         if (own == address(this) || ManagerLike(manager).cdpCan(own, cdp, address(this)) == 1) {
-            // Joins DAI amount into the vat
             DaiJoinLike(daiJoin).join(urn, wad);
-            // Paybacks debt to the CDP
-            ManagerLike(manager).frob(cdp, 0, _getWipeDart(
-                vat,
-                VatLike(vat).dai(urn),
-                urn,
-                ilk));
+
+            // Uses the whole dai balance in the vat to reduce the debt
+            dart = toInt(VatLike(vat).dai(urn) / rate);
+            // Checks the calculated dart is not higher than urn.art (total debt), otherwise uses its value
+            dart = uint(dart) <= art ? - dart : - toInt(art);
+
+            ManagerLike(manager).frob(cdp, 0, dart);
         } else {
-             // Joins DAI amount into the vat
             DaiJoinLike(daiJoin).join(address(this), wad);
-            // Paybacks debt to the CDP
+
+            // Uses the whole dai balance in the vat to reduce the debt
+            dart = toInt(wad * RAY / rate);
+            // Checks the calculated dart is not higher than urn.art (total debt), otherwise uses its value
+            dart = uint(dart) <= art ? - dart : - toInt(art);
+
             VatLike(vat).frob(
                 ilk,
                 urn,
                 address(this),
                 address(this),
                 0,
-                _getWipeDart(
-                    vat,
-                    wad * RAY,
-                    urn,
-                    ilk)
+                dart
             );
         }
-    }
-
-    function _getWipeDart(
-        address vat,
-        uint dai,
-        address urn,
-        bytes32 ilk
-    ) internal view returns (int dart)
-    {
-        // Gets actual rate from the vat
-        (, uint rate,,,) = VatLike(vat).ilks(ilk);
-        // Gets actual art value of the urn
-        (, uint art) = VatLike(vat).urns(ilk, urn);
-
-        // Uses the whole dai balance in the vat to reduce the debt
-        dart = toInt(dai / rate);
-        // Checks the calculated dart is not higher than urn.art (total debt), otherwise uses its value
-        dart = uint(dart) <= art ? - dart : - toInt(art);
+        emit LogWipe(cdp, wad, address(this));
     }
 }
 
 
-contract InstaMaker is CDPResolver {
+contract InstaMCD is CDPResolver {
 
     function() external payable {}
 
