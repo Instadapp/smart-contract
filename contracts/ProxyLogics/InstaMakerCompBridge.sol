@@ -215,6 +215,13 @@ contract Helper is DSMath {
     }
 
     /**
+     * @dev get MKR Address
+     */
+    function getMKRAddress() public pure returns (address dai) {
+        dai = 0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2;
+    }
+
+    /**
      * @dev get CDAI Address
      */
     function getCDAIAddress() public pure returns (address cDai) {
@@ -333,6 +340,14 @@ contract MakerResolver is InstaPoolResolver {
         TubInterface(getSaiTubAddress()).give(bytes32(cdpNum), nextOwner);
     }
 
+    function setWipeAllowances(TubInterface tub) internal { // to solve stack to deep error
+        TokenInterface dai = tub.sai();
+        TokenInterface mkr = tub.gov();
+        setMakerAllowance(dai, getSaiTubAddress());
+        setMakerAllowance(mkr, getSaiTubAddress());
+        setMakerAllowance(dai, getUniswapDAIExchange());
+    }
+
     /**
      * @dev Pay CDP debt
      */
@@ -341,18 +356,13 @@ contract MakerResolver is InstaPoolResolver {
             TubInterface tub = TubInterface(getSaiTubAddress());
             UniswapExchange daiEx = UniswapExchange(getUniswapDAIExchange());
             UniswapExchange mkrEx = UniswapExchange(getUniswapMKRExchange());
-            TokenInterface dai = tub.sai();
-            TokenInterface mkr = tub.gov();
 
             bytes32 cup = bytes32(cdpNum);
 
             (address lad,,,) = tub.cups(cup);
             require(lad == address(this), "cup-not-owned");
 
-            setMakerAllowance(dai, getSaiTubAddress());
-            setMakerAllowance(mkr, getSaiTubAddress());
-            setMakerAllowance(dai, getUniswapDAIExchange());
-
+            setWipeAllowances(tub);
             (bytes32 val, bool ok) = tub.pep().peek();
 
             // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
@@ -370,7 +380,7 @@ contract MakerResolver is InstaPoolResolver {
                     daiFeeAmt,
                     uint(999000000000000000000),
                     uint(1899063809), // 6th March 2030 GMT // no logic
-                    address(mkr)
+                    getMKRAddress()
                 );
             }
 
@@ -403,7 +413,6 @@ contract MakerResolver is InstaPoolResolver {
 
             setMakerAllowance(dai, getSaiTubAddress());
             setMakerAllowance(mkr, getSaiTubAddress());
-            setMakerAllowance(dai, getUniswapDAIExchange());
 
             (bytes32 val, bool ok) = tub.pep().peek();
 
