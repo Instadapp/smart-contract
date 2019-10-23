@@ -336,13 +336,7 @@ contract MakerResolver is InstaPoolResolver {
     /**
      * @dev Pay CDP debt
      */
-    function wipe(
-        uint cdpNum,
-        uint _wad,
-        bool isCompound,
-        bool feeInMkr
-    ) internal returns (uint daiAmt)
-    {
+    function wipe(uint cdpNum, uint _wad, bool isCompound) internal returns (uint daiAmt) {
         if (_wad > 0) {
             TubInterface tub = TubInterface(getSaiTubAddress());
             UniswapExchange daiEx = UniswapExchange(getUniswapDAIExchange());
@@ -364,27 +358,20 @@ contract MakerResolver is InstaPoolResolver {
             // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
             uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
 
-            uint daiFeeAmt = 0;
-            if (!feeInMkr) {
-                daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
-                daiAmt = add(_wad, daiFeeAmt);
-            } else {
-                daiAmt = _wad;
-            }
+            uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
+            daiAmt = add(_wad, daiFeeAmt);
 
             // Getting Liquidity from Liquidity Contract
             accessDai(daiAmt, isCompound);
 
-            if (ok && val != 0 && !feeInMkr) {
+            if (ok && val != 0) {
                 daiEx.tokenToTokenSwapOutput(
                     mkrFee,
-                    daiFeeAmt + 1,
+                    daiFeeAmt,
                     uint(999000000000000000000),
                     uint(1899063809), // 6th March 2030 GMT // no logic
                     address(mkr)
                 );
-            } else if (ok && val != 0) {
-                require(mkr.transferFrom(msg.sender, address(this), mkrFee), "MKR-Allowance?");
             }
 
             tub.wipe(cup, _wad);
@@ -394,6 +381,49 @@ contract MakerResolver is InstaPoolResolver {
                 daiAmt,
                 mkrFee,
                 daiFeeAmt,
+                address(this)
+            );
+
+        }
+    }
+
+    /**
+     * @dev Pay CDP debt
+     */
+    function wipeWithMkr(uint cdpNum, uint _wad, bool isCompound) internal {
+        if (_wad > 0) {
+            TubInterface tub = TubInterface(getSaiTubAddress());
+            TokenInterface dai = tub.sai();
+            TokenInterface mkr = tub.gov();
+
+            bytes32 cup = bytes32(cdpNum);
+
+            (address lad,,,) = tub.cups(cup);
+            require(lad == address(this), "cup-not-owned");
+
+            setMakerAllowance(dai, getSaiTubAddress());
+            setMakerAllowance(mkr, getSaiTubAddress());
+            setMakerAllowance(dai, getUniswapDAIExchange());
+
+            (bytes32 val, bool ok) = tub.pep().peek();
+
+            // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
+            uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
+
+            // Getting Liquidity from Liquidity Contract
+            accessDai(_wad, isCompound);
+
+            if (ok && val != 0) {
+                require(mkr.transferFrom(msg.sender, address(this), mkrFee), "MKR-Allowance?");
+            }
+
+            tub.wipe(cup, _wad);
+
+            emit LogWipe(
+                cdpNum,
+                _wad,
+                mkrFee,
+                0,
                 address(this)
             );
 
@@ -489,12 +519,12 @@ contract MakerResolver is InstaPoolResolver {
         bool feeInMkr
     ) internal returns (uint daiAmt)
     {
-        daiAmt = wipe(
-            cdpNum,
-            _wad,
-            isCompound,
-            feeInMkr
-        );
+        if (feeInMkr) {
+            wipeWithMkr(cdpNum, _wad, isCompound);
+            daiAmt = _wad;
+        } else {
+            daiAmt = wipe(cdpNum, _wad, isCompound);
+        }
         free(cdpNum, jam);
     }
 
