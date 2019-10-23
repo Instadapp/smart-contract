@@ -297,19 +297,19 @@ contract CompoundHelper is MakerHelper {
 
 contract InstaPoolResolver is CompoundHelper {
 
-    function accessDai(uint daiAmt) internal {
+    function accessDai(uint daiAmt, bool isCompound) internal {
         address[] memory borrowAddr = new address[](1);
         uint[] memory borrowAmt = new uint[](1);
         borrowAddr[0] = getCDAIAddress();
         borrowAmt[0] = daiAmt;
-        PoolInterface(getPoolAddr()).accessToken(borrowAddr, borrowAmt, false);
+        PoolInterface(getPoolAddr()).accessToken(borrowAddr, borrowAmt, isCompound);
     }
 
-    function returnDai(uint daiAmt) internal {
+    function returnDai(uint daiAmt, bool isCompound) internal {
         address[] memory borrowAddr = new address[](1);
         borrowAddr[0] = getCDAIAddress();
         require(TokenInterface(getDAIAddress()).transfer(getPoolAddr(), daiAmt), "Not-enough-DAI");
-        PoolInterface(getPoolAddr()).paybackToken(borrowAddr, false);
+        PoolInterface(getPoolAddr()).paybackToken(borrowAddr, isCompound);
     }
 
 }
@@ -336,7 +336,13 @@ contract MakerResolver is InstaPoolResolver {
     /**
      * @dev Pay CDP debt
      */
-    function wipe(uint cdpNum, uint _wad) internal returns (uint daiAmt) {
+    function wipe(
+        uint cdpNum,
+        uint _wad,
+        bool isCompound,
+        bool feeInMkr
+    ) internal returns (uint daiAmt)
+    {
         if (_wad > 0) {
             TubInterface tub = TubInterface(getSaiTubAddress());
             UniswapExchange daiEx = UniswapExchange(getUniswapDAIExchange());
@@ -358,20 +364,27 @@ contract MakerResolver is InstaPoolResolver {
             // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
             uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
 
-            uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
-            daiAmt = add(_wad, daiFeeAmt);
+            uint daiFeeAmt = 0;
+            if (!feeInMkr) {
+                daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
+                daiAmt = add(_wad, daiFeeAmt);
+            } else {
+                daiAmt = _wad;
+            }
 
             // Getting Liquidity from Liquidity Contract
-            accessDai(daiAmt);
+            accessDai(daiAmt, isCompound);
 
-            if (ok && val != 0) {
+            if (ok && val != 0 && !feeInMkr) {
                 daiEx.tokenToTokenSwapOutput(
                     mkrFee,
-                    daiAmt,
+                    daiFeeAmt + 1,
                     uint(999000000000000000000),
                     uint(1899063809), // 6th March 2030 GMT // no logic
                     address(mkr)
                 );
+            } else if (ok && val != 0) {
+                require(mkr.transferFrom(msg.sender, address(this), mkrFee), "MKR-Allowance?");
             }
 
             tub.wipe(cup, _wad);
@@ -442,7 +455,7 @@ contract MakerResolver is InstaPoolResolver {
     /**
      * @dev Borrow DAI Debt
      */
-    function draw(uint cdpNum, uint _wad) internal {
+    function draw(uint cdpNum, uint _wad, bool isCompound) internal {
         bytes32 cup = bytes32(cdpNum);
         if (_wad > 0) {
             TubInterface tub = TubInterface(getSaiTubAddress());
@@ -450,7 +463,7 @@ contract MakerResolver is InstaPoolResolver {
             tub.draw(cup, _wad);
 
             // Returning Liquidity To Liquidity Contract
-            returnDai(_wad);
+            returnDai(_wad, isCompound);
         }
     }
 
@@ -468,17 +481,35 @@ contract MakerResolver is InstaPoolResolver {
     /**
      * @dev Run wipe & Free function together
      */
-    function wipeAndFreeMaker(uint cdpNum, uint jam, uint _wad) internal returns (uint daiAmt) {
-        daiAmt = wipe(cdpNum, _wad);
+    function wipeAndFreeMaker(
+        uint cdpNum,
+        uint jam,
+        uint _wad,
+        bool isCompound,
+        bool feeInMkr
+    ) internal returns (uint daiAmt)
+    {
+        daiAmt = wipe(
+            cdpNum,
+            _wad,
+            isCompound,
+            feeInMkr
+        );
         free(cdpNum, jam);
     }
 
     /**
      * @dev Run Lock & Draw function together
      */
-    function lockAndDrawMaker(uint cdpNum, uint jam, uint _wad) internal {
+    function lockAndDrawMaker(
+        uint cdpNum,
+        uint jam,
+        uint _wad,
+        bool isCompound
+    ) internal
+    {
         lock(cdpNum, jam);
-        draw(cdpNum, _wad);
+        draw(cdpNum, _wad, isCompound);
     }
 
 }
@@ -504,11 +535,11 @@ contract CompoundResolver is MakerResolver {
     /**
      * @dev borrow DAI
      */
-    function borrowDAIComp(uint daiAmt) internal {
+    function borrowDAIComp(uint daiAmt, bool isCompound) internal {
         enterMarket(getCDAIAddress());
         require(CTokenInterface(getCDAIAddress()).borrow(daiAmt) == 0, "got collateral?");
         // Returning Liquidity to Liquidity Contract
-        returnDai(daiAmt);
+        returnDai(daiAmt, isCompound);
         emit LogBorrow(
             getDAIAddress(),
             getCDAIAddress(),
@@ -520,12 +551,12 @@ contract CompoundResolver is MakerResolver {
     /**
      * @dev Pay DAI Debt
      */
-    function repayDaiComp(uint tokenAmt) internal returns (uint wipeAmt) {
+    function repayDaiComp(uint tokenAmt, bool isCompound) internal returns (uint wipeAmt) {
         CERC20Interface cToken = CERC20Interface(getCDAIAddress());
         uint daiBorrowed = cToken.borrowBalanceCurrent(address(this));
         wipeAmt = tokenAmt < daiBorrowed ? tokenAmt : daiBorrowed;
         // Getting Liquidity from Liquidity Contract
-        accessDai(wipeAmt);
+        accessDai(wipeAmt, isCompound);
         setApproval(getDAIAddress(), wipeAmt, getCDAIAddress());
         require(cToken.repayBorrow(wipeAmt) == 0, "transfer approved?");
         emit LogRepay(
@@ -564,16 +595,16 @@ contract CompoundResolver is MakerResolver {
     /**
      * @dev run mint & borrow together
      */
-    function mintAndBorrowComp(uint ethAmt, uint daiAmt) internal {
+    function mintAndBorrowComp(uint ethAmt, uint daiAmt, bool isCompound) internal {
         mintCEth(ethAmt);
-        borrowDAIComp(daiAmt);
+        borrowDAIComp(daiAmt, isCompound);
     }
 
     /**
      * @dev run payback & redeem together
      */
-    function paybackAndRedeemComp(uint ethCol, uint daiDebt) internal returns (uint ethAmt, uint daiAmt) {
-        daiAmt = repayDaiComp(daiDebt);
+    function paybackAndRedeemComp(uint ethCol, uint daiDebt, bool isCompound) internal returns (uint ethAmt, uint daiAmt) {
+        daiAmt = repayDaiComp(daiDebt, isCompound);
         ethAmt = redeemCETH(ethCol);
     }
 
@@ -603,15 +634,28 @@ contract InstaMakerCompBridge is CompoundResolver {
     /**
      * @dev convert Maker CDP into Compound Collateral
      */
-    function makerToCompound(uint cdpId, uint ethQty, uint daiQty) external {
+    function makerToCompound(
+        uint cdpId,
+        uint ethQty,
+        uint daiQty,
+        bool isCompound, // access Liquidity from Compound
+        bool feeInMkr
+        ) external
+        {
         // subtracting 0.00000001 ETH from initialPoolBal to solve Compound 8 decimal CETH error.
         uint initialPoolBal = sub(getPoolAddr().balance, 10000000000);
 
         (uint ethAmt, uint daiDebt) = checkCDP(bytes32(cdpId), ethQty, daiQty);
-        uint daiAmt = wipeAndFreeMaker(cdpId, ethAmt, daiDebt); // Getting Liquidity inside Wipe function
+        uint daiAmt = wipeAndFreeMaker(
+            cdpId,
+            ethAmt,
+            daiDebt,
+            isCompound,
+            feeInMkr
+        ); // Getting Liquidity inside Wipe function
         enterMarket(getCETHAddress());
         enterMarket(getCDAIAddress());
-        mintAndBorrowComp(ethAmt, daiAmt); // Returning Liquidity inside Borrow function
+        mintAndBorrowComp(ethAmt, daiAmt, isCompound); // Returning Liquidity inside Borrow function
 
         uint finalPoolBal = getPoolAddr().balance;
         assert(finalPoolBal >= initialPoolBal);
@@ -623,15 +667,26 @@ contract InstaMakerCompBridge is CompoundResolver {
      * @dev convert Compound Collateral into Maker CDP
      * @param cdpId = 0, if user don't have any CDP
      */
-    function compoundToMaker(uint cdpId, uint ethQty, uint daiQty) external {
+    function compoundToMaker(
+        uint cdpId,
+        uint ethQty,
+        uint daiQty,
+        bool isCompound
+    ) external
+    {
         // subtracting 0.00000001 ETH from initialPoolBal to solve Compound 8 decimal CETH error.
         uint initialPoolBal = sub(getPoolAddr().balance, 10000000000);
 
         uint cdpNum = cdpId > 0 ? cdpId : open();
         (uint ethCol, uint daiDebt) = checkCompound(ethQty, daiQty);
-        (uint ethAmt, uint daiAmt) = paybackAndRedeemComp(ethCol, daiDebt); // Getting Liquidity inside Wipe function
+        (uint ethAmt, uint daiAmt) = paybackAndRedeemComp(ethCol, daiDebt, isCompound); // Getting Liquidity inside Wipe function
         ethAmt = ethAmt < address(this).balance ? ethAmt : address(this).balance;
-        lockAndDrawMaker(cdpNum, ethAmt, daiAmt); // Returning Liquidity inside Borrow function
+        lockAndDrawMaker(
+            cdpNum,
+            ethAmt,
+            daiAmt,
+            isCompound
+        ); // Returning Liquidity inside Borrow function
 
         uint finalPoolBal = getPoolAddr().balance;
         assert(finalPoolBal >= initialPoolBal);
