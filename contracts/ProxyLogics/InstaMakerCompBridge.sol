@@ -52,9 +52,9 @@ interface UniswapExchange {
         ) external returns (uint256  tokensSold);
 }
 
-interface LiquidityInterface {
-    function borrowTknAndTransfer(address ctknAddr, uint tknAmt) external;
-    function payBorrowBack(address ctknAddr, uint tknAmt) external;
+interface PoolInterface {
+    function accessToken(address[] calldata ctknAddr, uint[] calldata tknAmt, bool isCompound) external;
+    function paybackToken(address[] calldata ctknAddr, bool isCompound) external payable;
 }
 
 interface CTokenInterface {
@@ -107,6 +107,10 @@ interface CompOracleInterface {
 
 
 contract DSMath {
+
+    function sub(uint x, uint y) internal pure returns (uint z) {
+        z = x - y <= x ? x - y : 0;
+    }
 
     function add(uint x, uint y) internal pure returns (uint z) {
         require((z = x + y) >= x, "math-not-safe");
@@ -178,8 +182,8 @@ contract Helper is DSMath {
     /**
      * @dev get InstaDApp Liquidity contract
      */
-    function getLiquidityAddr() public pure returns (address liquidity) {
-        liquidity = 0x7281Db02c62e2966d5Cd20504B7C4C6eF4bD48E1;
+    function getPoolAddr() public pure returns (address poolAddr) {
+        poolAddr = 0x1564D040EC290C743F67F5cB11f3C1958B39872A;
     }
 
     /**
@@ -291,7 +295,27 @@ contract CompoundHelper is MakerHelper {
 }
 
 
-contract MakerResolver is CompoundHelper {
+contract InstaPoolResolver is CompoundHelper {
+
+    function accessDai(uint daiAmt) internal {
+        address[] memory borrowAddr = new address[](1);
+        uint[] memory borrowAmt = new uint[](1);
+        borrowAddr[0] = getCDAIAddress();
+        borrowAmt[0] = daiAmt;
+        PoolInterface(getPoolAddr()).accessToken(borrowAddr, borrowAmt, false);
+    }
+
+    function returnDai(uint daiAmt) internal {
+        address[] memory borrowAddr = new address[](1);
+        borrowAddr[0] = getCDAIAddress();
+        require(TokenInterface(getDAIAddress()).transfer(getPoolAddr(), daiAmt), "Not-enough-DAI");
+        PoolInterface(getPoolAddr()).paybackToken(borrowAddr, false);
+    }
+
+}
+
+
+contract MakerResolver is InstaPoolResolver {
 
     /**
      * @dev Open new CDP
@@ -338,7 +362,7 @@ contract MakerResolver is CompoundHelper {
             daiAmt = add(_wad, daiFeeAmt);
 
             // Getting Liquidity from Liquidity Contract
-            LiquidityInterface(getLiquidityAddr()).borrowTknAndTransfer(getCDAIAddress(), daiAmt);
+            accessDai(daiAmt);
 
             if (ok && val != 0) {
                 daiEx.tokenToTokenSwapOutput(
@@ -426,8 +450,7 @@ contract MakerResolver is CompoundHelper {
             tub.draw(cup, _wad);
 
             // Returning Liquidity To Liquidity Contract
-            require(TokenInterface(getDAIAddress()).transfer(getLiquidityAddr(), _wad), "Not-enough-DAI");
-            LiquidityInterface(getLiquidityAddr()).payBorrowBack(getCDAIAddress(), _wad);
+            returnDai(_wad);
         }
     }
 
@@ -485,8 +508,7 @@ contract CompoundResolver is MakerResolver {
         enterMarket(getCDAIAddress());
         require(CTokenInterface(getCDAIAddress()).borrow(daiAmt) == 0, "got collateral?");
         // Returning Liquidity to Liquidity Contract
-        require(TokenInterface(getDAIAddress()).transfer(getLiquidityAddr(), daiAmt), "Not-enough-DAI");
-        LiquidityInterface(getLiquidityAddr()).payBorrowBack(getCDAIAddress(), daiAmt);
+        returnDai(daiAmt);
         emit LogBorrow(
             getDAIAddress(),
             getCDAIAddress(),
@@ -503,7 +525,7 @@ contract CompoundResolver is MakerResolver {
         uint daiBorrowed = cToken.borrowBalanceCurrent(address(this));
         wipeAmt = tokenAmt < daiBorrowed ? tokenAmt : daiBorrowed;
         // Getting Liquidity from Liquidity Contract
-        LiquidityInterface(getLiquidityAddr()).borrowTknAndTransfer(getCDAIAddress(), wipeAmt);
+        accessDai(wipeAmt);
         setApproval(getDAIAddress(), wipeAmt, getCDAIAddress());
         require(cToken.repayBorrow(wipeAmt) == 0, "transfer approved?");
         emit LogRepay(
@@ -582,11 +604,18 @@ contract InstaMakerCompBridge is CompoundResolver {
      * @dev convert Maker CDP into Compound Collateral
      */
     function makerToCompound(uint cdpId, uint ethQty, uint daiQty) external {
+        // subtracting 0.00000001 ETH from initialPoolBal to solve Compound 8 decimal CETH error.
+        uint initialPoolBal = sub(getPoolAddr().balance, 10000000000);
+
         (uint ethAmt, uint daiDebt) = checkCDP(bytes32(cdpId), ethQty, daiQty);
         uint daiAmt = wipeAndFreeMaker(cdpId, ethAmt, daiDebt); // Getting Liquidity inside Wipe function
         enterMarket(getCETHAddress());
         enterMarket(getCDAIAddress());
         mintAndBorrowComp(ethAmt, daiAmt); // Returning Liquidity inside Borrow function
+
+        uint finalPoolBal = getPoolAddr().balance;
+        assert(finalPoolBal >= initialPoolBal);
+
         emit LogMakerToCompound(ethAmt, daiAmt);
     }
 
@@ -595,11 +624,18 @@ contract InstaMakerCompBridge is CompoundResolver {
      * @param cdpId = 0, if user don't have any CDP
      */
     function compoundToMaker(uint cdpId, uint ethQty, uint daiQty) external {
+        // subtracting 0.00000001 ETH from initialPoolBal to solve Compound 8 decimal CETH error.
+        uint initialPoolBal = sub(getPoolAddr().balance, 10000000000);
+
         uint cdpNum = cdpId > 0 ? cdpId : open();
         (uint ethCol, uint daiDebt) = checkCompound(ethQty, daiQty);
         (uint ethAmt, uint daiAmt) = paybackAndRedeemComp(ethCol, daiDebt); // Getting Liquidity inside Wipe function
         ethAmt = ethAmt < address(this).balance ? ethAmt : address(this).balance;
         lockAndDrawMaker(cdpNum, ethAmt, daiAmt); // Returning Liquidity inside Borrow function
+
+        uint finalPoolBal = getPoolAddr().balance;
+        assert(finalPoolBal >= initialPoolBal);
+
         emit LogCompoundToMaker(ethAmt, daiAmt);
     }
 
