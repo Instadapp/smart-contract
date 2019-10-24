@@ -182,87 +182,8 @@ contract Helpers is DSMath {
 }
 
 
-contract SCDResolver is Helpers {
+contract MKRSwapper is Helpers {
 
-    function open() internal returns (bytes32 cup) {
-        cup = TubInterface(getSaiTubAddress()).open();
-    }
-
-    function wipe(bytes32 cup, uint _wad) internal {
-        if (_wad > 0) {
-            TubInterface tub = TubInterface(getSaiTubAddress());
-            TokenInterface dai = tub.sai();
-            TokenInterface mkr = tub.gov();
-
-            (address lad,,,) = tub.cups(cup);
-            require(lad == address(this), "cup-not-owned");
-
-            setAllowance(dai, getSaiTubAddress());
-            setAllowance(mkr, getSaiTubAddress());
-
-            tub.wipe(cup, _wad);
-        }
-    }
-
-    function free(bytes32 cup, uint jam) internal {
-        if (jam > 0) {
-            address tubAddr = getSaiTubAddress();
-
-            TubInterface tub = TubInterface(tubAddr);
-            TokenInterface peth = tub.skr();
-
-            uint ink = rdiv(jam, tub.per());
-            ink = rmul(ink, tub.per()) <= jam ? ink : ink - 1;
-            tub.free(cup, ink);
-
-            setAllowance(peth, tubAddr);
-
-            tub.exit(ink);
-            // weth.withdraw(freeJam);  // No need because we will lock it in small cdp
-        }
-    }
-
-    function lock(bytes32 cup, uint jam) internal {
-        if (jam > 0) {
-            address tubAddr = getSaiTubAddress();
-
-            TubInterface tub = TubInterface(tubAddr);
-            TokenInterface weth = tub.gem();
-            TokenInterface peth = tub.skr();
-
-            (address lad,,,) = tub.cups(cup);
-            require(lad == address(this), "cup-not-owned");
-
-            // weth.deposit.value(msg.value)(); // no need because withdrawn Weth is not convert back
-
-            uint ink = rdiv(jam, tub.per());
-            ink = rmul(ink, tub.per()) <= jam ? ink : ink - 1;
-
-            setAllowance(weth, tubAddr);
-            tub.join(ink);
-
-            setAllowance(peth, tubAddr);
-            tub.lock(cup, ink);
-        }
-    }
-
-    function draw(bytes32 cup, uint _wad) internal {
-        if (_wad > 0) {
-            TubInterface tub = TubInterface(getSaiTubAddress());
-            tub.draw(cup, _wad);
-        }
-    }
-
-    function setAllowance(TokenInterface _token, address _spender) private {
-        if (_token.allowance(address(this), _spender) != uint(-1)) {
-            _token.approve(_spender, uint(-1));
-        }
-    }
-
-}
-
-
-contract MkrResolver is SCDResolver {
     function swapToMkrOtc(address tokenAddr, uint govFee) internal {
         TokenInterface mkr = TubInterface(getSaiTubAddress()).gov();
         uint payAmt = OtcInterface(getOtcAddress()).getPayAmount(tokenAddr, address(mkr), govFee);
@@ -305,11 +226,81 @@ contract MkrResolver is SCDResolver {
         }
 
     }
+
 }
 
 
-contract MCDResolver is MkrResolver {
-    function swapDaiToSai(
+contract SCDResolver is MKRSwapper {
+
+    function open() internal returns (bytes32 cup) {
+        cup = TubInterface(getSaiTubAddress()).open();
+    }
+
+    function wipe(bytes32 cup, uint _wad, address payFeeWith) internal {
+        if (_wad > 0) {
+            TubInterface tub = TubInterface(getSaiTubAddress());
+            TokenInterface dai = tub.sai();
+            TokenInterface mkr = tub.gov();
+
+            (address lad,,,) = tub.cups(cup);
+            require(lad == address(this), "cup-not-owned");
+
+            setAllowance(dai, getSaiTubAddress());
+            setAllowance(mkr, getSaiTubAddress());
+
+            (bytes32 val, bool ok) = tub.pep().peek();
+
+            if (ok && val != 0) {
+                // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
+                uint mkrFee = rdiv(tub.rap(cup), tub.tab(cup)); // I had to split because it was showing error in remix.
+                mkrFee = rmul(_wad, mkrFee);
+                mkrFee = wdiv(mkrFee, uint(val));
+
+                // swapToMkrUniswap(payFeeWith, mkrFee); //Uniswap
+                swapToMkrOtc(payFeeWith, mkrFee); //otc
+            }
+
+            tub.wipe(cup, _wad);
+        }
+    }
+
+    function free(bytes32 cup, uint ink) internal {
+        if (ink > 0) {
+            TubInterface(getSaiTubAddress()).free(cup, ink); // No need to convert PETH in WETH because we will directly lock PETH in split CDP
+        }
+    }
+
+    function lock(bytes32 cup, uint ink) internal {
+        if (ink > 0) {
+            TubInterface tub = TubInterface(getSaiTubAddress());
+            TokenInterface peth = tub.skr();
+
+            (address lad,,,) = tub.cups(cup);
+            require(lad == address(this), "cup-not-owned");
+
+            setAllowance(peth, getSaiTubAddress());
+            tub.lock(cup, ink);
+        }
+    }
+
+    function draw(bytes32 cup, uint _wad) internal {
+        if (_wad > 0) {
+            TubInterface tub = TubInterface(getSaiTubAddress());
+            tub.draw(cup, _wad);
+        }
+    }
+
+    function setAllowance(TokenInterface _token, address _spender) private {
+        if (_token.allowance(address(this), _spender) != uint(-1)) {
+            _token.approve(_spender, uint(-1));
+        }
+    }
+
+}
+
+
+contract MCDResolver is SCDResolver {
+    function swapDaiToSai( // Check Samyak - It's not needed for this contract
         address payable scdMcdMigration,    // Migration contract address
         uint wad                            // Amount to swap
     ) internal
@@ -341,7 +332,7 @@ contract MCDResolver is MkrResolver {
             if (payGem != address(0)) {
                 swapToMkrOtc(payGem, govFee);
             } else {
-                require(tub.gov().transferFrom(msg.sender, address(this), govFee), "transfer-failed");
+                require(tub.gov().transferFrom(msg.sender, address(this), govFee), "transfer-failed"); // Check Samyak - We can directly transfer MKR to address(scdMcdMigration). Right?
             }
             require(tub.gov().transfer(address(scdMcdMigration), govFee), "transfer-failed");
         }
@@ -387,35 +378,22 @@ contract MigrateResolver is LiquidityResolver {
         TubInterface tub = TubInterface(getSaiTubAddress());
         bytes32 scdCup = bytes32(scdCDP);
 
-        uint _jam = rmul(tub.ink(scdCup), tub.per());
-        uint _wad = tub.tab(scdCup);
-
         if (toConvert < 10**18) {
             uint initialPoolBal = sub(getPoolAddress().balance, 10000000000);
             bytes32 splitCup = TubInterface(getSaiTubAddress()).open();
 
-            _jam = wmul(_jam, toConvert);
-            _wad = wmul(_wad, toConvert);
+            // Check Samyak - have to check max limit to convert. Hint: SAI balance in "x" contract. If toConvert > maxConvert then toConvert = maxConvert;
 
-            //get liquidity from InstaDApp Pool.
+            uint _ink = wmul(tub.ink(scdCup), toConvert); // Taking collateral in PETH only
+            uint _wad = wmul(tub.tab(scdCup), toConvert);
+
+            // getting liquidity from InstaDApp Pool.
             getLiquidity(_wad);
 
-            (bytes32 val, bool ok) = tub.pep().peek();
+            wipe(scdCup, _wad, payFeeWith);
+            free(scdCup, _ink);
 
-            if (ok && val != 0) {
-                // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
-                uint mkrFee = rdiv(tub.rap(scdCup), tub.tab(scdCup)); // I had to split because it was showing error in remix.
-                mkrFee = rmul(_wad, mkrFee);
-                mkrFee = wdiv(mkrFee, uint(val));
-
-                // swapToMkrUniswap(payFeeWith, mkrFee); //Uniswap
-                swapToMkrOtc(payFeeWith, mkrFee); //otc
-            }
-
-            wipe(scdCup, _wad);
-            free(scdCup, _jam);
-
-            lock(splitCup, _jam);
+            lock(splitCup, _ink);
             draw(splitCup, _wad);
 
             //transfer and payback liquidity to InstaDApp Pool.
