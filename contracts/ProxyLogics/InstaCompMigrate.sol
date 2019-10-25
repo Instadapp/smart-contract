@@ -86,36 +86,36 @@ contract Helpers is DSMath {
     /**
      * @dev get Compound Comptroller Address
      */
-    function getCSaiAddress() public pure returns (address saiAddr) {
-        // troller = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
+    function getCSaiAddress() public pure returns (address csaiAddr) {
+        csaiAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
     }
 
     /**
      * @dev get Compound Comptroller Address
      */
-    function getCDaiAddress() public pure returns (address daiAddr) {
-        // troller = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
+    function getCDaiAddress() public pure returns (address cdaiAddr) {
+        // cdaiAddr = ;
     }
 
     /**
      * @dev get Compound Comptroller Address
      */
     function getSaiAddress() public pure returns (address saiAddr) {
-        // troller = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
+        saiAddr = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
     }
 
     /**
      * @dev get Compound Comptroller Address
      */
     function getDaiAddress() public pure returns (address daiAddr) {
-        // troller = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
+        // daiAddr = ;
     }
 
     /**
      * @dev get Compound Comptroller Address
      */
     function getLiquidityAddress() public pure returns (address poolAddr) {
-        // poolAddr = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
+        poolAddr = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
     }
 
     function enterMarket(address cErc20) internal {
@@ -197,7 +197,7 @@ contract CompoundResolver is MigrationProxyActions {
     /**
      * @dev borrow ETH/ERC20
      */
-    function borrow(uint tokenAmt) internal {
+    function borrowDAI(uint tokenAmt) internal {
         enterMarket(getCDaiAddress());
         require(CTokenInterface(getCDaiAddress()).borrow(tokenAmt) == 0, "got collateral?");
         address erc20 = CTokenInterface(getCDaiAddress()).underlying();
@@ -213,7 +213,7 @@ contract CompoundResolver is MigrationProxyActions {
     /**
      * @dev Pay Debt ETH/ERC20
      */
-    function repayToken(uint tokenAmt) internal returns (uint toRepay) {
+    function repaySAI(uint tokenAmt) internal returns (uint toRepay) {
         CTokenInterface cToken = CTokenInterface(getCSaiAddress());
         address erc20 = CTokenInterface(getCSaiAddress()).underlying();
         ERC20Interface token = ERC20Interface(erc20);
@@ -238,9 +238,10 @@ contract CompMigration is CompoundResolver {
 
     function migrate(uint debtToMigrate, address scdMcdMigration) external {
         uint initialPoolBal = sub(getLiquidityAddress().balance, 10000000000);
-        uint debtPaid = repayToken(debtToMigrate);
-        borrow(debtPaid);
-        swapDaiToSai(scdMcdMigration, debtPaid);
+        // Check SAI balance of migration contract. If less than debtToMigrate then set debtToMigrate = SAI_Bal
+        uint debtPaid = repaySAI(debtToMigrate); // Repaying SAI debt
+        borrowDAI(debtPaid); // borrowing DAI debt
+        swapDaiToSai(scdMcdMigration, debtPaid); // swapping SAI into DAI
         uint finalPoolBal = getLiquidityAddress().balance;
         assert(finalPoolBal >= initialPoolBal);
     }
