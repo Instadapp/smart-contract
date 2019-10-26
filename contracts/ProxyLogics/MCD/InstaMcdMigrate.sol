@@ -352,7 +352,9 @@ contract LiquidityResolver is MCDResolver {
 
 
 contract MigrateResolver is LiquidityResolver {
+
     event LogMigrate(uint scdCdp, uint toConvert, address payFeeWith, uint mcdCdp);
+
     function migrate(
         uint scdCDP,
         // uint mcdCDP, for merge
@@ -377,9 +379,9 @@ contract MigrateResolver is LiquidityResolver {
 
             // Check if sai_join has enough sai to migrate.
             if (saiBal < _wad) {
+                _wad = saiBal;
                 // Set new convert ratio according to sai_join balance.
-                maxConvert = sub(wdiv(saiBal, _wadTotal), 1000000000000000);
-                _wad = wmul(_wadTotal, maxConvert);
+                maxConvert = sub(wdiv(saiBal, _wadTotal), 10);
             }
 
             uint _ink = wmul(tub.ink(scdCup), maxConvert); // Taking collateral in PETH only
