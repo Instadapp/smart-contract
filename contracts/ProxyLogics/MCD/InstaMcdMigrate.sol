@@ -129,9 +129,9 @@ contract Helpers is DSMath {
     /**
      * @dev get Dai (Dai v2) address
      */
-    function getDaiAddress() public pure returns (address dai) {
-        dai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
-    }
+    // function getDaiAddress() public pure returns (address dai) {
+    //     dai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
+    // }
 
     /**
      * @dev get Compound WETH Address
@@ -300,20 +300,6 @@ contract SCDResolver is MKRSwapper {
 
 
 contract MCDResolver is SCDResolver {
-    function swapDaiToSai( // Check Samyak - It's not needed for this contract
-        address payable scdMcdMigration,    // Migration contract address
-        uint wad                            // Amount to swap
-    ) internal
-    {
-        // TokenInterface sai = TokenInterface(getSaiAddress());
-        TokenInterface dai = TokenInterface(getDaiAddress());
-        dai.transferFrom(msg.sender, address(this), wad);
-        if (dai.allowance(address(this), scdMcdMigration) < wad) {
-            dai.approve(scdMcdMigration, wad);
-        }
-        MCDInterface(scdMcdMigration).swapDaiToSai(wad);
-    }
-
     function migrateToMCD(
         address payable scdMcdMigration,    // Migration contract address
         bytes32 cup,                        // SCD CDP Id to migrate
@@ -372,20 +358,31 @@ contract MigrateResolver is LiquidityResolver {
         // uint mcdCDP, for merge
         uint toConvert,
         address payFeeWith,
-        address payable scdMcdMigration
+        address payable scdMcdMigration,
+        address daiJoin // Check Thrilok - will remove in the last, when we get final address
     ) external payable returns (uint cdp)
     {
         TubInterface tub = TubInterface(getSaiTubAddress());
         bytes32 scdCup = bytes32(scdCDP);
+        uint maxConvert = toConvert;
 
         if (toConvert < 10**18) {
             uint initialPoolBal = sub(getPoolAddress().balance, 10000000000);
             bytes32 splitCup = TubInterface(getSaiTubAddress()).open();
 
-            // Check Samyak - have to check max limit to convert. Hint: SAI balance in "x" contract. If toConvert > maxConvert then toConvert = maxConvert;
+            // Check Thrilok - check if ratio is good.
+            uint saiBal = tub.sai().balanceOf(daiJoin);
+            uint _wadTotal = tub.tab(scdCup);
+            uint _wad = wmul(_wadTotal, toConvert);
 
-            uint _ink = wmul(tub.ink(scdCup), toConvert); // Taking collateral in PETH only
-            uint _wad = wmul(tub.tab(scdCup), toConvert);
+            // Check if sai_join has enough sai to migrate.
+            if (saiBal < _wad) {
+                // Set new convert ratio according to sai_join balance.
+                maxConvert = sub(wdiv(saiBal, _wadTotal), 1000000000000000);
+                _wad = wmul(_wadTotal, maxConvert);
+            }
+
+            uint _ink = wmul(tub.ink(scdCup), maxConvert); // Taking collateral in PETH only
 
             // getting liquidity from InstaDApp Pool.
             getLiquidity(_wad);
@@ -413,7 +410,7 @@ contract MigrateResolver is LiquidityResolver {
 
         emit LogMigrate(
             uint(scdCup),
-            toConvert,
+            maxConvert,
             payFeeWith,
             cdp
         );
