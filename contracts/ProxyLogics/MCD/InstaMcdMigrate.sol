@@ -73,6 +73,84 @@ interface OtcInterface {
     ) external;
 }
 
+interface GemLike {
+    function approve(address, uint) external;
+    function transfer(address, uint) external;
+    function transferFrom(address, address, uint) external;
+    function deposit() external payable;
+    function withdraw(uint) external;
+}
+
+interface JugLike {
+    function drip(bytes32) external;
+}
+
+interface ManagerLike {
+    function cdpCan(address, uint, address) external view returns (uint);
+    function ilks(uint) external view returns (bytes32);
+    function owns(uint) external view returns (address);
+    function urns(uint) external view returns (address);
+    function vat() external view returns (address);
+    function open(bytes32) external returns (uint);
+    function give(uint, address) external;
+    function cdpAllow(uint, address, uint) external;
+    function urnAllow(address, uint) external;
+    function frob(uint, int, int) external;
+    function frob(
+        uint,
+        address,
+        int,
+        int
+    ) external;
+    function flux(uint, address, uint) external;
+    function move(uint, address, uint) external;
+    function exit(
+        address,
+        uint,
+        address,
+        uint
+    ) external;
+    function quit(uint, address) external;
+    function enter(address, uint) external;
+    function shift(uint, uint) external;
+}
+
+interface VatLike {
+    function can(address, address) external view returns (uint);
+    function ilks(bytes32) external view returns (uint, uint, uint, uint, uint);
+    function dai(address) external view returns (uint);
+    function urns(bytes32, address) external view returns (uint, uint);
+    function frob(
+        bytes32,
+        address,
+        address,
+        address,
+        int,
+        int
+    ) external;
+    function hope(address) external;
+    function move(address, address, uint) external;
+}
+
+interface GemJoinLike {
+    function dec() external returns (uint);
+    function gem() external returns (GemLike);
+    function join(address, uint) external payable;
+    function exit(address, uint) external;
+}
+
+interface GNTJoinLike {
+    function bags(address) external view returns (address);
+    function make(address) external returns (address);
+}
+
+interface DaiJoinLike {
+    function vat() external returns (VatLike);
+    function dai() external returns (GemLike);
+    function join(address, uint) external payable;
+    function exit(address, uint) external;
+}
+
 
 contract DSMath {
 
@@ -325,6 +403,15 @@ contract MCDResolver is SCDResolver {
         // Execute migrate function
         cdp = MCDInterface(scdMcdMigration).migrate(cup);
     }
+
+    function shiftCDP( // Check Thrilok - in build function.
+        address manager,
+        uint cdpSrc,
+        uint cdpOrg
+    ) internal
+    {
+        ManagerLike(manager).shift(cdpSrc, cdpOrg);
+    }
 }
 
 
@@ -354,15 +441,17 @@ contract LiquidityResolver is MCDResolver {
 contract MigrateResolver is LiquidityResolver {
 
     event LogMigrate(uint scdCdp, uint toConvert, address payFeeWith, uint mcdCdp);
+    event LogMigrateAndMerge(uint scdCdp, uint toConvert, address payFeeWith, uint mcdMergeCdp);
 
     function migrate(
         uint scdCDP,
-        // uint mcdCDP, for merge
+        uint mergeCDP, //for merge
         uint toConvert,
         address payFeeWith,
         address payable scdMcdMigration,
+        address manager, // Check Thrilok - will remove in the last, when we get final address
         address daiJoin // Check Thrilok - will remove in the last, when we get final address
-    ) external payable returns (uint cdp)
+    ) external payable returns (uint newMcdCdp)
     {
         TubInterface tub = TubInterface(getSaiTubAddress());
         bytes32 scdCup = bytes32(scdCDP);
@@ -379,7 +468,7 @@ contract MigrateResolver is LiquidityResolver {
 
             // Check if sai_join has enough sai to migrate.
             if (saiBal < _wad) {
-                _wad = saiBal;
+                _wad = sub(saiBal, 1000);
                 // Set new convert ratio according to sai_join balance.
                 maxConvert = sub(wdiv(saiBal, _wadTotal), 10);
             }
@@ -401,21 +490,34 @@ contract MigrateResolver is LiquidityResolver {
             uint finalPoolBal = getPoolAddress().balance;
             assert(finalPoolBal >= initialPoolBal);
 
-            cdp = migrateToMCD(scdMcdMigration, splitCup, payFeeWith);
+            newMcdCdp = migrateToMCD(scdMcdMigration, splitCup, payFeeWith);
         } else {
-            cdp = migrateToMCD(scdMcdMigration, scdCup, payFeeWith);
+            newMcdCdp = migrateToMCD(scdMcdMigration, scdCup, payFeeWith);
         }
 
         TokenInterface weth = TokenInterface(getWETHAddress());
         weth.withdraw(weth.balanceOf(address(this))); //withdraw WETH, if any leftover.
         msg.sender.transfer(address(this).balance); //transfer leftover ETH.
 
-        emit LogMigrate(
-            uint(scdCup),
-            maxConvert,
-            payFeeWith,
-            cdp
-        );
+        // merge - Check Thrilok
+        if (mergeCDP != 0) {
+            require(ManagerLike(manager).owns(mergeCDP) == address(this), "NOT-OWNER");
+            shiftCDP(manager, newMcdCdp, mergeCDP);
+
+            emit LogMigrateAndMerge(
+                uint(scdCup),
+                maxConvert,
+                payFeeWith,
+                mergeCDP
+            );
+        } else {
+            emit LogMigrate(
+                uint(scdCup),
+                maxConvert,
+                payFeeWith,
+                newMcdCdp
+            );
+        }
     }
 }
 
