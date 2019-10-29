@@ -157,13 +157,6 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get Dai (Dai v2) address
-     */
-    // function getDaiAddress() public pure returns (address dai) {
-    //     dai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
-    // }
-
-    /**
      * @dev get Compound WETH Address
      */
     function getWETHAddress() public pure returns (address wethAddr) {
@@ -212,7 +205,31 @@ contract Helpers is DSMath {
 }
 
 
-contract MKRSwapper is Helpers {
+contract LiquidityResolver is Helpers {
+    //Had to write seprate for pool, remix was showing error.
+    function getLiquidity(uint _wad) internal {
+        uint[] memory _wadArr = new uint[](1);
+        _wadArr[0] = _wad;
+
+        address[] memory addrArr = new address[](1);
+        addrArr[0] = address(0);
+
+        // Get liquidity assets to payback user wallet borrowed assets
+        PoolInterface(getPoolAddress()).accessToken(addrArr, _wadArr, false);
+    }
+
+    function paybackLiquidity(uint _wad) internal {
+        address[] memory addrArr = new address[](1);
+        addrArr[0] = address(0);
+
+        // transfer and payback dai to InstaDApp pool.
+        require(TokenInterface(getSaiAddress()).transfer(getPoolAddress(), _wad), "Not-enough-dai");
+        PoolInterface(getPoolAddress()).paybackToken(addrArr, false);
+    }
+}
+
+
+contract MKRSwapper is  LiquidityResolver {
 
     function swapToMkrOtc(address tokenAddr, uint govFee) internal {
         TokenInterface mkr = TubInterface(getSaiTubAddress()).gov();
@@ -230,31 +247,6 @@ contract MKRSwapper is Helpers {
             tokenAddr,
             payAmt
         );
-    }
-
-    function swapToMkrUniswap(address tokenAddr, uint govFee) internal {
-        UniswapExchange mkrEx = UniswapExchange(getUniswapMKRExchange());
-        address uniSwapFactoryAddr = 0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95;
-        TokenInterface mkr = TubInterface(getSaiTubAddress()).gov();
-
-        if (tokenAddr == getWETHAddress()) {
-            uint ethNeeded = mkrEx.getEthToTokenOutputPrice(govFee);
-            mkrEx.ethToTokenSwapOutput.value(ethNeeded)(govFee, uint(1899063809));
-        } else {
-            address buyTknExAddr = UniswapFactoryInterface(uniSwapFactoryAddr).getExchange(tokenAddr);
-            UniswapExchange buyTknEx = UniswapExchange(buyTknExAddr);
-            uint tknAmt = buyTknEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(govFee)); //Check thrilok is this correct
-            require(TokenInterface(tokenAddr).transferFrom(msg.sender, address(this), tknAmt), "not-approved-yet");
-            setApproval(tokenAddr, tknAmt, buyTknExAddr);
-            buyTknEx.tokenToTokenSwapOutput(
-                    govFee,
-                    tknAmt,
-                    uint(999000000000000000000),
-                    uint(1899063809), // 6th March 2030 GMT // no logic
-                    address(mkr)
-                );
-        }
-
     }
 
 }
@@ -282,11 +274,10 @@ contract SCDResolver is MKRSwapper {
 
             if (ok && val != 0) {
                 // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
-                uint mkrFee = rdiv(tub.rap(cup), tub.tab(cup)); // I had to split because it was showing error in remix.
+                uint mkrFee = rdiv(tub.rap(cup), tub.tab(cup));
                 mkrFee = rmul(_wad, mkrFee);
                 mkrFee = wdiv(mkrFee, uint(val));
 
-                // swapToMkrUniswap(payFeeWith, mkrFee); //Uniswap
                 swapToMkrOtc(payFeeWith, mkrFee); //otc
             }
 
@@ -296,7 +287,7 @@ contract SCDResolver is MKRSwapper {
 
     function free(bytes32 cup, uint ink) internal {
         if (ink > 0) {
-            TubInterface(getSaiTubAddress()).free(cup, ink); // No need to convert PETH in WETH because we will directly lock PETH in split CDP
+            TubInterface(getSaiTubAddress()).free(cup, ink); // free PETH
         }
     }
 
@@ -333,7 +324,7 @@ contract MCDResolver is SCDResolver {
     function migrateToMCD(
         address payable scdMcdMigration,    // Migration contract address
         bytes32 cup,                        // SCD CDP Id to migrate
-        address payGem                     // Token address (only if gov fee will be paid with another token)
+        address payGem                     // Token address
     ) internal returns (uint cdp)
     {
         TubInterface tub = TubInterface(getSaiTubAddress());
@@ -356,7 +347,7 @@ contract MCDResolver is SCDResolver {
         cdp = MCDInterface(scdMcdMigration).migrate(cup);
     }
 
-    function shiftCDP( // Check Thrilok - in build function.
+    function shiftCDP(
         address manager,
         uint cdpSrc,
         uint cdpOrg
@@ -368,30 +359,7 @@ contract MCDResolver is SCDResolver {
 }
 
 
-contract LiquidityResolver is MCDResolver {
-    //Had to write seprate for pool, remix was showing error.
-    function getLiquidity(uint _wad) internal {
-        uint[] memory _wadArr = new uint[](1);
-        _wadArr[0] = _wad;
-
-        address[] memory addrArr = new address[](1);
-        addrArr[0] = address(0);
-
-        // Get liquidity assets to payback user wallet borrowed assets
-        PoolInterface(getPoolAddress()).accessToken(addrArr, _wadArr, false);
-    }
-
-    function paybackLiquidity(uint _wad) internal {
-        address[] memory addrArr = new address[](1);
-        addrArr[0] = address(0);
-
-        require(TokenInterface(getSaiAddress()).transfer(getPoolAddress(), _wad), "Not-enough-dai");
-        PoolInterface(getPoolAddress()).paybackToken(addrArr, false);
-    }
-}
-
-
-contract MigrateHelper is LiquidityResolver {
+contract MigrateHelper is MCDResolver {
     function setSplitAmount(bytes32 cup, uint toConvert, address daiJoin) internal returns (uint _wad, uint _ink, uint maxConvert) {
         // Set ratio according to user.
         TubInterface tub = TubInterface(getSaiTubAddress());
