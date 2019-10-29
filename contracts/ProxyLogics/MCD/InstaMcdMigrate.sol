@@ -73,18 +73,6 @@ interface OtcInterface {
     ) external;
 }
 
-interface GemLike {
-    function approve(address, uint) external;
-    function transfer(address, uint) external;
-    function transferFrom(address, address, uint) external;
-    function deposit() external payable;
-    function withdraw(uint) external;
-}
-
-interface JugLike {
-    function drip(bytes32) external;
-}
-
 interface ManagerLike {
     function cdpCan(address, uint, address) external view returns (uint);
     function ilks(uint) external view returns (bytes32);
@@ -113,42 +101,6 @@ interface ManagerLike {
     function quit(uint, address) external;
     function enter(address, uint) external;
     function shift(uint, uint) external;
-}
-
-interface VatLike {
-    function can(address, address) external view returns (uint);
-    function ilks(bytes32) external view returns (uint, uint, uint, uint, uint);
-    function dai(address) external view returns (uint);
-    function urns(bytes32, address) external view returns (uint, uint);
-    function frob(
-        bytes32,
-        address,
-        address,
-        address,
-        int,
-        int
-    ) external;
-    function hope(address) external;
-    function move(address, address, uint) external;
-}
-
-interface GemJoinLike {
-    function dec() external returns (uint);
-    function gem() external returns (GemLike);
-    function join(address, uint) external payable;
-    function exit(address, uint) external;
-}
-
-interface GNTJoinLike {
-    function bags(address) external view returns (address);
-    function make(address) external returns (address);
-}
-
-interface DaiJoinLike {
-    function vat() external returns (VatLike);
-    function dai() external returns (GemLike);
-    function join(address, uint) external payable;
-    function exit(address, uint) external;
 }
 
 
@@ -410,6 +362,7 @@ contract MCDResolver is SCDResolver {
         uint cdpOrg
     ) internal
     {
+        require(ManagerLike(manager).owns(cdpOrg) == address(this), "NOT-OWNER");
         ManagerLike(manager).shift(cdpSrc, cdpOrg);
     }
 }
@@ -438,86 +391,116 @@ contract LiquidityResolver is MCDResolver {
 }
 
 
-contract MigrateResolver is LiquidityResolver {
+contract MigrateHelper is LiquidityResolver {
+    function setSplitAmount(bytes32 cup, uint toConvert, address daiJoin) internal returns (uint _wad, uint _ink, uint maxConvert) {
+        // Set ratio according to user.
+        TubInterface tub = TubInterface(getSaiTubAddress());
+        maxConvert = toConvert;
+        uint saiBal = tub.sai().balanceOf(daiJoin);
+        uint _wadTotal = tub.tab(cup);
+        // wad according to toConvert ratio
+        _wad = wmul(_wadTotal, toConvert);
 
-    event LogMigrate(uint scdCdp, uint toConvert, address payFeeWith, uint mcdCdp);
+        //if sai_join has enough sai to migrate.
+        if (saiBal < _wad) {
+            // set saiBal as wad amount.
+            _wad = sub(saiBal, 1000);
+            // set new convert ratio according to sai_join balance.
+            maxConvert = sub(wdiv(saiBal, _wadTotal), 100);
+        }
+        // ink according to maxConvert ratio.
+        _ink = wmul(tub.ink(cup), maxConvert); // Taking collateral in PETH only
+    }
+
+    function splitCdp(
+        bytes32 scdCup,
+        bytes32 splitCup,
+        uint _wad,
+        uint _ink,
+        address payFeeWith
+    ) internal
+    {
+        //getting InstaDApp Pool Balance.
+        uint initialPoolBal = sub(getPoolAddress().balance, 10000000000);
+
+        //fetch liquidity from InstaDApp Pool.
+        getLiquidity(_wad);
+
+        //transfer assets from scdCup to splitCup.
+        wipe(scdCup, _wad, payFeeWith);
+        free(scdCup, _ink);
+        lock(splitCup, _ink);
+        draw(splitCup, _wad);
+
+        //transfer and payback liquidity to InstaDApp Pool.
+        paybackLiquidity(_wad);
+
+        uint finalPoolBal = getPoolAddress().balance;
+        assert(finalPoolBal >= initialPoolBal);
+    }
+}
+
+
+contract MigrateResolver is MigrateHelper {
+
+    event LogMigrate(uint scdCdp, uint toConvert, address payFeeWith, uint mcdCdp, uint newMcdCdp);
     event LogMigrateAndMerge(uint scdCdp, uint toConvert, address payFeeWith, uint mcdMergeCdp);
 
     function migrate(
         uint scdCDP,
-        uint mergeCDP, //for merge
+        uint mergeCDP,
         uint toConvert,
         address payFeeWith,
         address payable scdMcdMigration,
-        address manager, // Check Thrilok - will remove in the last, when we get final address
-        address daiJoin // Check Thrilok - will remove in the last, when we get final address
+        address manager,
+        address daiJoin
     ) external payable returns (uint newMcdCdp)
     {
-        TubInterface tub = TubInterface(getSaiTubAddress());
         bytes32 scdCup = bytes32(scdCDP);
         uint maxConvert = toConvert;
 
         if (toConvert < 10**18) {
-            uint initialPoolBal = sub(getPoolAddress().balance, 10000000000);
+            //new cdp for spliting assets.
             bytes32 splitCup = TubInterface(getSaiTubAddress()).open();
 
-            // Check Thrilok - check if ratio is good.
-            uint saiBal = tub.sai().balanceOf(daiJoin);
-            uint _wadTotal = tub.tab(scdCup);
-            uint _wad = wmul(_wadTotal, toConvert);
+            //set split amount according to toConvert and dai_join balance.
+            uint _wad;
+            uint _ink;
+            (_wad, _ink, maxConvert) = setSplitAmount(scdCup, toConvert, daiJoin);
 
-            // Check if sai_join has enough sai to migrate.
-            if (saiBal < _wad) {
-                _wad = sub(saiBal, 1000);
-                // Set new convert ratio according to sai_join balance.
-                maxConvert = sub(wdiv(saiBal, _wadTotal), 10);
-            }
+            //split the assets into split cdp.
+            splitCdp(
+                scdCup,
+                splitCup,
+                _wad,
+                _ink,
+                payFeeWith
+            );
 
-            uint _ink = wmul(tub.ink(scdCup), maxConvert); // Taking collateral in PETH only
-
-            // getting liquidity from InstaDApp Pool.
-            getLiquidity(_wad);
-
-            wipe(scdCup, _wad, payFeeWith);
-            free(scdCup, _ink);
-
-            lock(splitCup, _ink);
-            draw(splitCup, _wad);
-
-            //transfer and payback liquidity to InstaDApp Pool.
-            paybackLiquidity(_wad);
-
-            uint finalPoolBal = getPoolAddress().balance;
-            assert(finalPoolBal >= initialPoolBal);
-
+            //migrate the split cdp.
             newMcdCdp = migrateToMCD(scdMcdMigration, splitCup, payFeeWith);
         } else {
+            //migrate the scd cdp.
             newMcdCdp = migrateToMCD(scdMcdMigration, scdCup, payFeeWith);
         }
 
-        TokenInterface weth = TokenInterface(getWETHAddress());
-        weth.withdraw(weth.balanceOf(address(this))); //withdraw WETH, if any leftover.
-        msg.sender.transfer(address(this).balance); //transfer leftover ETH.
-
-        // merge - Check Thrilok
-        if (mergeCDP != 0) {
-            require(ManagerLike(manager).owns(mergeCDP) == address(this), "NOT-OWNER");
-            shiftCDP(manager, newMcdCdp, mergeCDP);
-
-            emit LogMigrateAndMerge(
-                uint(scdCup),
-                maxConvert,
-                payFeeWith,
-                mergeCDP
-            );
-        } else {
-            emit LogMigrate(
-                uint(scdCup),
-                maxConvert,
-                payFeeWith,
-                newMcdCdp
-            );
+        //Transfer if any ETH leftover.
+        if (address(this).balance > 0) {
+            msg.sender.transfer(address(this).balance);
         }
+
+        //merge the already existing mcd cdp with the new migrated cdp.
+        if (mergeCDP != 0) {
+            shiftCDP(manager, newMcdCdp, mergeCDP);
+        }
+
+        emit LogMigrate(
+            uint(scdCup),
+            maxConvert,
+            payFeeWith,
+            mergeCDP,
+            newMcdCdp
+        );
     }
 }
 
