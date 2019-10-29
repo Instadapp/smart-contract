@@ -203,7 +203,7 @@ contract CompoundResolver is MigrationProxyActions {
      * @dev Redeem ETH/ERC20 and burn Compound Tokens
      * @param cTokenAmt Amount of CToken To burn
      */
-    function redeemCToken(address cErc20, uint cTokenAmt) internal {
+    function redeemCSai(address cErc20, uint cTokenAmt) internal {
         CTokenInterface cToken = CTokenInterface(cErc20);
         uint toRedeem = cToken.balanceOf(address(this));
         toRedeem = toRedeem > cTokenAmt ? cTokenAmt : toRedeem;
@@ -213,13 +213,11 @@ contract CompoundResolver is MigrationProxyActions {
     /**
      * @dev Deposit ETH/ERC20 and mint Compound Tokens
      */
-    function mintCToken(address cErc20, uint tokenAmt) internal {
+    function mintCDai(address cErc20) internal {
         enterMarket(cErc20);
         CTokenInterface cToken = CTokenInterface(cErc20);
-        address erc20 = CTokenInterface(getCSaiAddress()).underlying();
-        ERC20Interface token = ERC20Interface(erc20);
-        uint toDeposit = token.balanceOf(msg.sender);
-        toDeposit = toDeposit > tokenAmt ? tokenAmt : toDeposit;
+        address erc20 = cToken.underlying();
+        uint toDeposit = ERC20Interface(erc20).balanceOf(address(this)); //Check Thrilok
         setApproval(erc20, toDeposit, cErc20);
         assert(cToken.mint(toDeposit) == 0);
     }
@@ -230,8 +228,6 @@ contract CompoundResolver is MigrationProxyActions {
     function borrowDAI(uint tokenAmt) internal {
         enterMarket(getCDaiAddress());
         require(CTokenInterface(getCDaiAddress()).borrow(tokenAmt) == 0, "got collateral?");
-        address erc20 = CTokenInterface(getCDaiAddress()).underlying();
-        ERC20Interface(erc20).transfer(getLiquidityAddress(), tokenAmt);
     }
 
     /**
@@ -239,44 +235,51 @@ contract CompoundResolver is MigrationProxyActions {
      */
     function repaySAI(uint tokenAmt) internal returns (uint toRepay) {
         CTokenInterface cToken = CTokenInterface(getCSaiAddress());
-        address erc20 = CTokenInterface(getCSaiAddress()).underlying();
-        ERC20Interface token = ERC20Interface(erc20);
-        toRepay = token.balanceOf(msg.sender);
-        uint borrows = cToken.borrowBalanceCurrent(address(this));
+        toRepay = cToken.borrowBalanceCurrent(address(this));
         toRepay = toRepay > tokenAmt ? tokenAmt : toRepay;
-        toRepay = toRepay > borrows ? borrows : toRepay;
         accessLiquidity(toRepay);
-        setApproval(erc20, toRepay, getCSaiAddress());
+        setApproval(cToken.underlying(), toRepay, getCSaiAddress());
         require(cToken.repayBorrow(toRepay) == 0, "Enough Tokens?");
     }
 }
 
 
 contract CompMigration is CompoundResolver {
-
-    // Add events here
+    //Check Thrilok - check events
+    event LogCompMigrateCSaiToCDai(uint swapAmt, address owner);
+    event LogCompoundMigrateDebt(uint migrateAmt, address owner);
 
     function migrateCSaiToCDai(uint ctknToMigrate, address scdMcdMigration) external {
-        redeemCToken(getCSaiAddress(), ctknToMigrate);
+        redeemCSai(getCSaiAddress(), ctknToMigrate);
         uint saiBal = ERC20Interface(getSaiAddress()).balanceOf(address(this));
         swapSaiToDai(scdMcdMigration, saiBal);
-        mintCToken(getCDaiAddress(), saiBal);
+        mintCDai(getCDaiAddress());
+        emit LogCompMigrateCSaiToCDai(saiBal, address(this));
     }
 
-    function migrateDebt(uint debtToMigrate, address scdMcdMigration) external {
+    function migrateDebt(uint debtToMigrate, address scdMcdMigration, address daiJoin) external {
         uint initialPoolBal = sub(getLiquidityAddress().balance, 10000000000);
+        //Check Thrilok - below condition
+        uint saiJoinBal = ERC20Interface(getSaiAddress()).balanceOf(daiJoin);
+        uint migrateAmt = debtToMigrate;
+
         // Check SAI balance of migration contract. If less than debtToMigrate then set debtToMigrate = SAI_Bal
-        uint debtPaid = repaySAI(debtToMigrate); // Repaying SAI debt
+        if (saiJoinBal < debtToMigrate) {
+            migrateAmt = sub(saiJoinBal, 1000);
+        }
+
+        uint debtPaid = repaySAI(migrateAmt); // Repaying SAI debt using InstaDApp pool
         borrowDAI(debtPaid); // borrowing DAI debt
-        swapDaiToSai(scdMcdMigration, debtPaid); // swapping SAI into DAI
+        swapDaiToSai(scdMcdMigration, debtPaid); // swapping SAI into DAI and paying back to InstaDApp pool
         uint finalPoolBal = getLiquidityAddress().balance;
         assert(finalPoolBal >= initialPoolBal);
+        emit LogCompoundMigrateDebt(debtPaid, address(this));
     }
 
 }
 
 
-contract InstaCompound is CompMigration {
+contract InstaCompoundMigrate is CompMigration {
 
     function() external payable {}
 
