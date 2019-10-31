@@ -192,6 +192,13 @@ contract Helpers is DSMath {
     }
 
     /**
+     * @dev get InstaDApp CDP's Address
+     */
+    function getGiveAddress() public pure returns (address addr) {
+        addr = 0xc679857761beE860f5Ec4B3368dFE9752580B096;
+    }
+
+    /**
      * @dev setting allowance if required
      */
     function setApproval(address erc20, uint srcAmt, address to) internal {
@@ -347,6 +354,15 @@ contract MCDResolver is SCDResolver {
         cdp = MCDInterface(scdMcdMigration).migrate(cup);
     }
 
+    function giveCDP(
+        address manager,
+        uint cdp,
+        address nextOwner
+    ) internal
+    {
+        ManagerLike(manager).give(cdp, nextOwner);
+    }
+
     function shiftCDP(
         address manager,
         uint cdpSrc,
@@ -460,6 +476,7 @@ contract MigrateResolver is MigrateHelper {
         //merge the already existing mcd cdp with the new migrated cdp.
         if (mergeCDP != 0) {
             shiftCDP(manager, newMcdCdp, mergeCDP);
+            giveCDP(manager, newMcdCdp, getGiveAddress()); //Check Thrilok
         }
 
         emit LogMigrate(
