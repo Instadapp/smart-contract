@@ -217,7 +217,7 @@ contract CompoundResolver is MigrationProxyActions {
         enterMarket(cErc20);
         CTokenInterface cToken = CTokenInterface(cErc20);
         address erc20 = cToken.underlying();
-        uint toDeposit = ERC20Interface(erc20).balanceOf(address(this)); //Check Thrilok
+        uint toDeposit = ERC20Interface(erc20).balanceOf(address(this));
         setApproval(erc20, toDeposit, cErc20);
         assert(cToken.mint(toDeposit) == 0);
     }
@@ -245,9 +245,9 @@ contract CompoundResolver is MigrationProxyActions {
 
 
 contract CompMigration is CompoundResolver {
-    //Check Thrilok - check events
+
     event LogCompMigrateCSaiToCDai(uint swapAmt, address owner);
-    event LogCompoundMigrateDebt(uint migrateAmt, address owner);
+    event LogCompMigrateDebt(uint migrateAmt, address owner);
 
     function migrateCSaiToCDai(uint ctknToMigrate, address scdMcdMigration) external {
         redeemCSai(getCSaiAddress(), ctknToMigrate);
@@ -259,21 +259,17 @@ contract CompMigration is CompoundResolver {
 
     function migrateDebt(uint debtToMigrate, address scdMcdMigration, address daiJoin) external {
         uint initialPoolBal = sub(getLiquidityAddress().balance, 10000000000);
-        //Check Thrilok - below condition
-        uint saiJoinBal = ERC20Interface(getSaiAddress()).balanceOf(daiJoin);
-        uint migrateAmt = debtToMigrate;
 
+        uint saiJoinBal = ERC20Interface(getSaiAddress()).balanceOf(daiJoin);
         // Check SAI balance of migration contract. If less than debtToMigrate then set debtToMigrate = SAI_Bal
-        if (saiJoinBal < debtToMigrate) {
-            migrateAmt = sub(saiJoinBal, 1000);
-        }
+        uint migrateAmt = debtToMigrate < saiJoinBal ? debtToMigrate : sub(saiJoinBal, 1000);
 
         uint debtPaid = repaySAI(migrateAmt); // Repaying SAI debt using InstaDApp pool
         borrowDAI(debtPaid); // borrowing DAI debt
         swapDaiToSai(scdMcdMigration, debtPaid); // swapping SAI into DAI and paying back to InstaDApp pool
         uint finalPoolBal = getLiquidityAddress().balance;
         assert(finalPoolBal >= initialPoolBal);
-        emit LogCompoundMigrateDebt(debtPaid, address(this));
+        emit LogCompMigrateDebt(debtPaid, address(this));
     }
 
 }
