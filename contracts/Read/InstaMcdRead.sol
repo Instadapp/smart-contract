@@ -21,6 +21,25 @@ interface VatLike {
 
 }
 
+interface JugLike {
+    function ilks(bytes32) external view returns (uint, uint);
+    function base() external view returns (uint);
+}
+
+interface PotLike {
+    function dsr() external view returns (uint);
+    function pie(address) external view returns (uint);
+    function chi() external view returns (uint);
+}
+
+interface SpotLike {
+    function ilks(bytes32) external view returns (PipLike, uint);
+}
+
+interface PipLike {
+    function peek() external view returns (bytes32, bool);
+}
+
 
 contract DSMath {
 
@@ -67,6 +86,9 @@ contract Helpers is DSMath {
         uint ink;
         uint art;
         uint debt;
+        uint stabiltyRate;
+        uint price;
+        uint liqRatio;
         address urn;
     }
 
@@ -74,14 +96,40 @@ contract Helpers is DSMath {
 
 
 contract McdResolver is Helpers {
-    function getCdpsByAddress(address manager, address cdpManger, address owner) external view returns (CdpData[] memory) {
+
+    function getIlkData(address manager, bytes32 ilk) external view returns (uint rate) {
+        (,rate,,,) = VatLike(ManagerLike(manager).vat()).ilks(ilk);
+    }
+
+    function getDsr(address pot) external view returns (uint dsr) {
+        dsr = PotLike(pot).dsr();
+    }
+
+    function getDaiDeposited(address pot, address owner) external view returns (uint amt) {
+        uint chi = PotLike(pot).chi();
+        uint pie = PotLike(pot).pie(owner);
+        amt = rmul(pie,chi);
+    }
+
+    function getCdpsByAddress(
+        address manager,
+        address cdpManger,
+        address jug,
+        address spot,
+        address owner
+        ) external view returns (CdpData[] memory)
+        {
         (uint[] memory ids, address[] memory urns, bytes32[] memory ilks) = CdpsLike(cdpManger).getCdpsAsc(manager, owner);
         CdpData[] memory cdps = new CdpData[](ids.length);
 
         for (uint i = 0; i < ids.length; i++) {
             (uint ink, uint art) = VatLike(ManagerLike(manager).vat()).urns(ilks[i], urns[i]);
-            (,uint rate,,,) = VatLike(ManagerLike(manager).vat()).ilks(ilks[i]);
+            (,uint rate, uint priceMargin,,) = VatLike(ManagerLike(manager).vat()).ilks(ilks[i]);
+            uint mat = getIlkRatio(spot, ilks[i]);
             uint debt = rmul(art,rate);
+            uint price = rmul(priceMargin, mat);
+            uint feeRate = getFee(jug, ilks[i]);
+
             cdps[i] = CdpData(
                 ids[i],
                 owner,
@@ -89,21 +137,34 @@ contract McdResolver is Helpers {
                 ink,
                 art,
                 debt,
+                feeRate,
+                price,
+                mat,
                 urns[i]
             );
         }
         return cdps;
     }
 
-    function getCdpsById(address manager, uint id) external view returns (CdpData memory) {
+    function getCdpsById(
+        address manager,
+        address jug,
+        address spot,
+        uint id
+        ) external view returns (CdpData memory)
+        {
         address urn = ManagerLike(manager).urns(id);
         bytes32 ilk = ManagerLike(manager).ilks(id);
         address owner = ManagerLike(manager).owns(id);
 
         (uint ink, uint art) = VatLike(ManagerLike(manager).vat()).urns(ilk, urn);
-        (,uint rate,,,) = VatLike(ManagerLike(manager).vat()).ilks(ilk);
+        (,uint rate, uint priceMargin,,) = VatLike(ManagerLike(manager).vat()).ilks(ilk);
         uint debt = rmul(art,rate);
 
+        uint mat = getIlkRatio(spot, ilk);
+        uint price = rmul(priceMargin, mat);
+
+        uint feeRate = getFee(jug, ilk);
         CdpData memory cdp = CdpData(
             id,
             owner,
@@ -111,13 +172,27 @@ contract McdResolver is Helpers {
             ink,
             art,
             debt,
+            feeRate,
+            price,
+            mat,
             urn
         );
         return cdp;
     }
 
-    function getIlkData(address manager, bytes32 ilk) external view returns (uint rate) {
-        (,rate,,,) = VatLike(ManagerLike(manager).vat()).ilks(ilk);
+    function getFee(address jug, bytes32 ilk) public view returns (uint fee) {
+        (uint duty,) = JugLike(jug).ilks(ilk);
+        uint base = JugLike(jug).base();
+        fee = add(duty, base);
     }
 
+    function getIlkPrice(address spot, address vat, bytes32 ilk) public view returns (uint price) {
+        (, uint mat) = SpotLike(spot).ilks(ilk);
+        (,,uint spotPrice,,) = VatLike(vat).ilks(ilk);
+        price = rmul(mat, spotPrice);
+    }
+
+    function getIlkRatio(address spot, bytes32 ilk) public view returns (uint ratio) {
+        (, ratio) = SpotLike(spot).ilks(ilk);
+    }
 }
