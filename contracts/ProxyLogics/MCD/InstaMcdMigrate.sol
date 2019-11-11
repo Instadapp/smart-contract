@@ -407,12 +407,13 @@ contract MigrateHelper is MCDResolver {
         maxConvert = toConvert;
         uint saiBal = tub.sai().balanceOf(daiJoin);
         uint _wadTotal = tub.tab(cup);
-        // wad according to toConvert ratio
 
         uint feeAmt = 0;
 
+        // wad according to toConvert ratio
         _wad = wmul(_wadTotal, toConvert);
 
+        // if migration is by debt method, Add fee(SAI) to _wad
         if (payFeeWith == getSaiAddress()) {
             feeAmt = getFeeOfCdp(cup, _wad);
             _wad = add(_wad, feeAmt);
@@ -420,8 +421,8 @@ contract MigrateHelper is MCDResolver {
 
         //if sai_join has enough sai to migrate.
         if (saiBal < _wad) {
-            // set saiBal as wad amount.
-            _wad = sub(saiBal, add(feeAmt,1000));
+            // set saiBal as wad amount And sub feeAmt(feeAmt > 0, when its debt method).
+            _wad = sub(saiBal, add(feeAmt, 100000));
             // set new convert ratio according to sai_join balance.
             maxConvert = sub(wdiv(saiBal, _wadTotal), 100);
         }
@@ -460,8 +461,10 @@ contract MigrateHelper is MCDResolver {
     }
 
     function drawDebtForFee(bytes32 cup) internal {
+        // draw more SAI for debt method and 100% convert.
         uint _wad = TubInterface(getSaiTubAddress()).tab(cup);
         uint fee = getFeeOfCdp(cup, _wad);
+        // draw fee amt.
         draw(cup, fee);
     }
 }
@@ -551,7 +554,7 @@ contract MigrateResolver is MigrateHelper {
             //new cdp for spliting assets.
             bytes32 splitCup = TubInterface(getSaiTubAddress()).open();
 
-            //set split amount according to toConvert and dai_join balance.
+            //set split amount according to toConvert, feeAmt and dai_join balance.
             uint _wad;
             uint _ink;
             (_wad, _ink, maxConvert) = setSplitAmount(
