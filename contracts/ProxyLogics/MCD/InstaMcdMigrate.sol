@@ -575,7 +575,7 @@ contract MigrateResolver is MigrateHelper {
             //migrate the split cdp.
             newMcdCdp = migrateToMCD(scdMcdMigration, splitCup, payFeeWith);
         } else {
-            // Check Thrilok - Add for debt
+            // draw extra SAI for paying fee.
             drawDebtForFee(scdCup);
             //migrate the scd cdp.
             newMcdCdp = migrateToMCD(scdMcdMigration, scdCup, payFeeWith);
