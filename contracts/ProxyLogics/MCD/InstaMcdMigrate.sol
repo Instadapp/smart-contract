@@ -244,9 +244,10 @@ contract MKRSwapper is  LiquidityResolver {
         if (tokenAddr == getWETHAddress()) {
             TokenInterface weth = TokenInterface(getWETHAddress());
             weth.deposit.value(payAmt)();
-        } else {
+        } else if (tokenAddr != getSaiAddress()) {
             require(TokenInterface(tokenAddr).transferFrom(msg.sender, address(this), payAmt), "Tranfer-failed");
         }
+
         setApproval(tokenAddr, payAmt, getOtcAddress());
         OtcInterface(getOtcAddress()).buyAllAmount(
             address(mkr),
@@ -285,7 +286,9 @@ contract SCDResolver is MKRSwapper {
                 mkrFee = rmul(_wad, mkrFee);
                 mkrFee = wdiv(mkrFee, uint(val));
 
-                swapToMkrOtc(payFeeWith, mkrFee); //otc
+                if (payFeeWith != address(mkr) && mkrFee > 0) { // Check Thrilok - if not mkr
+                    swapToMkrOtc(payFeeWith, mkrFee); //otc
+                }
             }
 
             tub.wipe(cup, _wad);
@@ -331,7 +334,7 @@ contract MCDResolver is SCDResolver {
     function migrateToMCD(
         address payable scdMcdMigration,    // Migration contract address
         bytes32 cup,                        // SCD CDP Id to migrate
-        address payGem                     // Token address
+        address payGem                    // Token address
     ) internal returns (uint cdp)
     {
         TubInterface tub = TubInterface(getSaiTubAddress());
@@ -342,13 +345,14 @@ contract MCDResolver is SCDResolver {
         if (ok && uint(val) != 0) {
             // Calculate necessary value of MKR to pay the govFee
             uint govFee = wdiv(tub.rap(cup), uint(val));
-
-            if (payGem != address(0)) {
-                swapToMkrOtc(payGem, govFee);
-            } else {
-                require(tub.gov().transferFrom(msg.sender, address(this), govFee), "transfer-failed"); // Check Samyak - We can directly transfer MKR to address(scdMcdMigration). Right?
+            if (govFee > 0) {
+                if (payGem != address(0)) {
+                    swapToMkrOtc(payGem, govFee);
+                } else {
+                    require(tub.gov().transferFrom(msg.sender, address(this), govFee), "transfer-failed"); // Check Samyak - We can directly transfer MKR to address(scdMcdMigration). Right?
+                }
+                require(tub.gov().transfer(address(scdMcdMigration), govFee), "transfer-failed");
             }
-            require(tub.gov().transfer(address(scdMcdMigration), govFee), "transfer-failed");
         }
         // Execute migrate function
         cdp = MCDInterface(scdMcdMigration).migrate(cup);
@@ -376,24 +380,60 @@ contract MCDResolver is SCDResolver {
 
 
 contract MigrateHelper is MCDResolver {
-    function setSplitAmount(bytes32 cup, uint toConvert, address daiJoin) internal returns (uint _wad, uint _ink, uint maxConvert) {
+    function setFeeWithDebt(bytes32 cup, uint _wad) internal returns (uint feeAmt) {
         // Set ratio according to user.
         TubInterface tub = TubInterface(getSaiTubAddress());
+
+        (bytes32 val, bool ok) = tub.pep().peek();
+        TokenInterface mkr = TubInterface(getSaiTubAddress()).gov();
+
+        feeAmt = 0;
+
+        // wad according to toConvert ratio
+
+        if (ok && val != 0) {
+            // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
+            uint mkrFee = rdiv(tub.rap(cup), tub.tab(cup));
+            mkrFee = rmul(_wad, mkrFee);
+            mkrFee = wdiv(mkrFee, uint(val));
+            feeAmt = OtcInterface(getOtcAddress()).getPayAmount(getSaiAddress(), address(mkr), mkrFee);
+        }
+
+    }
+
+    function setSplitAmount(
+        bytes32 cup,
+        uint toConvert,
+        address payFeeWith,
+        address daiJoin
+    ) internal returns (uint _wad, uint _ink, uint maxConvert)
+    {
+        // Set ratio according to user.
+        TubInterface tub = TubInterface(getSaiTubAddress());
+
         maxConvert = toConvert;
         uint saiBal = tub.sai().balanceOf(daiJoin);
         uint _wadTotal = tub.tab(cup);
         // wad according to toConvert ratio
+
+        uint feeAmt = 0;
+
         _wad = wmul(_wadTotal, toConvert);
+
+        if (payFeeWith == getSaiAddress()) {
+            feeAmt = setFeeWithDebt(cup, _wad);
+            _wad = add(_wad, feeAmt);
+        }
 
         //if sai_join has enough sai to migrate.
         if (saiBal < _wad) {
             // set saiBal as wad amount.
-            _wad = sub(saiBal, 1000);
+            _wad = sub(saiBal, add(feeAmt,1000));
             // set new convert ratio according to sai_join balance.
             maxConvert = sub(wdiv(saiBal, _wadTotal), 100);
         }
         // ink according to maxConvert ratio.
-        _ink = wmul(tub.ink(cup), maxConvert); // Taking collateral in PETH only
+        _ink = wmul(tub.ink(cup), maxConvert);
     }
 
     function splitCdp(
@@ -407,20 +447,28 @@ contract MigrateHelper is MCDResolver {
         //getting InstaDApp Pool Balance.
         uint initialPoolBal = sub(getPoolAddress().balance, 10000000000);
 
+        uint _wadWithFee = payFeeWith == getSaiAddress() ? add(_wad, setFeeWithDebt(scdCup, _wad)) : _wad; // Check Thrilok - gas fee;
         //fetch liquidity from InstaDApp Pool.
-        getLiquidity(_wad);
+        getLiquidity(_wadWithFee);
 
         //transfer assets from scdCup to splitCup.
         wipe(scdCup, _wad, payFeeWith);
         free(scdCup, _ink);
         lock(splitCup, _ink);
-        draw(splitCup, _wad);
+        draw(splitCup, _wadWithFee);
 
         //transfer and payback liquidity to InstaDApp Pool.
-        paybackLiquidity(_wad);
+        paybackLiquidity(_wadWithFee);
 
         uint finalPoolBal = getPoolAddress().balance;
         assert(finalPoolBal >= initialPoolBal);
+    }
+
+    function drawDebtForFee(bytes32 cup) internal {
+        TubInterface tub = TubInterface(getSaiTubAddress());
+        uint _wad = tub.tab(cup);
+        uint fee = setFeeWithDebt(cup, _wad);
+        draw(cup, fee);
     }
 }
 
@@ -428,7 +476,7 @@ contract MigrateHelper is MCDResolver {
 contract MigrateResolver is MigrateHelper {
 
     event LogMigrate(uint scdCdp, uint toConvert, address payFeeWith, uint mcdCdp, uint newMcdCdp);
-    event LogMigrateAndMerge(uint scdCdp, uint toConvert, address payFeeWith, uint mcdMergeCdp);
+    event LogMigrateWithDebt(uint scdCdp, uint toConvert, address payFeeWith, uint mcdCdp, uint newMcdCdp);
 
     function migrate(
         uint scdCDP,
@@ -450,7 +498,11 @@ contract MigrateResolver is MigrateHelper {
             //set split amount according to toConvert and dai_join balance.
             uint _wad;
             uint _ink;
-            (_wad, _ink, maxConvert) = setSplitAmount(scdCup, toConvert, daiJoin);
+            (_wad, _ink, maxConvert) = setSplitAmount(
+                scdCup,
+                toConvert,
+                payFeeWith,
+                daiJoin);
 
             //split the assets into split cdp.
             splitCdp(
@@ -469,17 +521,81 @@ contract MigrateResolver is MigrateHelper {
         }
 
         //Transfer if any ETH leftover.
-        if (address(this).balance > 0) {
+        if (address(this).balance > 0) { // Check Thrilok - Can remove at time of production
             msg.sender.transfer(address(this).balance);
         }
 
         //merge the already existing mcd cdp with the new migrated cdp.
         if (mergeCDP != 0) {
             shiftCDP(manager, newMcdCdp, mergeCDP);
-            giveCDP(manager, newMcdCdp, getGiveAddress()); //Check Thrilok
+            giveCDP(manager, newMcdCdp, getGiveAddress());
         }
 
         emit LogMigrate(
+            uint(scdCup),
+            maxConvert,
+            payFeeWith,
+            mergeCDP,
+            newMcdCdp
+        );
+    }
+
+    function migrateWithDebt(
+        uint scdCDP,
+        uint mergeCDP,
+        uint toConvert,
+        address payFeeWith,
+        address payable scdMcdMigration,
+        address manager,
+        address daiJoin
+    ) external payable returns (uint newMcdCdp)
+    {
+        bytes32 scdCup = bytes32(scdCDP);
+        uint maxConvert = toConvert;
+
+        if (toConvert < 10**18) {
+            //new cdp for spliting assets.
+            bytes32 splitCup = TubInterface(getSaiTubAddress()).open();
+
+            //set split amount according to toConvert and dai_join balance.
+            uint _wad;
+            uint _ink;
+            (_wad, _ink, maxConvert) = setSplitAmount(
+                scdCup,
+                toConvert,
+                payFeeWith,
+                daiJoin);
+
+            //split the assets into split cdp.
+            splitCdp(
+                scdCup,
+                splitCup,
+                _wad,
+                _ink,
+                payFeeWith
+            );
+
+            //migrate the split cdp.
+            newMcdCdp = migrateToMCD(scdMcdMigration, splitCup, payFeeWith);
+        } else {
+            // Check Thrilok - Add for debt
+            drawDebtForFee(scdCup);
+            //migrate the scd cdp.
+            newMcdCdp = migrateToMCD(scdMcdMigration, scdCup, payFeeWith);
+        }
+
+        //Transfer if any ETH leftover.
+        if (address(this).balance > 0) { // Check Thrilok - Can remove at time of production
+            msg.sender.transfer(address(this).balance);
+        }
+
+        //merge the already existing mcd cdp with the new migrated cdp.
+        if (mergeCDP != 0) {
+            shiftCDP(manager, newMcdCdp, mergeCDP);
+            giveCDP(manager, newMcdCdp, getGiveAddress());
+        }
+
+        emit LogMigrateWithDebt(
             uint(scdCup),
             maxConvert,
             payFeeWith,
