@@ -262,6 +262,27 @@ contract MKRSwapper is  LiquidityResolver {
 
 contract SCDResolver is MKRSwapper {
 
+    function getFeeOfCdp(bytes32 cup, uint _wad) internal returns (uint feeAmt) {
+        // Set ratio according to user.
+        TubInterface tub = TubInterface(getSaiTubAddress());
+
+        (bytes32 val, bool ok) = tub.pep().peek();
+        TokenInterface mkr = TubInterface(getSaiTubAddress()).gov();
+
+        feeAmt = 0;
+
+        // wad according to toConvert ratio
+
+        if (ok && val != 0) {
+            // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
+            uint mkrFee = rdiv(tub.rap(cup), tub.tab(cup));
+            mkrFee = rmul(_wad, mkrFee);
+            mkrFee = wdiv(mkrFee, uint(val));
+            feeAmt = OtcInterface(getOtcAddress()).getPayAmount(getSaiAddress(), address(mkr), mkrFee);
+        }
+
+    }
+
     function open() internal returns (bytes32 cup) {
         cup = TubInterface(getSaiTubAddress()).open();
     }
@@ -278,17 +299,10 @@ contract SCDResolver is MKRSwapper {
             setAllowance(dai, getSaiTubAddress());
             setAllowance(mkr, getSaiTubAddress());
 
-            (bytes32 val, bool ok) = tub.pep().peek();
+            uint mkrFee = getFeeOfCdp(cup, _wad);
 
-            if (ok && val != 0) {
-                // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
-                uint mkrFee = rdiv(tub.rap(cup), tub.tab(cup));
-                mkrFee = rmul(_wad, mkrFee);
-                mkrFee = wdiv(mkrFee, uint(val));
-
-                if (payFeeWith != address(mkr) && mkrFee > 0) { // Check Thrilok - if not mkr
-                    swapToMkrOtc(payFeeWith, mkrFee); //otc
-                }
+            if (payFeeWith != address(mkr) && mkrFee > 0) {
+                swapToMkrOtc(payFeeWith, mkrFee); //otc
             }
 
             tub.wipe(cup, _wad);
@@ -380,27 +394,6 @@ contract MCDResolver is SCDResolver {
 
 
 contract MigrateHelper is MCDResolver {
-    function setFeeWithDebt(bytes32 cup, uint _wad) internal returns (uint feeAmt) {
-        // Set ratio according to user.
-        TubInterface tub = TubInterface(getSaiTubAddress());
-
-        (bytes32 val, bool ok) = tub.pep().peek();
-        TokenInterface mkr = TubInterface(getSaiTubAddress()).gov();
-
-        feeAmt = 0;
-
-        // wad according to toConvert ratio
-
-        if (ok && val != 0) {
-            // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
-            uint mkrFee = rdiv(tub.rap(cup), tub.tab(cup));
-            mkrFee = rmul(_wad, mkrFee);
-            mkrFee = wdiv(mkrFee, uint(val));
-            feeAmt = OtcInterface(getOtcAddress()).getPayAmount(getSaiAddress(), address(mkr), mkrFee);
-        }
-
-    }
-
     function setSplitAmount(
         bytes32 cup,
         uint toConvert,
@@ -421,7 +414,7 @@ contract MigrateHelper is MCDResolver {
         _wad = wmul(_wadTotal, toConvert);
 
         if (payFeeWith == getSaiAddress()) {
-            feeAmt = setFeeWithDebt(cup, _wad);
+            feeAmt = getFeeOfCdp(cup, _wad);
             _wad = add(_wad, feeAmt);
         }
 
@@ -447,27 +440,28 @@ contract MigrateHelper is MCDResolver {
         //getting InstaDApp Pool Balance.
         uint initialPoolBal = sub(getPoolAddress().balance, 10000000000);
 
-        uint _wadWithFee = payFeeWith == getSaiAddress() ? add(_wad, setFeeWithDebt(scdCup, _wad)) : _wad; // Check Thrilok - gas fee;
+        // Check if the split fee is paid by debt from the cdp.
+        uint _wadForDebt = payFeeWith == getSaiAddress() ? add(_wad, getFeeOfCdp(scdCup, _wad)) : _wad; // Check Thrilok - gas fee;
+
         //fetch liquidity from InstaDApp Pool.
-        getLiquidity(_wadWithFee);
+        getLiquidity(_wadForDebt);
 
         //transfer assets from scdCup to splitCup.
         wipe(scdCup, _wad, payFeeWith);
         free(scdCup, _ink);
         lock(splitCup, _ink);
-        draw(splitCup, _wadWithFee);
+        draw(splitCup, _wadForDebt);
 
         //transfer and payback liquidity to InstaDApp Pool.
-        paybackLiquidity(_wadWithFee);
+        paybackLiquidity(_wadForDebt);
 
         uint finalPoolBal = getPoolAddress().balance;
         assert(finalPoolBal >= initialPoolBal);
     }
 
     function drawDebtForFee(bytes32 cup) internal {
-        TubInterface tub = TubInterface(getSaiTubAddress());
-        uint _wad = tub.tab(cup);
-        uint fee = setFeeWithDebt(cup, _wad);
+        uint _wad = TubInterface(getSaiTubAddress()).tab(cup);
+        uint fee = getFeeOfCdp(cup, _wad);
         draw(cup, fee);
     }
 }
