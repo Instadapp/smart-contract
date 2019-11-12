@@ -530,6 +530,29 @@ contract DssProxyActions is Common {
         DaiJoinLike(daiJoin).exit(msg.sender, wad);
     }
 
+    function drawAndSend(
+        address manager,
+        address jug,
+        address daiJoin,
+        uint cdp,
+        uint wad,
+        address to
+    ) public {
+        address urn = ManagerLike(manager).urns(cdp);
+        address vat = ManagerLike(manager).vat();
+        bytes32 ilk = ManagerLike(manager).ilks(cdp);
+        // Generates debt in the CDP
+        frob(manager, cdp, 0, _getDrawDart(vat, jug, urn, ilk, wad));
+        // Moves the DAI amount (balance in the vat in rad) to proxy's address
+        move(manager, cdp, address(this), toRad(wad));
+        // Allows adapter to access to proxy's DAI balance in the vat
+        if (VatLike(vat).can(address(this), address(daiJoin)) == 0) {
+            VatLike(vat).hope(daiJoin);
+        }
+        // Exits DAI to the user's wallet as a token
+        DaiJoinLike(daiJoin).exit(to, wad);
+    }
+
     function wipe(
         address manager,
         address daiJoin,
