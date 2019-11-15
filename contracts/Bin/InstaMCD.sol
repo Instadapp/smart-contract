@@ -13,33 +13,22 @@ interface JugLike {
 }
 
 interface ManagerLike {
-    function cdpCan(address, uint, address) external view returns (uint);
-    function ilks(uint) external view returns (bytes32);
-    function owns(uint) external view returns (address);
-    function urns(uint) external view returns (address);
-    function vat() external view returns (address);
-    function open(bytes32) external returns (uint);
-    function give(uint, address) external;
-    function cdpAllow(uint, address, uint) external;
-    function urnAllow(address, uint) external;
-    function frob(uint, int, int) external;
-    function frob(
-        uint,
-        address,
-        int,
-        int
-    ) external;
-    function flux(uint, address, uint) external;
-    function move(uint, address, uint) external;
-    function exit(
-        address,
-        uint,
-        address,
-        uint
-    ) external;
-    function quit(uint, address) external;
-    function enter(address, uint) external;
-    function shift(uint, uint) external;
+    function cdpCan(address, uint, address) public view returns (uint);
+    function ilks(uint) public view returns (bytes32);
+    function owns(uint) public view returns (address);
+    function urns(uint) public view returns (address);
+    function vat() public view returns (address);
+    function open(bytes32, address) public returns (uint);
+    function give(uint, address) public;
+    function cdpAllow(uint, address, uint) public;
+    function urnAllow(address, uint) public;
+    function frob(uint, int, int) public;
+    function flux(uint, address, uint) public;
+    function move(uint, address, uint) public;
+    function exit(address, uint, address, uint) public;
+    function quit(uint, address) public;
+    function enter(address, uint) public;
+    function shift(uint, uint) public;
 }
 
 interface VatLike {
