@@ -1,5 +1,7 @@
 pragma solidity ^0.5.7;
-
+/**
+ compound debt migrate
+ */
 interface CTokenInterface {
     function mint(uint mintAmount) external returns (uint);
     function redeem(uint redeemTokens) external returns (uint);
@@ -42,6 +44,43 @@ interface ScdMcdMigration {
     function swapSaiToDai(uint saiAmt) external;
 }
 
+interface InstaMcdAddress {
+    function manager() external returns (address);
+    function dai() external returns (address);
+    function daiJoin() external returns (address);
+    function vat() external returns (address);
+    function jug() external returns (address);
+    function cat() external returns (address);
+    function gov() external returns (address);
+    function adm() external returns (address);
+    function vow() external returns (address);
+    function spot() external returns (address);
+    function pot() external returns (address);
+    function esm() external returns (address);
+    function mcdFlap() external returns (address);
+    function mcdFlop() external returns (address);
+    function mcdDeploy() external returns (address);
+    function mcdEnd() external returns (address);
+    function proxyActions() external returns (address);
+    function proxyActionsEnd() external returns (address);
+    function proxyActionsDsr() external returns (address);
+    function getCdps() external returns (address);
+    function saiTub() external returns (address);
+    function weth() external returns (address);
+    function bat() external returns (address);
+    function sai() external returns (address);
+    function ethAJoin() external returns (address);
+    function ethAFlip() external returns (address);
+    function batAJoin() external returns (address);
+    function batAFlip() external returns (address);
+    function ethPip() external returns (address);
+    function batAPip() external returns (address);
+    function saiJoin() external returns (address);
+    function saiFlip() external returns (address);
+    function saiPip() external returns (address);
+    function migration() external returns (address payable);
+}
+
 
 contract DSMath {
 
@@ -80,6 +119,13 @@ contract Helpers is DSMath {
     }
 
     /**
+     * @dev get MakerDAO MCD Address contract
+     */
+    function getMcdAddresses() public pure returns (address mcd) {
+        mcd = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Check Thrilok - add addr at time of deploy
+    }
+
+    /**
      * @dev get Compound Comptroller Address
      */
     function getCSaiAddress() public pure returns (address csaiAddr) {
@@ -90,7 +136,7 @@ contract Helpers is DSMath {
      * @dev get Compound Comptroller Address
      */
     function getCDaiAddress() public pure returns (address cdaiAddr) {
-        // cdaiAddr = ;
+        cdaiAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC; //Check Thrilok - add address before release
     }
 
     /**
@@ -104,7 +150,7 @@ contract Helpers is DSMath {
      * @dev get Compound Comptroller Address
      */
     function getDaiAddress() public pure returns (address daiAddr) {
-        // daiAddr = ;
+        daiAddr = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     }
 
     /**
@@ -168,10 +214,10 @@ contract PoolActions is Helpers {
 contract MigrationProxyActions is PoolActions {
 
     function swapSaiToDai(
-        address scdMcdMigration,    // Migration contract address
         uint wad                            // Amount to swap
     ) internal
     {
+        address payable scdMcdMigration = InstaMcdAddress(getMcdAddresses()).migration();
         ERC20Interface sai = ERC20Interface(getSaiAddress());
         if (sai.allowance(address(this), scdMcdMigration) < wad) {
             sai.approve(scdMcdMigration, wad);
@@ -180,10 +226,10 @@ contract MigrationProxyActions is PoolActions {
     }
 
     function swapDaiToSai(
-        address scdMcdMigration,    // Migration contract address
         uint wad                            // Amount to swap
     ) internal
     {
+        address payable scdMcdMigration = InstaMcdAddress(getMcdAddresses()).migration();
         ERC20Interface sai = ERC20Interface(getSaiAddress());
         ERC20Interface dai = ERC20Interface(getDaiAddress());
         if (dai.allowance(address(this), scdMcdMigration) < wad) {
@@ -249,24 +295,24 @@ contract CompMigration is CompoundResolver {
     event LogCompMigrateCSaiToCDai(uint swapAmt, address owner);
     event LogCompMigrateDebt(uint migrateAmt, address owner);
 
-    function migrateCSaiToCDai(uint ctknToMigrate, address scdMcdMigration) external {
+    function migrateCSaiToCDai(uint ctknToMigrate) external {
         redeemCSai(getCSaiAddress(), ctknToMigrate);
         uint saiBal = ERC20Interface(getSaiAddress()).balanceOf(address(this));
-        swapSaiToDai(scdMcdMigration, saiBal);
+        swapSaiToDai(saiBal);
         mintCDai(getCDaiAddress());
         emit LogCompMigrateCSaiToCDai(saiBal, address(this));
     }
 
-    function migrateDebt(uint debtToMigrate, address scdMcdMigration, address daiJoin) external {
+    function migrateDebt(uint debtToMigrate) external {
         uint initialPoolBal = sub(getLiquidityAddress().balance, 10000000000);
 
-        uint saiJoinBal = ERC20Interface(getSaiAddress()).balanceOf(daiJoin);
+        uint saiJoinBal = ERC20Interface(getSaiAddress()).balanceOf(InstaMcdAddress(getMcdAddresses()).saiJoin());
         // Check SAI balance of migration contract. If less than debtToMigrate then set debtToMigrate = SAI_Bal
         uint migrateAmt = debtToMigrate < saiJoinBal ? debtToMigrate : sub(saiJoinBal, 1000);
 
         uint debtPaid = repaySAI(migrateAmt); // Repaying SAI debt using InstaDApp pool
         borrowDAI(debtPaid); // borrowing DAI debt
-        swapDaiToSai(scdMcdMigration, debtPaid); // swapping SAI into DAI and paying back to InstaDApp pool
+        swapDaiToSai(debtPaid); // swapping SAI into DAI and paying back to InstaDApp pool
         uint finalPoolBal = getLiquidityAddress().balance;
         assert(finalPoolBal >= initialPoolBal);
         emit LogCompMigrateDebt(debtPaid, address(this));
