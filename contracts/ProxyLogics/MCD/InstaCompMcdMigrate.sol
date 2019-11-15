@@ -124,7 +124,7 @@ interface GemLike {
 }
 
 interface JugLike {
-    function drip(bytes32) external;
+    function drip(bytes32) external returns (uint);
 }
 
 interface VatLike {
@@ -167,6 +167,43 @@ interface DaiJoinLike {
 interface ScdMcdMigration {
     function swapDaiToSai(uint daiAmt) external;
     function swapSaiToDai(uint saiAmt) external;
+}
+
+interface InstaMcdAddress {
+    function manager() external returns (address);
+    function dai() external returns (address);
+    function daiJoin() external returns (address);
+    function vat() external returns (address);
+    function jug() external returns (address);
+    function cat() external returns (address);
+    function gov() external returns (address);
+    function adm() external returns (address);
+    function vow() external returns (address);
+    function spot() external returns (address);
+    function pot() external returns (address);
+    function esm() external returns (address);
+    function mcdFlap() external returns (address);
+    function mcdFlop() external returns (address);
+    function mcdDeploy() external returns (address);
+    function mcdEnd() external returns (address);
+    function proxyActions() external returns (address);
+    function proxyActionsEnd() external returns (address);
+    function proxyActionsDsr() external returns (address);
+    function getCdps() external returns (address);
+    function saiTub() external returns (address);
+    function weth() external returns (address);
+    function bat() external returns (address);
+    function sai() external returns (address);
+    function ethAJoin() external returns (address);
+    function ethAFlip() external returns (address);
+    function batAJoin() external returns (address);
+    function batAFlip() external returns (address);
+    function ethPip() external returns (address);
+    function batAPip() external returns (address);
+    function saiJoin() external returns (address);
+    function saiFlip() external returns (address);
+    function saiPip() external returns (address);
+    function migration() external returns (address payable);
 }
 
 
@@ -225,6 +262,13 @@ contract Helpers is DSMath {
     }
 
     /**
+     * @dev get MakerDAO MCD Address contract
+     */
+    function getMcdAddresses() public pure returns (address mcd) {
+        mcd = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Check Thrilok - add addr at time of deploy
+    }
+
+    /**
      * @dev get Compound Comptroller Address
      */
     function getCEthAddress() public pure returns (address cEthAddr) {
@@ -235,7 +279,7 @@ contract Helpers is DSMath {
      * @dev get Compound Comptroller Address
      */
     function getCDaiAddress() public pure returns (address cdaiAddr) {
-        cdaiAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC; // Check
+        cdaiAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC; // Check Thrilok - add at the time of compound cDai
     }
 
     /**
@@ -256,7 +300,7 @@ contract Helpers is DSMath {
      * @dev get Dai (Dai v2) address
      */
     function getDaiAddress() public pure returns (address dai) {
-        dai = 0x1D7e3a1A65a367db1D1D3F51A54aC01a2c4C92ff;
+        dai = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     }
 
     /**
@@ -299,38 +343,6 @@ contract Helpers is DSMath {
      */
     function getGiveAddress() public pure returns (address addr) {
         addr = 0xc679857761beE860f5Ec4B3368dFE9752580B096;
-    }
-
-    function getManagerAddress() public pure returns (address managerAddr) {
-        managerAddr = 0xb1fd1f2c83A6cb5155866169D81a9b7cF9e2019D;
-    }
-
-    function getMigrateAddress() public pure returns (address migrateAddr) {
-        migrateAddr = 0xb1fd1f2c83A6cb5155866169D81a9b7cF9e2019D;
-    }
-
-    function getdaiJoinAddress() public pure returns (address daiJoinAddr) {
-        daiJoinAddr = 0x9E0d5a6a836a6C323Cf45Eb07Cb40CFc81664eec; //Check
-    }
-
-    function getsaiJoinAddress() public pure returns (address saiJoinAddr) {
-        saiJoinAddr = 0xfe85Da396c78f698ec894bc90deC7d6F44cAA76C; //Check
-    }
-
-    function getEthJoinAddress() public pure returns (address ethJoinAddr) {
-        ethJoinAddr = 0x55cD2f4cF74eDc7c869BcF5e16086781eE97EE40; //Check
-    }
-
-    function getVatAddress() public pure returns (address vat) {
-        vat = 0xb597803e4B5b2A43A92F3e1DCaFEA5425c873116;
-    }
-
-    function getSpotAddress() public pure returns (address spot) {
-        spot = 0x932E82e999Fad1f7Ea9566f42cd3E94a4F46897E;
-    }
-
-    function getJugAddress() public pure returns (address jug) {
-        jug = 0x9404A7Fd173f1AA716416f391ACCD28Bd0d84406;
     }
 
     /**
@@ -412,8 +424,9 @@ contract CompoundResolver is LiquidityResolver {
 
 contract McdResolver is CompoundResolver {
     function open() internal returns (uint cdp) {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
         bytes32 ilk = 0x4554482d41000000000000000000000000000000000000000000000000000000;
-        cdp = ManagerLike(getManagerAddress()).open(ilk, address(this));
+        cdp = ManagerLike(manager).open(ilk, address(this));
     }
 
     function lockETH(
@@ -421,14 +434,16 @@ contract McdResolver is CompoundResolver {
         uint amt
     ) internal
     {
-        GemJoinLike(getEthJoinAddress()).gem().deposit.value(amt)();
-        GemJoinLike(getEthJoinAddress()).gem().approve(address(getEthJoinAddress()), amt);
-        GemJoinLike(getEthJoinAddress()).join(address(this), amt);
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        address ethJoin = InstaMcdAddress(getMcdAddresses()).ethAJoin();
+        GemJoinLike(ethJoin).gem().deposit.value(amt)();
+        GemJoinLike(ethJoin).gem().approve(address(ethJoin), amt);
+        GemJoinLike(ethJoin).join(address(this), amt);
 
         // Locks WETH amount into the CDP
-        VatLike(ManagerLike(getManagerAddress()).vat()).frob(
-            ManagerLike(getManagerAddress()).ilks(cdp),
-            ManagerLike(getManagerAddress()).urns(cdp),
+        VatLike(ManagerLike(manager).vat()).frob(
+            ManagerLike(manager).ilks(cdp),
+            ManagerLike(manager).urns(cdp),
             address(this),
             address(this),
             int(amt),
@@ -441,11 +456,15 @@ contract McdResolver is CompoundResolver {
         uint wad
     ) internal
     {
-        address urn = ManagerLike(getManagerAddress()).urns(cdp);
-        address vat = ManagerLike(getManagerAddress()).vat();
-        bytes32 ilk = ManagerLike(getManagerAddress()).ilks(cdp);
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        address jug = InstaMcdAddress(getMcdAddresses()).jug();
+        address daiJoin = InstaMcdAddress(getMcdAddresses()).daiJoin();
+
+        address urn = ManagerLike(manager).urns(cdp);
+        address vat = ManagerLike(manager).vat();
+        bytes32 ilk = ManagerLike(manager).ilks(cdp);
         // Updates stability fee rate before generating new debt
-        JugLike(getJugAddress()).drip(ilk);
+        JugLike(jug).drip(ilk);
 
         int dart;
         // Gets actual rate from the vat
@@ -461,14 +480,14 @@ contract McdResolver is CompoundResolver {
             dart = mul(uint(dart), rate) < mul(wad, RAY) ? dart + 1 : dart;
         }
 
-        ManagerLike(getManagerAddress()).frob(cdp, 0, dart);
+        ManagerLike(manager).frob(cdp, 0, dart);
         // Moves the DAI amount (balance in the vat in rad) to proxy's address
-        ManagerLike(getManagerAddress()).move(cdp, address(this), toRad(wad));
+        ManagerLike(manager).move(cdp, address(this), toRad(wad));
         // Allows adapter to access to proxy's DAI balance in the vat
-        if (VatLike(vat).can(address(this), address(getdaiJoinAddress())) == 0) {
-            VatLike(vat).hope(getdaiJoinAddress());
+        if (VatLike(vat).can(address(this), address(daiJoin)) == 0) {
+            VatLike(vat).hope(daiJoin);
         }
-        DaiJoinLike(getdaiJoinAddress()).exit(address(this), wad);
+        DaiJoinLike(daiJoin).exit(address(this), wad);
     }
 }
 
@@ -478,12 +497,13 @@ contract CompMcdResolver is McdResolver {
         uint wad                            // Amount to swap
     ) internal
     {
+        address payable scdMcdMigration = InstaMcdAddress(getMcdAddresses()).migration();
         TokenInterface sai = TokenInterface(getSaiAddress());
         TokenInterface dai = TokenInterface(getDaiAddress());
-        if (dai.allowance(address(this), getMigrateAddress()) < wad) {
-            dai.approve(getMigrateAddress(), wad);
+        if (dai.allowance(address(this), scdMcdMigration) < wad) {
+            dai.approve(scdMcdMigration, wad);
         }
-        ScdMcdMigration(getMigrateAddress()).swapDaiToSai(wad);
+        ScdMcdMigration(scdMcdMigration).swapDaiToSai(wad);
         sai.transfer(getPoolAddress(), wad);
     }
 
