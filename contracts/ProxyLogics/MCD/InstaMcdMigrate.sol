@@ -73,23 +73,25 @@ interface OtcInterface {
     ) external;
 }
 
+interface GemLike {
+    function approve(address, uint) external;
+    function transfer(address, uint) external;
+    function transferFrom(address, address, uint) external;
+    function deposit() external payable;
+    function withdraw(uint) external;
+}
+
 interface ManagerLike {
     function cdpCan(address, uint, address) external view returns (uint);
     function ilks(uint) external view returns (bytes32);
     function owns(uint) external view returns (address);
     function urns(uint) external view returns (address);
     function vat() external view returns (address);
-    function open(bytes32) external returns (uint);
+    function open(bytes32, address) external returns (uint);
     function give(uint, address) external;
     function cdpAllow(uint, address, uint) external;
     function urnAllow(address, uint) external;
     function frob(uint, int, int) external;
-    function frob(
-        uint,
-        address,
-        int,
-        int
-    ) external;
     function flux(uint, address, uint) external;
     function move(uint, address, uint) external;
     function exit(
@@ -101,6 +103,43 @@ interface ManagerLike {
     function quit(uint, address) external;
     function enter(address, uint) external;
     function shift(uint, uint) external;
+}
+
+interface InstaMcdAddress {
+    function manager() external returns (address);
+    function dai() external returns (address);
+    function daiJoin() external returns (address);
+    function vat() external returns (address);
+    function jug() external returns (address);
+    function cat() external returns (address);
+    function gov() external returns (address);
+    function adm() external returns (address);
+    function vow() external returns (address);
+    function spot() external returns (address);
+    function pot() external returns (address);
+    function esm() external returns (address);
+    function mcdFlap() external returns (address);
+    function mcdFlop() external returns (address);
+    function mcdDeploy() external returns (address);
+    function mcdEnd() external returns (address);
+    function proxyActions() external returns (address);
+    function proxyActionsEnd() external returns (address);
+    function proxyActionsDsr() external returns (address);
+    function getCdps() external returns (address);
+    function saiTub() external returns (address);
+    function weth() external returns (address);
+    function bat() external returns (address);
+    function sai() external returns (address);
+    function ethAJoin() external returns (address);
+    function ethAFlip() external returns (address);
+    function batAJoin() external returns (address);
+    function batAFlip() external returns (address);
+    function ethPip() external returns (address);
+    function batAPip() external returns (address);
+    function saiJoin() external returns (address);
+    function saiFlip() external returns (address);
+    function saiPip() external returns (address);
+    function migration() external returns (address payable);
 }
 
 
@@ -150,6 +189,13 @@ contract Helpers is DSMath {
     }
 
     /**
+     * @dev get MakerDAO MCD Address contract
+     */
+    function getMcdAddresses() public pure returns (address mcd) {
+        mcd = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Check Thrilok - add addr at time of deploy
+    }
+
+    /**
      * @dev get Sai (Dai v1) address
      */
     function getSaiAddress() public pure returns (address sai) {
@@ -168,20 +214,6 @@ contract Helpers is DSMath {
      */
     function getOtcAddress() public pure returns (address otcAddr) {
         otcAddr = 0x39755357759cE0d7f32dC8dC45414CCa409AE24e; // main
-    }
-
-    /**
-     * @dev get uniswap MKR exchange
-     */
-    function getUniswapMKRExchange() public pure returns (address ume) {
-        ume = 0x2C4Bd064b998838076fa341A83d007FC2FA50957;
-    }
-
-    /**
-     * @dev get uniswap factory
-     */
-    function getUniswapFactory() public pure returns (address addr) {
-        addr = 0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95;
     }
 
     /**
@@ -263,21 +295,17 @@ contract MKRSwapper is  LiquidityResolver {
 contract SCDResolver is MKRSwapper {
 
     function getFeeOfCdp(bytes32 cup, uint _wad) internal returns (uint feeAmt) {
-        // Set ratio according to user.
         TubInterface tub = TubInterface(getSaiTubAddress());
 
         (bytes32 val, bool ok) = tub.pep().peek();
         TokenInterface mkr = TubInterface(getSaiTubAddress()).gov();
-
         feeAmt = 0;
-
-        // wad according to toConvert ratio
-
         if (ok && val != 0) {
             // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
             uint mkrFee = rdiv(tub.rap(cup), tub.tab(cup));
             mkrFee = rmul(_wad, mkrFee);
             mkrFee = wdiv(mkrFee, uint(val));
+            // convert mkr amount into sai amount
             feeAmt = OtcInterface(getOtcAddress()).getPayAmount(getSaiAddress(), address(mkr), mkrFee);
         }
 
@@ -346,11 +374,11 @@ contract SCDResolver is MKRSwapper {
 
 contract MCDResolver is SCDResolver {
     function migrateToMCD(
-        address payable scdMcdMigration,    // Migration contract address
         bytes32 cup,                        // SCD CDP Id to migrate
         address payGem                    // Token address
     ) internal returns (uint cdp)
     {
+        address payable scdMcdMigration = InstaMcdAddress(getMcdAddresses()).migration();
         TubInterface tub = TubInterface(getSaiTubAddress());
         tub.give(cup, address(scdMcdMigration));
 
@@ -362,10 +390,10 @@ contract MCDResolver is SCDResolver {
             if (govFee > 0) {
                 if (payGem != address(0)) {
                     swapToMkrOtc(payGem, govFee);
+                    require(tub.gov().transfer(address(scdMcdMigration), govFee), "transfer-failed");
                 } else {
-                    require(tub.gov().transferFrom(msg.sender, address(this), govFee), "transfer-failed"); // Check Samyak - We can directly transfer MKR to address(scdMcdMigration). Right?
+                    require(tub.gov().transferFrom(msg.sender, address(scdMcdMigration), govFee), "transfer-failed"); // Check Thrilok - is it working => We can directly transfer MKR to address(scdMcdMigration). Right?
                 }
-                require(tub.gov().transfer(address(scdMcdMigration), govFee), "transfer-failed");
             }
         }
         // Execute migrate function
@@ -373,20 +401,20 @@ contract MCDResolver is SCDResolver {
     }
 
     function giveCDP(
-        address manager,
         uint cdp,
         address nextOwner
     ) internal
     {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
         ManagerLike(manager).give(cdp, nextOwner);
     }
 
     function shiftCDP(
-        address manager,
         uint cdpSrc,
         uint cdpOrg
     ) internal
     {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
         require(ManagerLike(manager).owns(cdpOrg) == address(this), "NOT-OWNER");
         ManagerLike(manager).shift(cdpSrc, cdpOrg);
     }
@@ -442,7 +470,7 @@ contract MigrateHelper is MCDResolver {
         uint initialPoolBal = sub(getPoolAddress().balance, 10000000000);
 
         // Check if the split fee is paid by debt from the cdp.
-        uint _wadForDebt = payFeeWith == getSaiAddress() ? add(_wad, getFeeOfCdp(scdCup, _wad)) : _wad; // Check Thrilok - gas fee;
+        uint _wadForDebt = payFeeWith == getSaiAddress() ? add(_wad, getFeeOfCdp(scdCup, _wad)) : _wad;
 
         //fetch liquidity from InstaDApp Pool.
         getLiquidity(_wadForDebt);
@@ -479,10 +507,7 @@ contract MigrateResolver is MigrateHelper {
         uint scdCDP,
         uint mergeCDP,
         uint toConvert,
-        address payFeeWith,
-        address payable scdMcdMigration,
-        address manager,
-        address daiJoin
+        address payFeeWith
     ) external payable returns (uint newMcdCdp)
     {
         bytes32 scdCup = bytes32(scdCDP);
@@ -499,7 +524,7 @@ contract MigrateResolver is MigrateHelper {
                 scdCup,
                 toConvert,
                 payFeeWith,
-                daiJoin);
+                InstaMcdAddress(getMcdAddresses()).saiJoin());
 
             //split the assets into split cdp.
             splitCdp(
@@ -511,10 +536,10 @@ contract MigrateResolver is MigrateHelper {
             );
 
             //migrate the split cdp.
-            newMcdCdp = migrateToMCD(scdMcdMigration, splitCup, payFeeWith);
+            newMcdCdp = migrateToMCD(splitCup, payFeeWith);
         } else {
             //migrate the scd cdp.
-            newMcdCdp = migrateToMCD(scdMcdMigration, scdCup, payFeeWith);
+            newMcdCdp = migrateToMCD(scdCup, payFeeWith);
         }
 
         //Transfer if any ETH leftover.
@@ -524,8 +549,8 @@ contract MigrateResolver is MigrateHelper {
 
         //merge the already existing mcd cdp with the new migrated cdp.
         if (mergeCDP != 0) {
-            shiftCDP(manager, newMcdCdp, mergeCDP);
-            giveCDP(manager, newMcdCdp, getGiveAddress());
+            shiftCDP(newMcdCdp, mergeCDP);
+            giveCDP(newMcdCdp, getGiveAddress());
         }
 
         emit LogMigrate(
@@ -541,10 +566,7 @@ contract MigrateResolver is MigrateHelper {
         uint scdCDP,
         uint mergeCDP,
         uint toConvert,
-        address payFeeWith,
-        address payable scdMcdMigration,
-        address manager,
-        address daiJoin
+        address payFeeWith
     ) external payable returns (uint newMcdCdp)
     {
         bytes32 scdCup = bytes32(scdCDP);
@@ -561,7 +583,7 @@ contract MigrateResolver is MigrateHelper {
                 scdCup,
                 toConvert,
                 payFeeWith,
-                daiJoin);
+                InstaMcdAddress(getMcdAddresses()).saiJoin());
 
             //split the assets into split cdp.
             splitCdp(
@@ -573,12 +595,12 @@ contract MigrateResolver is MigrateHelper {
             );
 
             //migrate the split cdp.
-            newMcdCdp = migrateToMCD(scdMcdMigration, splitCup, payFeeWith);
+            newMcdCdp = migrateToMCD(splitCup, payFeeWith);
         } else {
             // draw extra SAI for paying fee.
             drawDebtForFee(scdCup);
             //migrate the scd cdp.
-            newMcdCdp = migrateToMCD(scdMcdMigration, scdCup, payFeeWith);
+            newMcdCdp = migrateToMCD(scdCup, payFeeWith);
         }
 
         //Transfer if any ETH leftover.
@@ -588,8 +610,8 @@ contract MigrateResolver is MigrateHelper {
 
         //merge the already existing mcd cdp with the new migrated cdp.
         if (mergeCDP != 0) {
-            shiftCDP(manager, newMcdCdp, mergeCDP);
-            giveCDP(manager, newMcdCdp, getGiveAddress());
+            shiftCDP(newMcdCdp, mergeCDP);
+            giveCDP(newMcdCdp, getGiveAddress());
         }
 
         emit LogMigrateWithDebt(
