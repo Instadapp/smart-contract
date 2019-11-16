@@ -498,13 +498,11 @@ contract CompMcdResolver is McdResolver {
     ) internal
     {
         address payable scdMcdMigration = InstaMcdAddress(getMcdAddresses()).migration();
-        TokenInterface sai = TokenInterface(getSaiAddress());
         TokenInterface dai = TokenInterface(getDaiAddress());
         if (dai.allowance(address(this), scdMcdMigration) < wad) {
             dai.approve(scdMcdMigration, wad);
         }
         ScdMcdMigration(scdMcdMigration).swapDaiToSai(wad);
-        sai.transfer(getPoolAddress(), wad);
     }
 
     function paybackAndRedeem(uint ethAmt, uint saiAmt, bool isCompound) internal {
