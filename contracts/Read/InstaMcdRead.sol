@@ -40,6 +40,47 @@ interface PipLike {
     function peek() external view returns (bytes32, bool);
 }
 
+interface OtcInterface {
+    function getPayAmount(address, address, uint) external view returns (uint);
+}
+
+interface InstaMcdAddress {
+    function manager() external view returns (address);
+    function dai() external view returns (address);
+    function daiJoin() external view returns (address);
+    function vat() external view returns (address);
+    function jug() external view returns (address);
+    function cat() external view returns (address);
+    function gov() external view returns (address);
+    function adm() external view returns (address);
+    function vow() external view returns (address);
+    function spot() external view returns (address);
+    function pot() external view returns (address);
+    function esm() external view returns (address);
+    function mcdFlap() external view returns (address);
+    function mcdFlop() external view returns (address);
+    function mcdDeploy() external view returns (address);
+    function mcdEnd() external view returns (address);
+    function proxyActions() external view returns (address);
+    function proxyActionsEnd() external view returns (address);
+    function proxyActionsDsr() external view returns (address);
+    function getCdps() external view returns (address);
+    function saiTub() external view returns (address);
+    function weth() external view returns (address);
+    function bat() external view returns (address);
+    function sai() external view returns (address);
+    function ethAJoin() external view returns (address);
+    function ethAFlip() external view returns (address);
+    function batAJoin() external view returns (address);
+    function batAFlip() external view returns (address);
+    function ethPip() external view returns (address);
+    function batAPip() external view returns (address);
+    function saiJoin() external view returns (address);
+    function saiFlip() external view returns (address);
+    function saiPip() external view returns (address);
+    function migration() external view returns (address payable);
+}
+
 
 contract DSMath {
 
@@ -78,6 +119,21 @@ contract DSMath {
 
 
 contract Helpers is DSMath {
+    /**
+     * @dev get MakerDAO MCD Address contract
+     */
+    function getMcdAddresses() public pure returns (address mcd) {
+        mcd = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Check Thrilok - add addr at time of deploy
+    }
+
+    /**
+     * @dev get OTC Address
+     */
+    function getOtcAddress() public pure returns (address otcAddr) {
+        otcAddr = 0x39755357759cE0d7f32dC8dC45414CCa409AE24e; // main
+    }
+
+    address public mkrAddr = 0x39755357759cE0d7f32dC8dC45414CCa409AE24e; // Check Thrilok - change
 
     struct CdpData {
         uint id;
@@ -97,38 +153,37 @@ contract Helpers is DSMath {
 
 contract McdResolver is Helpers {
 
-    function getIlkData(address manager, bytes32 ilk) external view returns (uint rate) {
+    function getIlkData(bytes32 ilk) external view returns (uint rate) {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
         (,rate,,,) = VatLike(ManagerLike(manager).vat()).ilks(ilk);
     }
 
-    function getDsr(address pot) external view returns (uint dsr) {
+    function getDsr() external view returns (uint dsr) {
+        address pot = InstaMcdAddress(getMcdAddresses()).pot();
         dsr = PotLike(pot).dsr();
     }
 
-    function getDaiDeposited(address pot, address owner) external view returns (uint amt) {
+    function getDaiDeposited(address owner) external view returns (uint amt) {
+        address pot = InstaMcdAddress(getMcdAddresses()).pot();
         uint chi = PotLike(pot).chi();
         uint pie = PotLike(pot).pie(owner);
         amt = rmul(pie,chi);
     }
 
-    function getCdpsByAddress(
-        address manager,
-        address cdpManger,
-        address jug,
-        address spot,
-        address owner
-        ) external view returns (CdpData[] memory)
-        {
+    function getCdpsByAddress(address owner) external view returns (CdpData[] memory) {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        address cdpManger = InstaMcdAddress(getMcdAddresses()).getCdps();
+
         (uint[] memory ids, address[] memory urns, bytes32[] memory ilks) = CdpsLike(cdpManger).getCdpsAsc(manager, owner);
         CdpData[] memory cdps = new CdpData[](ids.length);
 
         for (uint i = 0; i < ids.length; i++) {
             (uint ink, uint art) = VatLike(ManagerLike(manager).vat()).urns(ilks[i], urns[i]);
             (,uint rate, uint priceMargin,,) = VatLike(ManagerLike(manager).vat()).ilks(ilks[i]);
-            uint mat = getIlkRatio(spot, ilks[i]);
+            uint mat = getIlkRatio(ilks[i]);
             uint debt = rmul(art,rate);
             uint price = rmul(priceMargin, mat);
-            uint feeRate = getFee(jug, ilks[i]);
+            uint feeRate = getFee(ilks[i]);
 
             cdps[i] = CdpData(
                 ids[i],
@@ -146,13 +201,8 @@ contract McdResolver is Helpers {
         return cdps;
     }
 
-    function getCdpsById(
-        address manager,
-        address jug,
-        address spot,
-        uint id
-        ) external view returns (CdpData memory)
-        {
+    function getCdpsById(uint id) external view returns (CdpData memory) {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
         address urn = ManagerLike(manager).urns(id);
         bytes32 ilk = ManagerLike(manager).ilks(id);
         address owner = ManagerLike(manager).owns(id);
@@ -161,10 +211,10 @@ contract McdResolver is Helpers {
         (,uint rate, uint priceMargin,,) = VatLike(ManagerLike(manager).vat()).ilks(ilk);
         uint debt = rmul(art,rate);
 
-        uint mat = getIlkRatio(spot, ilk);
+        uint mat = getIlkRatio(ilk);
         uint price = rmul(priceMargin, mat);
 
-        uint feeRate = getFee(jug, ilk);
+        uint feeRate = getFee(ilk);
         CdpData memory cdp = CdpData(
             id,
             owner,
@@ -180,19 +230,27 @@ contract McdResolver is Helpers {
         return cdp;
     }
 
-    function getFee(address jug, bytes32 ilk) public view returns (uint fee) {
+    function getFee(bytes32 ilk) public view returns (uint fee) {
+        address jug = InstaMcdAddress(getMcdAddresses()).jug();
         (uint duty,) = JugLike(jug).ilks(ilk);
         uint base = JugLike(jug).base();
         fee = add(duty, base);
     }
 
-    function getIlkPrice(address spot, address vat, bytes32 ilk) public view returns (uint price) {
+    function getIlkPrice(bytes32 ilk) public view returns (uint price) {
+        address spot = InstaMcdAddress(getMcdAddresses()).spot();
+        address vat = InstaMcdAddress(getMcdAddresses()).vat();
         (, uint mat) = SpotLike(spot).ilks(ilk);
         (,,uint spotPrice,,) = VatLike(vat).ilks(ilk);
         price = rmul(mat, spotPrice);
     }
 
-    function getIlkRatio(address spot, bytes32 ilk) public view returns (uint ratio) {
+    function getIlkRatio(bytes32 ilk) public view returns (uint ratio) {
+        address spot = InstaMcdAddress(getMcdAddresses()).spot();
         (, ratio) = SpotLike(spot).ilks(ilk);
+    }
+
+    function getMkrToTknAmt(address tokenAddr, uint mkrAmt) public view returns (uint tknAmt) {
+        tknAmt = OtcInterface(getOtcAddress()).getPayAmount(tokenAddr, address(mkrAddr), mkrAmt);
     }
 }
