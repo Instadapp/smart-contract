@@ -36,7 +36,7 @@ contract McdAddress {
     address public saiFlip = 0x5432b2f3c0DFf95AA191C45E5cbd539E2820aE72;
     address public saiPip = 0x54003DBf6ae6CBa6DDaE571CcdC34d834b44Ab1e;
     address payable public migration = 0xc73e0383F3Aff3215E6f04B0331D58CeCf0Ab849;
-    // address public mcdPause = 0x35D1b3F3D7966A1DFe207aa4514C12a259A0492B;
+    address public proxyRegisty = 0x4678f0a6958e4D2Bc4F1BAF7Bc52E8F3564f3fE4;
 }
 
 /**

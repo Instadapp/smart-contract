@@ -98,7 +98,7 @@ contract Common {
      * @dev get MakerDAO MCD Address contract
      */
     function getMcdAddresses() public pure returns (address mcd) {
-        mcd = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Check Thrilok - add addr at time of deploy
+        mcd = 0xF23196DF1C440345DE07feFbe556a5eF0dcD29F0; // Check Thrilok - add addr at time of deploy
     }
 
     /**
