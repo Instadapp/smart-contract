@@ -199,7 +199,21 @@ contract Helpers is DSMath {
      * @dev get Sai (Dai v1) address
      */
     function getSaiAddress() public pure returns (address sai) {
-        sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
+        sai = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
+    }
+
+    /**
+     * @dev get Sai (Dai v1) address
+     */
+    function getDaiAddress() public pure returns (address dai) {
+        dai = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    }
+
+    /**
+     * @dev get Compound ETH Address
+     */
+    function getETHAddress() public pure returns (address ethAddr) {
+        ethAddr = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE; // main
     }
 
     /**
@@ -273,10 +287,10 @@ contract MKRSwapper is  LiquidityResolver {
     function swapToMkrOtc(address tokenAddr, uint govFee) internal {
         TokenInterface mkr = TubInterface(getSaiTubAddress()).gov();
         uint payAmt = OtcInterface(getOtcAddress()).getPayAmount(tokenAddr, address(mkr), govFee);
-        if (tokenAddr == getWETHAddress()) {
+        if (tokenAddr == getETHAddress()) {
             TokenInterface weth = TokenInterface(getWETHAddress());
             weth.deposit.value(payAmt)();
-        } else if (tokenAddr != getSaiAddress()) {
+        } else if (tokenAddr != getSaiAddress() && tokenAddr != getDaiAddress()) {
             require(TokenInterface(tokenAddr).transferFrom(msg.sender, address(this), payAmt), "Tranfer-failed");
         }
 
@@ -331,6 +345,8 @@ contract SCDResolver is MKRSwapper {
 
             if (payFeeWith != address(mkr) && mkrFee > 0) {
                 swapToMkrOtc(payFeeWith, mkrFee); //otc
+            } else if (payFeeWith == address(mkr) && mkrFee > 0) {
+                require(TokenInterface(address(mkr)).transferFrom(msg.sender, address(this), mkrFee), "Tranfer-failed");
             }
 
             tub.wipe(cup, _wad);
