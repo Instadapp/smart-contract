@@ -171,24 +171,6 @@ contract DssProxyHelpers is Common {
         }
     }
 
-    function _getWipeDart(
-        address vat,
-        uint dai,
-        address urn,
-        bytes32 ilk
-    ) internal view returns (int dart)
-    {
-        // Gets actual rate from the vat
-        (, uint rate,,,) = VatLike(vat).ilks(ilk);
-        // Gets actual art value of the urn
-        (, uint art) = VatLike(vat).urns(ilk, urn);
-
-        // Uses the whole dai balance in the vat to reduce the debt
-        dart = toInt(dai / rate);
-        // Checks the calculated dart is not higher than urn.art (total debt), otherwise uses its value
-        dart = uint(dart) <= art ? - dart : - toInt(art);
-    }
-
     function _getWipeAllWad(
         address vat,
         address usr,
@@ -212,7 +194,7 @@ contract DssProxyHelpers is Common {
 }
 
 
-contract DssProxyActions is DssProxyHelpers {
+contract DssProxyActionsAdv is DssProxyHelpers {
     // Public functions
 
     function transfer(address gem, address dst, uint wad) public {
@@ -247,14 +229,6 @@ contract DssProxyActions is DssProxyHelpers {
         GemJoinLike(apt).join(urn, wad);
     }
 
-    function hope(address obj, address usr) public {
-        HopeLike(obj).hope(usr);
-    }
-
-    function nope(address obj, address usr) public {
-        HopeLike(obj).nope(usr);
-    }
-
     function open(bytes32 ilk, address usr) public returns (uint cdp) {
         address manager = InstaMcdAddress(getMcdAddresses()).manager();
         cdp = ManagerLike(manager).open(ilk, usr);
@@ -267,35 +241,6 @@ contract DssProxyActions is DssProxyHelpers {
 
     function shut(uint cdp) public {
         give(cdp, getGiveAddress());
-    }
-
-    function giveToProxy(uint cdp, address dst) public {
-        address proxyRegistry = InstaMcdAddress(getMcdAddresses()).proxyRegistry(); //CHECK THRILOK -- Added proxyRegistry
-        // Gets actual proxy address
-        address proxy = ProxyRegistryLike(proxyRegistry).proxies(dst);
-        // Checks if the proxy address already existed and dst address is still the owner
-        if (proxy == address(0) || ProxyLike(proxy).owner() != dst) {
-            uint csize;
-            assembly {
-                csize := extcodesize(dst)
-            }
-            // We want to avoid creating a proxy for a contract address that might not be able to handle proxies, then losing the CDP
-            require(csize == 0, "Dst-is-a-contract");
-            // Creates the proxy for the dst address
-            proxy = ProxyRegistryLike(proxyRegistry).build(dst);
-        }
-        // Transfers CDP to the dst proxy
-        give(cdp, proxy);
-    }
-
-    function cdpAllow(uint cdp, address usr, uint ok) public {
-        address manager = InstaMcdAddress(getMcdAddresses()).manager();
-        ManagerLike(manager).cdpAllow(cdp, usr, ok);
-    }
-
-    function urnAllow(address usr, uint ok) public {
-        address manager = InstaMcdAddress(getMcdAddresses()).manager();
-        ManagerLike(manager).urnAllow(usr, ok);
     }
 
     function flux(uint cdp, address dst, uint wad) public {
@@ -313,155 +258,7 @@ contract DssProxyActions is DssProxyHelpers {
         ManagerLike(manager).frob(cdp, dink, dart);
     }
 
-    function quit(uint cdp, address dst) public {
-        address manager = InstaMcdAddress(getMcdAddresses()).manager();
-        ManagerLike(manager).quit(cdp, dst);
-    }
-
-    function enter(address src, uint cdp) public {
-        address manager = InstaMcdAddress(getMcdAddresses()).manager();
-        ManagerLike(manager).enter(src, cdp);
-    }
-
-    function shift(uint cdpSrc, uint cdpOrg) public {
-        address manager = InstaMcdAddress(getMcdAddresses()).manager();
-        ManagerLike(manager).shift(cdpSrc, cdpOrg);
-    }
-
-    function lockETH(uint cdp) public payable {
-        address manager = InstaMcdAddress(getMcdAddresses()).manager();
-        // Receives ETH amount, converts it to WETH and joins it into the vat
-        joinEthJoin(address(this));
-        // Locks WETH amount into the CDP
-        VatLike(ManagerLike(manager).vat()).frob(
-            ManagerLike(manager).ilks(cdp),
-            ManagerLike(manager).urns(cdp),
-            address(this),
-            address(this),
-            toInt(msg.value),
-            0
-        );
-    }
-
-    function safeLockETH(uint cdp, address owner) public payable {
-        address manager = InstaMcdAddress(getMcdAddresses()).manager();
-        require(ManagerLike(manager).owns(cdp) == owner, "owner-missmatch");
-        lockETH(cdp);
-    }
-
-    function lockGem(
-        address gemJoin,
-        uint cdp,
-        uint wad,
-        bool transferFrom
-    ) public
-    {
-        address manager = InstaMcdAddress(getMcdAddresses()).manager();
-        // Takes token amount from user's wallet and joins into the vat
-        joinGemJoin(
-            gemJoin,
-            address(this),
-            wad,
-            transferFrom
-        );
-        // Locks token amount into the CDP
-        VatLike(ManagerLike(manager).vat()).frob(
-            ManagerLike(manager).ilks(cdp),
-            ManagerLike(manager).urns(cdp),
-            address(this),
-            address(this),
-            toInt(convertTo18(gemJoin, wad)),
-            0
-        );
-    }
-
-    function safeLockGem(
-        address gemJoin,
-        uint cdp,
-        uint wad,
-        bool transferFrom,
-        address owner
-    ) public
-    {
-        address manager = InstaMcdAddress(getMcdAddresses()).manager();
-        require(ManagerLike(manager).owns(cdp) == owner, "owner-missmatch");
-        lockGem(
-            gemJoin,
-            cdp,
-            wad,
-            transferFrom);
-    }
-
-    function freeETH(uint cdp, uint wad) public {
-        address ethJoin = InstaMcdAddress(getMcdAddresses()).ethAJoin();
-        // Unlocks WETH amount from the CDP
-        frob(
-            cdp,
-            -toInt(wad),
-            0
-        );
-        // Moves the amount from the CDP urn to proxy's address
-        flux(
-            cdp,
-            address(this),
-            wad
-        );
-        // Exits WETH amount to proxy address as a token
-        GemJoinLike(ethJoin).exit(address(this), wad);
-        // Converts WETH to ETH
-        GemJoinLike(ethJoin).gem().withdraw(wad);
-        // Sends ETH back to the user's wallet
-        msg.sender.transfer(wad);
-    }
-
-    function freeGem(address gemJoin, uint cdp, uint wad) public {
-        uint wad18 = convertTo18(gemJoin, wad);
-        // Unlocks token amount from the CDP
-        frob(
-            cdp,
-            -toInt(wad18),
-            0
-        );
-        // Moves the amount from the CDP urn to proxy's address
-        flux(
-            cdp,
-            address(this),
-            wad18
-        );
-        // Exits token amount to the user's wallet as a token
-        GemJoinLike(gemJoin).exit(msg.sender, wad);
-    }
-
-    function exitETH(uint cdp, uint wad) public {
-        address ethJoin = InstaMcdAddress(getMcdAddresses()).ethAJoin();
-        // Moves the amount from the CDP urn to proxy's address
-        flux(
-            cdp,
-            address(this),
-            wad
-        );
-
-        // Exits WETH amount to proxy address as a token
-        GemJoinLike(ethJoin).exit(address(this), wad);
-        // Converts WETH to ETH
-        GemJoinLike(ethJoin).gem().withdraw(wad);
-        // Sends ETH back to the user's wallet
-        msg.sender.transfer(wad);
-    }
-
-    function exitGem(address gemJoin, uint cdp, uint wad) public {
-        // Moves the amount from the CDP urn to proxy's address
-        flux(
-            cdp,
-            address(this),
-            convertTo18(gemJoin, wad)
-        );
-
-        // Exits token amount to the user's wallet as a token
-        GemJoinLike(gemJoin).exit(msg.sender, wad);
-    }
-
-    function draw(uint cdp, uint wad) public {
+    function drawAndSend(uint cdp, uint wad, address to) public {
         address manager = InstaMcdAddress(getMcdAddresses()).manager();
         address jug = InstaMcdAddress(getMcdAddresses()).jug();
         address daiJoin = InstaMcdAddress(getMcdAddresses()).daiJoin();
@@ -491,56 +288,185 @@ contract DssProxyActions is DssProxyHelpers {
             VatLike(vat).hope(daiJoin);
         }
         // Exits DAI to the user's wallet as a token
-        DaiJoinLike(daiJoin).exit(msg.sender, wad);
+        DaiJoinLike(daiJoin).exit(to, wad);
     }
 
-    function wipe(uint cdp, uint wad) public {
+    function lockETHAndDraw(uint cdp, uint wadD) public payable {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        address jug = InstaMcdAddress(getMcdAddresses()).jug();
+        address daiJoin = InstaMcdAddress(getMcdAddresses()).daiJoin();
+        address urn = ManagerLike(manager).urns(cdp);
+        address vat = ManagerLike(manager).vat();
+        bytes32 ilk = ManagerLike(manager).ilks(cdp);
+        // Receives ETH amount, converts it to WETH and joins it into the vat
+        joinEthJoin(urn);
+        // Locks WETH amount into the CDP and generates debt
+        frob(
+            cdp,
+            toInt(msg.value),
+            _getDrawDart(
+                vat,
+                jug,
+                urn,
+                ilk,
+                wadD
+            )
+        );
+        // Moves the DAI amount (balance in the vat in rad) to proxy's address
+        move(
+            cdp,
+            address(this),
+            toRad(wadD)
+        );
+        // Allows adapter to access to proxy's DAI balance in the vat
+        if (VatLike(vat).can(address(this), address(daiJoin)) == 0) {
+            VatLike(vat).hope(daiJoin);
+        }
+        // Exits DAI to the user's wallet as a token
+        DaiJoinLike(daiJoin).exit(msg.sender, wadD);
+    }
+
+    function openLockETHAndDraw(bytes32 ilk, uint wadD) public payable returns (uint cdp) {
+        cdp = open(ilk, address(this));
+        lockETHAndDraw(cdp, wadD);
+    }
+
+    function lockGemAndDraw(
+        address gemJoin,
+        uint cdp,
+        uint wadC,
+        uint wadD,
+        bool transferFrom
+    ) public
+    {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        address jug = InstaMcdAddress(getMcdAddresses()).jug();
+        address daiJoin = InstaMcdAddress(getMcdAddresses()).daiJoin();
+        address urn = ManagerLike(manager).urns(cdp);
+        address vat = ManagerLike(manager).vat();
+        bytes32 ilk = ManagerLike(manager).ilks(cdp);
+        // Takes token amount from user's wallet and joins into the vat
+        joinGemJoin(
+            gemJoin,
+            urn,
+            wadC,
+            transferFrom
+        );
+        // Locks token amount into the CDP and generates debt
+        frob(
+            cdp,
+            toInt(convertTo18(gemJoin, wadC)),
+            _getDrawDart(
+                vat,
+                jug,
+                urn,
+                ilk,
+                wadD
+            )
+        );
+        // Moves the DAI amount (balance in the vat in rad) to proxy's address
+        move(
+            cdp,
+            address(this),
+            toRad(wadD)
+        );
+        // Allows adapter to access to proxy's DAI balance in the vat
+        if (VatLike(vat).can(address(this), address(daiJoin)) == 0) {
+            VatLike(vat).hope(daiJoin);
+        }
+        // Exits DAI to the user's wallet as a token
+        DaiJoinLike(daiJoin).exit(msg.sender, wadD);
+    }
+
+    function openLockGemAndDraw( // check Thrilok - refactor
+        address gemJoin,
+        bytes32 ilk,
+        uint wadC,
+        uint wadD,
+        bool transferFrom
+    ) public returns (uint cdp)
+    {
+        cdp = open(ilk, address(this));
+        lockGemAndDraw(
+            gemJoin,
+            cdp,
+            wadC,
+            wadD,
+            transferFrom
+        );
+    }
+
+    function wipeAllAndFreeEth(uint cdp) public {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        address ethJoin = InstaMcdAddress(getMcdAddresses()).ethAJoin();
+        address vat = ManagerLike(manager).vat();
+        address urn = ManagerLike(manager).urns(cdp);
+        bytes32 ilk = ManagerLike(manager).ilks(cdp);
+        (uint wadC, uint art) = VatLike(vat).urns(ilk, urn); //Check Thrilok - wadC
+
+        // Joins DAI amount into the vat
+        joinDaiJoin(
+            urn,
+            _getWipeAllWad(
+                vat,
+                urn,
+                urn,
+                ilk
+            )
+        );
+        // Paybacks debt to the CDP and unlocks WETH amount from it
+        frob(
+            cdp,
+            -toInt(wadC),
+            -int(art)
+        );
+        // Moves the amount from the CDP urn to proxy's address
+        flux(cdp, address(this), wadC);
+        // Exits WETH amount to proxy address as a token
+        GemJoinLike(ethJoin).exit(address(this), wadC);
+        // Converts WETH to ETH
+        GemJoinLike(ethJoin).gem().withdraw(wadC);
+        // Sends ETH back to the user's wallet
+        msg.sender.transfer(wadC);
+    }
+
+    function wipeAllAndFreeGem(uint cdp, address gemJoin) public {
         address manager = InstaMcdAddress(getMcdAddresses()).manager();
         address vat = ManagerLike(manager).vat();
         address urn = ManagerLike(manager).urns(cdp);
         bytes32 ilk = ManagerLike(manager).ilks(cdp);
+        (uint wadC, uint art) = VatLike(vat).urns(ilk, urn); //Check Thrilok - wadC
 
-        address own = ManagerLike(manager).owns(cdp);
-        if (own == address(this) || ManagerLike(manager).cdpCan(own, cdp, address(this)) == 1) {
-            // Joins DAI amount into the vat
-            joinDaiJoin(urn, wad);
-            // Paybacks debt to the CDP
-            frob(
-                cdp,
-                0,
-                _getWipeDart(
-                    vat,
-                    VatLike(vat).dai(urn),
-                    urn,
-                    ilk
-                )
-            );
-        } else {
-             // Joins DAI amount into the vat
-            joinDaiJoin(address(this), wad);
-            // Paybacks debt to the CDP
-            VatLike(vat).frob(
-                ilk,
+        // Joins DAI amount into the vat
+        joinDaiJoin(
+            urn,
+            _getWipeAllWad(
+                vat,
                 urn,
-                address(this),
-                address(this),
-                0,
-                _getWipeDart(
-                    vat,
-                    wad * RAY,
-                    urn,
-                    ilk
-                )
-            );
-        }
+                urn,
+                ilk
+            )
+        );
+        uint wad18 = convertTo18(gemJoin, wadC);
+        // Paybacks debt to the CDP and unlocks token amount from it
+        frob(
+            cdp,
+            -toInt(wad18),
+            -int(art)
+        );
+        // Moves the amount from the CDP urn to proxy's address
+        flux(cdp, address(this), wad18);
+        // Exits token amount to the user's wallet as a token
+        GemJoinLike(gemJoin).exit(msg.sender, wadC);
     }
 
-    function safeWipe(uint cdp, uint wad, address owner) public {
-        address manager = InstaMcdAddress(getMcdAddresses()).manager();
-        require(ManagerLike(manager).owns(cdp) == owner, "owner-missmatch");
-        wipe(
-            cdp,
-            wad
-        );
+    function wipeFreeGemAndShut(uint cdp, address gemJoin) public {
+        wipeAllAndFreeGem(cdp, gemJoin);
+        shut(cdp);
+    }
+
+    function wipeFreeEthAndShut(uint cdp) public {
+        wipeAllAndFreeEth(cdp);
+        shut(cdp);
     }
 }
