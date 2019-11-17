@@ -245,6 +245,20 @@ contract Helpers is DSMath {
     }
 
     /**
+     * @dev get uniswap MKR exchange
+     */
+    function getUniswapMKRExchange() public pure returns (address ume) {
+        ume = 0x2C4Bd064b998838076fa341A83d007FC2FA50957;
+    }
+
+    /**
+     * @dev get uniswap MKR exchange
+     */
+    function getUniFactoryAddr() public pure returns (address ufa) {
+        ufa = 0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95;
+    }
+
+    /**
      * @dev setting allowance if required
      */
     function setApproval(address erc20, uint srcAmt, address to) internal {
@@ -284,23 +298,78 @@ contract LiquidityResolver is Helpers {
 
 contract MKRSwapper is  LiquidityResolver {
 
-    function swapToMkrOtc(address tokenAddr, uint govFee) internal {
+    function getBestMkrSwap(address srcTknAddr, uint destMkrAmt) public view returns(uint bestEx, uint srcAmt) {
+        uint oasisPrice = getOasisSwap(srcTknAddr, destMkrAmt);
+        uint uniswapPrice = getUniswapSwap(srcTknAddr, destMkrAmt);
+        srcAmt = oasisPrice < uniswapPrice ? oasisPrice : uniswapPrice;
+        bestEx = oasisPrice < uniswapPrice ? 0 : 1; // if 0 then use Oasis for Swap, if 1 then use Uniswap
+    }
+
+    function getOasisSwap(address tokenAddr, uint destMkrAmt) internal view returns(uint srcAmt) {
         TokenInterface mkr = TubInterface(getSaiTubAddress()).gov();
-        uint payAmt = OtcInterface(getOtcAddress()).getPayAmount(tokenAddr, address(mkr), govFee);
-        if (tokenAddr == getETHAddress()) {
+        address srcTknAddr = tokenAddr == getETHAddress() ? getWETHAddress() : tokenAddr;
+        srcAmt = OtcInterface(getOtcAddress()).getPayAmount(srcTknAddr, address(mkr), destMkrAmt);
+    }
+
+    function getUniswapSwap(address srcTknAddr, uint destMkrAmt) internal view returns(uint srcAmt) {
+        UniswapExchange mkrEx = UniswapExchange(getUniswapMKRExchange());
+        if (srcTknAddr == getETHAddress()) {
+            srcAmt = mkrEx.getEthToTokenOutputPrice(destMkrAmt);
+        } else {
+            address buyTknExAddr = UniswapFactoryInterface(getUniFactoryAddr()).getExchange(srcTknAddr);
+            UniswapExchange buyTknEx = UniswapExchange(buyTknExAddr);
+            srcAmt = buyTknEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(destMkrAmt)); //Check thrilok is this correct
+        }
+    }
+
+    function swapToMkr(address tokenAddr, uint govFee) internal {
+        (uint bestEx, uint srcAmt) = getBestMkrSwap(tokenAddr, govFee);
+        if (bestEx == 0) {
+            swapToMkrOtc(tokenAddr, srcAmt, govFee);
+        } else {
+            swapToMkrUniswap(tokenAddr, srcAmt, govFee);
+        }
+    }
+
+    function swapToMkrOtc(address tokenAddr, uint srcAmt, uint govFee) internal {
+        address mkr = InstaMcdAddress(getMcdAddresses()).gov();
+        address srcTknAddr = tokenAddr == getETHAddress() ? getWETHAddress() : tokenAddr;
+        if (srcTknAddr == getWETHAddress()) {
             TokenInterface weth = TokenInterface(getWETHAddress());
-            weth.deposit.value(payAmt)();
-        } else if (tokenAddr != getSaiAddress() && tokenAddr != getDaiAddress()) {
-            require(TokenInterface(tokenAddr).transferFrom(msg.sender, address(this), payAmt), "Tranfer-failed");
+            weth.deposit.value(srcAmt)();
+        } else if (srcTknAddr != getSaiAddress() && srcTknAddr != getDaiAddress()) {
+            require(TokenInterface(srcTknAddr).transferFrom(msg.sender, address(this), srcAmt), "Tranfer-failed");
         }
 
-        setApproval(tokenAddr, payAmt, getOtcAddress());
+        setApproval(srcTknAddr, srcAmt, getOtcAddress());
         OtcInterface(getOtcAddress()).buyAllAmount(
-            address(mkr),
+            mkr,
             govFee,
-            tokenAddr,
-            payAmt
+            srcTknAddr,
+            srcAmt
         );
+    }
+
+    function swapToMkrUniswap(address tokenAddr, uint srcAmt, uint govFee) internal {
+        UniswapExchange mkrEx = UniswapExchange(getUniswapMKRExchange());
+        address mkr = InstaMcdAddress(getMcdAddresses()).gov();
+
+        if (tokenAddr == getETHAddress()) {
+            mkrEx.ethToTokenSwapOutput.value(srcAmt)(govFee, uint(1899063809));
+        } else {
+            address buyTknExAddr = UniswapFactoryInterface(getUniFactoryAddr()).getExchange(tokenAddr);
+            UniswapExchange buyTknEx = UniswapExchange(buyTknExAddr);
+            require(TokenInterface(tokenAddr).transferFrom(msg.sender, address(this), srcAmt), "not-approved-yet");
+            setApproval(tokenAddr, srcAmt, buyTknExAddr);
+            buyTknEx.tokenToTokenSwapOutput(
+                    govFee,
+                    srcAmt,
+                    uint(999000000000000000000),
+                    uint(1899063809), // 6th March 2030 GMT // no logic
+                    mkr
+                );
+        }
+
     }
 
 }
@@ -312,7 +381,7 @@ contract SCDResolver is MKRSwapper {
         TubInterface tub = TubInterface(getSaiTubAddress());
 
         (bytes32 val, bool ok) = tub.pep().peek();
-        TokenInterface mkr = TubInterface(getSaiTubAddress()).gov();
+        address mkr = InstaMcdAddress(getMcdAddresses()).gov();
         feeAmt = 0;
         if (ok && val != 0) {
             // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
@@ -320,7 +389,7 @@ contract SCDResolver is MKRSwapper {
             mkrFee = rmul(_wad, mkrFee);
             mkrFee = wdiv(mkrFee, uint(val));
             // convert mkr amount into sai amount
-            feeAmt = OtcInterface(getOtcAddress()).getPayAmount(getSaiAddress(), address(mkr), mkrFee);
+            feeAmt = OtcInterface(getOtcAddress()).getPayAmount(getSaiAddress(), mkr, mkrFee);
         }
 
     }
@@ -344,7 +413,7 @@ contract SCDResolver is MKRSwapper {
             uint mkrFee = getFeeOfCdp(cup, _wad);
 
             if (payFeeWith != address(mkr) && mkrFee > 0) {
-                swapToMkrOtc(payFeeWith, mkrFee); //otc
+                swapToMkr(payFeeWith, mkrFee); //otc
             } else if (payFeeWith == address(mkr) && mkrFee > 0) {
                 require(TokenInterface(address(mkr)).transferFrom(msg.sender, address(this), mkrFee), "Tranfer-failed");
             }
@@ -405,7 +474,7 @@ contract MCDResolver is SCDResolver {
             uint govFee = wdiv(tub.rap(cup), uint(val));
             if (govFee > 0) {
                 if (payGem != address(0)) {
-                    swapToMkrOtc(payGem, govFee);
+                    swapToMkr(payGem, govFee);
                     require(tub.gov().transfer(address(scdMcdMigration), govFee), "transfer-failed");
                 } else {
                     require(tub.gov().transferFrom(msg.sender, address(scdMcdMigration), govFee), "transfer-failed"); // Check Thrilok - is it working => We can directly transfer MKR to address(scdMcdMigration). Right?
