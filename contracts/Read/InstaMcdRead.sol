@@ -152,12 +152,6 @@ contract Helpers is DSMath {
 
 
 contract McdResolver is Helpers {
-
-    function getIlkData(bytes32 ilk) external view returns (uint rate) {
-        address manager = InstaMcdAddress(getMcdAddresses()).manager();
-        (,rate,,,) = VatLike(ManagerLike(manager).vat()).ilks(ilk);
-    }
-
     function getDsr() external view returns (uint dsr) {
         address pot = InstaMcdAddress(getMcdAddresses()).pot();
         dsr = PotLike(pot).dsr();
