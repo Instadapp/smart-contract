@@ -107,38 +107,9 @@ interface ManagerLike {
 
 interface InstaMcdAddress {
     function manager() external view returns (address);
-    function dai() external view returns (address);
-    function daiJoin() external view returns (address);
-    function vat() external view returns (address);
-    function jug() external view returns (address);
-    function cat() external view returns (address);
     function gov() external view returns (address);
-    function adm() external view returns (address);
-    function vow() external view returns (address);
-    function spot() external view returns (address);
-    function pot() external view returns (address);
-    function esm() external view returns (address);
-    function mcdFlap() external view returns (address);
-    function mcdFlop() external view returns (address);
-    function mcdDeploy() external view returns (address);
-    function mcdEnd() external view returns (address);
-    function proxyActions() external view returns (address);
-    function proxyActionsEnd() external view returns (address);
-    function proxyActionsDsr() external view returns (address);
-    function getCdps() external view returns (address);
     function saiTub() external view returns (address);
-    function weth() external view returns (address);
-    function bat() external view returns (address);
-    function sai() external view returns (address);
-    function ethAJoin() external view returns (address);
-    function ethAFlip() external view returns (address);
-    function batAJoin() external view returns (address);
-    function batAFlip() external view returns (address);
-    function ethPip() external view returns (address);
-    function batAPip() external view returns (address);
     function saiJoin() external view returns (address);
-    function saiFlip() external view returns (address);
-    function saiPip() external view returns (address);
     function migration() external view returns (address payable);
 }
 
