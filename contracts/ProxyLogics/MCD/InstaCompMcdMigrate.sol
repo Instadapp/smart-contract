@@ -54,41 +54,9 @@ interface PepInterface {
     function peek() external returns (bytes32, bool);
 }
 
-interface UniswapExchange {
-    function getEthToTokenOutputPrice(uint256 tokensBought) external view returns (uint256 ethSold);
-    function getTokenToEthOutputPrice(uint256 ethBought) external view returns (uint256 tokensSold);
-    function tokenToTokenSwapOutput(
-        uint256 tokensBought,
-        uint256 maxTokensSold,
-        uint256 maxEthSold,
-        uint256 deadline,
-        address tokenAddr
-    ) external returns (uint256  tokensSold);
-    function ethToTokenSwapOutput(uint256 tokensBought, uint256 deadline) external payable returns (uint256  ethSold);
-}
-
-interface UniswapFactoryInterface {
-    function getExchange(address token) external view returns (address exchange);
-}
-
-interface MCDInterface {
-    function swapDaiToSai(uint wad) external;
-    function migrate(bytes32 cup) external returns (uint cdp);
-}
-
 interface PoolInterface {
     function accessToken(address[] calldata ctknAddr, uint[] calldata tknAmt, bool isCompound) external;
     function paybackToken(address[] calldata ctknAddr, bool isCompound) external payable;
-}
-
-interface OtcInterface {
-    function getPayAmount(address, address, uint) external view returns (uint);
-    function buyAllAmount(
-        address,
-        uint,
-        address,
-        uint
-    ) external;
 }
 
 interface ManagerLike {
@@ -151,11 +119,6 @@ interface GemJoinLike {
     function exit(address, uint) external;
 }
 
-interface GNTJoinLike {
-    function bags(address) external view returns (address);
-    function make(address) external returns (address);
-}
-
 interface DaiJoinLike {
     function vat() external returns (VatLike);
     function dai() external returns (GemLike);
@@ -171,38 +134,9 @@ interface ScdMcdMigration {
 
 interface InstaMcdAddress {
     function manager() external returns (address);
-    function dai() external returns (address);
     function daiJoin() external returns (address);
-    function vat() external returns (address);
     function jug() external returns (address);
-    function cat() external returns (address);
-    function gov() external returns (address);
-    function adm() external returns (address);
-    function vow() external returns (address);
-    function spot() external returns (address);
-    function pot() external returns (address);
-    function esm() external returns (address);
-    function mcdFlap() external returns (address);
-    function mcdFlop() external returns (address);
-    function mcdDeploy() external returns (address);
-    function mcdEnd() external returns (address);
-    function proxyActions() external returns (address);
-    function proxyActionsEnd() external returns (address);
-    function proxyActionsDsr() external returns (address);
-    function getCdps() external returns (address);
-    function saiTub() external returns (address);
-    function weth() external returns (address);
-    function bat() external returns (address);
-    function sai() external returns (address);
     function ethAJoin() external returns (address);
-    function ethAFlip() external returns (address);
-    function batAJoin() external returns (address);
-    function batAFlip() external returns (address);
-    function ethPip() external returns (address);
-    function batAPip() external returns (address);
-    function saiJoin() external returns (address);
-    function saiFlip() external returns (address);
-    function saiPip() external returns (address);
     function migration() external returns (address payable);
 }
 
@@ -255,7 +189,7 @@ contract DSMath {
 contract Helpers is DSMath {
 
     /**
-     * @dev get Compound Comptroller Address
+     * @dev get cSAI Address
      */
     function getCSaiAddress() public pure returns (address csaiAddr) {
         csaiAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
@@ -265,21 +199,14 @@ contract Helpers is DSMath {
      * @dev get MakerDAO MCD Address contract
      */
     function getMcdAddresses() public pure returns (address mcd) {
-        mcd = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3; // Check Thrilok - add addr at time of deploy
+        mcd = 0xF23196DF1C440345DE07feFbe556a5eF0dcD29F0;
     }
 
     /**
-     * @dev get Compound Comptroller Address
+     * @dev get cETH Address
      */
     function getCEthAddress() public pure returns (address cEthAddr) {
-        cEthAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC; // Check
-    }
-
-    /**
-     * @dev get Compound Comptroller Address
-     */
-    function getCDaiAddress() public pure returns (address cdaiAddr) {
-        cdaiAddr = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC; // Check Thrilok - add at the time of compound cDai
+        cEthAddr = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
     }
 
     /**
@@ -293,7 +220,7 @@ contract Helpers is DSMath {
      * @dev get Sai (Dai v1) address
      */
     function getSaiAddress() public pure returns (address sai) {
-        sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
+        sai = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
     }
 
     /**
@@ -304,45 +231,10 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get Compound WETH Address
-     */
-    function getWETHAddress() public pure returns (address wethAddr) {
-        wethAddr = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // main
-    }
-
-    /**
-     * @dev get OTC Address
-     */
-    function getOtcAddress() public pure returns (address otcAddr) {
-        otcAddr = 0x39755357759cE0d7f32dC8dC45414CCa409AE24e; // main
-    }
-
-    /**
-     * @dev get uniswap MKR exchange
-     */
-    function getUniswapMKRExchange() public pure returns (address ume) {
-        ume = 0x2C4Bd064b998838076fa341A83d007FC2FA50957;
-    }
-
-    /**
-     * @dev get uniswap factory
-     */
-    function getUniswapFactory() public pure returns (address addr) {
-        addr = 0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95;
-    }
-
-    /**
      * @dev get InstaDApp Liquidity Address
      */
     function getPoolAddress() public pure returns (address payable liqAddr) {
         liqAddr = 0x1564D040EC290C743F67F5cB11f3C1958B39872A;
-    }
-
-    /**
-     * @dev get InstaDApp CDP's Address
-     */
-    function getGiveAddress() public pure returns (address addr) {
-        addr = 0xc679857761beE860f5Ec4B3368dFE9752580B096;
     }
 
     /**
@@ -413,7 +305,7 @@ contract CompoundResolver is LiquidityResolver {
         uint cEthBal = cEthContract.balanceOf(address(this));
         uint ethExchangeRate = cEthContract.exchangeRateCurrent();
         ethCol = wmul(cEthBal, ethExchangeRate);
-        // ethCol = wdiv(ethCol, ethExchangeRate) <= cEthBal ? ethCol : ethCol - 1; //Check Thrilok - why?
+        ethCol = wdiv(ethCol, ethExchangeRate) <= cEthBal ? ethCol : ethCol - 10000000000;
         ethCol = ethCol <= ethAmt ? ethCol : ethAmt; // Set Max if amount is greater than the Col user have
 
         daiDebt = CTokenInterface(getCSaiAddress()).borrowBalanceCurrent(address(this));
@@ -528,6 +420,7 @@ contract CompMcdResolver is McdResolver {
 
 
 contract BridgeResolver is CompMcdResolver {
+    event LogCompMcdMigrate(uint vaultId, uint eth, uint debt, bool isCompound);
 
     function compoundToMcdMigrate(
         uint cdpId,
@@ -552,6 +445,13 @@ contract BridgeResolver is CompMcdResolver {
 
         uint finalPoolBal = getPoolAddress().balance;
         assert(finalPoolBal >= initialPoolBal);
+
+        emit LogCompMcdMigrate(
+            cdpNum,
+            ethCol,
+            saiDebt,
+            isCompound
+        );
     }
 }
 
