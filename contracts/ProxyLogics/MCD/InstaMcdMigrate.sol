@@ -504,7 +504,7 @@ contract MigrateHelper is MCDResolver {
             // set saiBal as wad amount And sub feeAmt(feeAmt > 0, when its debt method).
             _wad = sub(saiBal, 100000);
             // set new convert ratio according to sai_join balance.
-            maxConvert = sub(wdiv(saiBal, sub(_wad, feeAmt)), 100);
+            maxConvert = sub(wdiv(saiBal, _wadTotal), 100);
         }
 
         // ink according to maxConvert ratio.
