@@ -272,17 +272,18 @@ contract MKRSwapper is  LiquidityResolver {
     function getBestMkrSwap(address srcTknAddr, uint destMkrAmt) public view returns(uint bestEx, uint srcAmt) {
         uint oasisPrice = getOasisSwap(srcTknAddr, destMkrAmt);
         uint uniswapPrice = getUniswapSwap(srcTknAddr, destMkrAmt);
+        require(oasisPrice != 0 && uniswapPrice != 0, "swap price 0");
         srcAmt = oasisPrice < uniswapPrice ? oasisPrice : uniswapPrice;
         bestEx = oasisPrice < uniswapPrice ? 0 : 1; // if 0 then use Oasis for Swap, if 1 then use Uniswap
     }
 
-    function getOasisSwap(address tokenAddr, uint destMkrAmt) internal view returns(uint srcAmt) {
+    function getOasisSwap(address tokenAddr, uint destMkrAmt) public view returns(uint srcAmt) {
         TokenInterface mkr = TubInterface(getSaiTubAddress()).gov();
         address srcTknAddr = tokenAddr == getETHAddress() ? getWETHAddress() : tokenAddr;
         srcAmt = OtcInterface(getOtcAddress()).getPayAmount(srcTknAddr, address(mkr), destMkrAmt);
     }
 
-    function getUniswapSwap(address srcTknAddr, uint destMkrAmt) internal view returns(uint srcAmt) {
+    function getUniswapSwap(address srcTknAddr, uint destMkrAmt) public view returns(uint srcAmt) {
         UniswapExchange mkrEx = UniswapExchange(getUniswapMKRExchange());
         if (srcTknAddr == getETHAddress()) {
             srcAmt = mkrEx.getEthToTokenOutputPrice(destMkrAmt);
