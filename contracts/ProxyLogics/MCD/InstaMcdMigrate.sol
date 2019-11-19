@@ -188,7 +188,7 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get Compound WETH Address
+     * @dev get WETH Address
      */
     function getWETHAddress() public pure returns (address wethAddr) {
         wethAddr = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // main
@@ -441,7 +441,7 @@ contract MCDResolver is SCDResolver {
             // Calculate necessary value of MKR to pay the govFee
             uint govFee = wdiv(tub.rap(cup), uint(val));
             if (govFee > 0) {
-                if (payGem != address(0)) {
+                if (payGem != address(tub.gov())) {
                     swapToMkr(payGem, govFee);
                     require(tub.gov().transfer(address(scdMcdMigration), govFee), "transfer-failed");
                 } else {
