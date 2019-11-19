@@ -181,7 +181,7 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get Compound ETH Address
+     * @dev get ETH Address
      */
     function getETHAddress() public pure returns (address ethAddr) {
         ethAddr = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE; // main
@@ -328,19 +328,21 @@ contract MKRSwapper is  LiquidityResolver {
 
         if (tokenAddr == getETHAddress()) {
             mkrEx.ethToTokenSwapOutput.value(srcAmt)(govFee, uint(1899063809));
-        } else if (tokenAddr != getSaiAddress() && tokenAddr != getDaiAddress()) {
-            require(TokenInterface(tokenAddr).transferFrom(msg.sender, address(this), srcAmt), "not-approved-yet");
+        } else {
+            if (tokenAddr != getSaiAddress() && tokenAddr != getDaiAddress()) {
+                require(TokenInterface(tokenAddr).transferFrom(msg.sender, address(this), srcAmt), "not-approved-yet");
+            }
+            address buyTknExAddr = UniswapFactoryInterface(getUniFactoryAddr()).getExchange(tokenAddr);
+            UniswapExchange buyTknEx = UniswapExchange(buyTknExAddr);
+            setApproval(tokenAddr, srcAmt, buyTknExAddr);
+            buyTknEx.tokenToTokenSwapOutput(
+                    govFee,
+                    srcAmt,
+                    uint(999000000000000000000),
+                    uint(1899063809), // 6th March 2030 GMT // no logic
+                    mkr
+                );
         }
-        address buyTknExAddr = UniswapFactoryInterface(getUniFactoryAddr()).getExchange(tokenAddr);
-        UniswapExchange buyTknEx = UniswapExchange(buyTknExAddr);
-        setApproval(tokenAddr, srcAmt, buyTknExAddr);
-        buyTknEx.tokenToTokenSwapOutput(
-                govFee,
-                srcAmt,
-                uint(999000000000000000000),
-                uint(1899063809), // 6th March 2030 GMT // no logic
-                mkr
-            );
     }
 
 }
