@@ -511,7 +511,7 @@ contract MigrateHelper is MCDResolver {
             maxConvert = sub(wdiv(saiBal, _wadTotal), 100);
         }
 
-        require(_wad > 2*10**18, "Min 20 Dai required to migrate."); // Check Thrilok - is the 20dai value correct?
+        require(_wad > 20*10**18, "Min 20 Dai required to migrate."); // Check Thrilok - is the 20dai value correct?
         // ink according to maxConvert ratio.
         _ink = wmul(tub.ink(cup), maxConvert);
     }
