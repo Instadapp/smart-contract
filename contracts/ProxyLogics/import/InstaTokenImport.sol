@@ -34,8 +34,8 @@ contract ImportResolver is DSMath {
 
          // transfer tokens to InstaDApp smart wallet from user wallet
         for (uint i = 0; i < tokenAddrArr.length; i++) {
-            address cErc20 = tokenAddrArr[i];
-            ERC20Interface tknContract = ERC20Interface(cErc20);
+            address crc20 = tokenAddrArr[i];
+            ERC20Interface tknContract = ERC20Interface(crc20);
             uint tokenBal = tknContract.balanceOf(msg.sender);
             tokenBal = toConvert < 10**18 ? wmul(tokenBal, toConvert) : tokenBal;
             if (tokenBal > 0) {
