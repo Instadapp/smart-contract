@@ -489,19 +489,21 @@ contract MigrateHelper is MCDResolver {
         uint saiBal = tub.sai().balanceOf(saiJoin);
         uint _wadTotal = tub.tab(cup);
 
-        uint feeAmt = 0;
 
         // wad according to toConvert ratio
         _wad = wmul(_wadTotal, toConvert);
 
         // if migration is by debt method, Add fee(SAI) to _wad
         if (payFeeWith == getSaiAddress()) {
-            uint mkrAmt = getFeeOfCdp(cup, _wad);
-            (, feeAmt) = getBestMkrSwap(getSaiAddress(), mkrAmt);
-            _wad = add(_wad, feeAmt);
+            (,uint feeAmt) = getBestMkrSwap(getSaiAddress(), getFeeOfCdp(cup, _wad));
+            if (saiBal < add(_wad, feeAmt)) {
+                (, uint totalFeeAmt) = getBestMkrSwap(getSaiAddress(), getFeeOfCdp(cup, _wadTotal));
+                uint _totalWadDebt = add(_wadTotal, totalFeeAmt);
+                maxConvert = sub(wdiv(saiBal, _totalWadDebt), 1000); // (saiBal / debt + fee) => toConvert
+                _wad = wmul(_wadTotal, maxConvert);
+            }
         }
 
-        //if sai_join has enough sai to migrate.
         if (saiBal < _wad) {
             // set saiBal as wad amount And sub feeAmt(feeAmt > 0, when its debt method).
             _wad = sub(saiBal, 100000);
@@ -510,7 +512,6 @@ contract MigrateHelper is MCDResolver {
         }
 
         // ink according to maxConvert ratio.
-        _wad = sub(_wad, feeAmt);
         _ink = wmul(tub.ink(cup), maxConvert);
     }
 
