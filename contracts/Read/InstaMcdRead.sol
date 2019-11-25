@@ -18,7 +18,7 @@ interface VatLike {
     function ilks(bytes32) external view returns (uint, uint, uint, uint, uint);
     function dai(address) external view returns (uint);
     function urns(bytes32, address) external view returns (uint, uint);
-
+    function gem(bytes32, address) external view returns (uint);
 }
 
 interface JugLike {
@@ -142,6 +142,7 @@ contract Helpers is DSMath {
         uint ink;
         uint art;
         uint debt;
+        uint liqInk;
         uint stabiltyRate;
         uint price;
         uint liqRatio;
@@ -178,6 +179,7 @@ contract McdResolver is Helpers {
             uint debt = rmul(art,rate);
             uint price = rmul(priceMargin, mat);
             uint feeRate = getFee(ilks[i]);
+            uint liqInk = VatLike(ManagerLike(manager).vat()).gem(ilks[i], urns[i]);
 
             cdps[i] = CdpData(
                 ids[i],
@@ -186,6 +188,7 @@ contract McdResolver is Helpers {
                 ink,
                 art,
                 debt,
+                liqInk,
                 feeRate,
                 price,
                 mat,
@@ -207,6 +210,8 @@ contract McdResolver is Helpers {
 
         uint mat = getIlkRatio(ilk);
         uint price = rmul(priceMargin, mat);
+        uint liqInk = VatLike(ManagerLike(manager).vat()).gem(ilk, urn);
+
 
         uint feeRate = getFee(ilk);
         CdpData memory cdp = CdpData(
@@ -216,6 +221,7 @@ contract McdResolver is Helpers {
             ink,
             art,
             debt,
+            liqInk,
             feeRate,
             price,
             mat,
@@ -242,9 +248,5 @@ contract McdResolver is Helpers {
     function getIlkRatio(bytes32 ilk) public view returns (uint ratio) {
         address spot = InstaMcdAddress(getMcdAddresses()).spot();
         (, ratio) = SpotLike(spot).ilks(ilk);
-    }
-
-    function getMkrToTknAmt(address tokenAddr, uint mkrAmt) public view returns (uint tknAmt) {
-        tknAmt = OtcInterface(getOtcAddress()).getPayAmount(tokenAddr, address(mkrAddr), mkrAmt);
     }
 }
