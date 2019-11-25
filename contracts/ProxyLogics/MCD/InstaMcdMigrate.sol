@@ -270,11 +270,12 @@ contract LiquidityResolver is Helpers {
 contract MKRSwapper is  LiquidityResolver {
 
     function getBestMkrSwap(address srcTknAddr, uint destMkrAmt) public view returns(uint bestEx, uint srcAmt) {
-        uint oasisPrice = getOasisSwap(srcTknAddr, destMkrAmt);
+        // uint oasisPrice = getOasisSwap(srcTknAddr, destMkrAmt);
         uint uniswapPrice = getUniswapSwap(srcTknAddr, destMkrAmt);
-        require(oasisPrice != 0 && uniswapPrice != 0, "swap price 0");
-        srcAmt = oasisPrice < uniswapPrice ? oasisPrice : uniswapPrice;
-        bestEx = oasisPrice < uniswapPrice ? 0 : 1; // if 0 then use Oasis for Swap, if 1 then use Uniswap
+        // require(oasisPrice != 0 && uniswapPrice != 0, "swap price 0");
+        // srcAmt = oasisPrice < uniswapPrice ? oasisPrice : uniswapPrice;
+        srcAmt = uniswapPrice;
+        bestEx = 1; // if 0 then use Oasis for Swap, if 1 then use Uniswap
     }
 
     function getOasisSwap(address tokenAddr, uint destMkrAmt) public view returns(uint srcAmt) {
@@ -511,7 +512,7 @@ contract MigrateHelper is MCDResolver {
             maxConvert = sub(wdiv(saiBal, _wadTotal), 100);
         }
 
-        require(_wad > 20*10**18, "Min 20 Dai required to migrate."); // Check Thrilok - is the 20dai value correct?
+        require(_wad >= 20*10**18, "Min 20 Dai required to migrate."); // Check Thrilok - is the 20dai value correct?
         // ink according to maxConvert ratio.
         _ink = wmul(tub.ink(cup), maxConvert);
     }
