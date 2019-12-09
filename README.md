@@ -3,10 +3,10 @@
 Smart contracts comprising the business logic of the InstaDApp.
 
 ## This project uses:
-- [Truffle v5](https://truffleframework.com/)
-- [Ganache](https://truffleframework.com/ganache)
-- [Solium](https://github.com/duaraghav8/Solium)
-- [OpenZeppelin](https://github.com/OpenZeppelin/openzeppelin-solidity)
+- [Truffle v5](https://www.trufflesuite.com/)
+- [Ganache](https://www.trufflesuite.com/ganache)
+- [Ethlint, formerly Solium](https://github.com/duaraghav8/Ethlint)
+- [OpenZeppelin](https://github.com/OpenZeppelin/openzeppelin-contracts)
 - [Travis CI](https://travis-ci.org/InstaDApp/InstaContract-v2) and [Circle CI](https://circleci.com/gh/InstaDApp/InstaContract-v2)
 - [Coveralls](https://coveralls.io/github/InstaDApp/InstaContract-v2?branch=master)
 
