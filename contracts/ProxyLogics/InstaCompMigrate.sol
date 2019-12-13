@@ -125,7 +125,7 @@ contract Helpers is DSMath {
      * @dev get InstaDapp's Pool Address
      */
     function getLiquidityAddress() public pure returns (address poolAddr) {
-        poolAddr = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
+        poolAddr = 0x1564D040EC290C743F67F5cB11f3C1958B39872A;
     }
 
     function enterMarket(address cErc20) internal {
@@ -260,6 +260,8 @@ contract CompMigration is CompoundResolver {
         uint initialPoolBal = sub(getLiquidityAddress().balance, 10000000000);
 
         uint saiJoinBal = ERC20Interface(getSaiAddress()).balanceOf(InstaMcdAddress(getMcdAddresses()).saiJoin());
+
+        require(saiJoinBal != 0, "0 SAI bal in migration");
         // Check SAI balance of migration contract. If less than debtToMigrate then set debtToMigrate = SAI_Bal
         uint migrateAmt = debtToMigrate < saiJoinBal ? debtToMigrate : sub(saiJoinBal, 10000);
 
