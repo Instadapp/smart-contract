@@ -500,9 +500,7 @@ contract GetDetails is MakerHelpers {
         uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
         uint minColNeeded = add(wmul(daiDebt, 1500000000000000000), 10);
         uint colToFree = wdiv(sub(colToUSD, minColNeeded), usdPerEth);
-        if (ethToSwap < colToFree) {
-            colToFree = ethToSwap;
-        }
+        colToFree = ethToSwap < colToFree ? ethToSwap : colToFree;
         (, uint expectedDAI) = SplitSwapInterface(getAddressSplitSwap()).getBest(getAddressETH(), getAddressDAI(), colToFree);
         if (expectedDAI < daiDebt) {
             finalEthCol = sub(ethCol, colToFree);
@@ -533,9 +531,7 @@ contract GetDetails is MakerHelpers {
         uint colToUSD = sub(wmul(ethCol, usdPerEth), 10);
         uint maxDebtLimit = sub(wdiv(colToUSD, 1500000000000000000), 10);
         uint debtToBorrow = sub(maxDebtLimit, daiDebt);
-        if (daiToSwap < debtToBorrow) {
-            debtToBorrow = daiToSwap;
-        }
+        debtToBorrow = daiToSwap < debtToBorrow ? daiToSwap : debtToBorrow;
         (, uint expectedETH) = SplitSwapInterface(getAddressSplitSwap()).getBest(getAddressDAI(), getAddressETH(), debtToBorrow);
         if (ethCol != 0) {
             finalEthCol = add(ethCol, expectedETH);
@@ -592,9 +588,7 @@ contract Save is GetDetails {
         (uint ethCol, uint daiDebt, uint usdPerEth) = getVaultStats(cdpID);
         uint colToFree = getColToFree(ethCol, daiDebt, usdPerEth);
         require(colToFree != 0, "no-collatral-to-free");
-        if (colToSwap < colToFree) {
-            colToFree = colToSwap;
-        }
+        colToFree = colToSwap < colToFree ? colToSwap : colToFree;
         free(cdpID, colToFree);
         uint ethToSwap = address(this).balance;
         ethToSwap = ethToSwap < colToFree ? ethToSwap : colToFree;
@@ -616,9 +610,7 @@ contract Save is GetDetails {
         (uint ethCol, uint daiDebt, uint usdPerEth) = getVaultStats(cdpID);
         uint debtToBorrow = getDebtToBorrow(ethCol, daiDebt, usdPerEth);
         require(debtToBorrow != 0, "No-debt-to-borrow");
-        if (daiToSwap < debtToBorrow) {
-            debtToBorrow = daiToSwap;
-        }
+        debtToBorrow = daiToSwap < debtToBorrow ? daiToSwap : debtToBorrow;
         draw(cdpID, debtToBorrow);
         TokenInterface(getAddressDAI()).approve(getAddressSplitSwap(), debtToBorrow);
         uint destAmt = SplitSwapInterface(getAddressSplitSwap()).daiToEthSwap(debtToBorrow, splitAmt, slippageAmt);
