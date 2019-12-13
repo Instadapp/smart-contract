@@ -5,7 +5,6 @@ interface CTokenInterface {
     function borrow(uint borrowAmount) external returns (uint);
     function exchangeRateCurrent() external returns (uint);
     function borrowBalanceCurrent(address account) external returns (uint);
-
     function totalSupply() external view returns (uint256);
     function balanceOf(address owner) external view returns (uint256 balance);
     function allowance(address, address) external view returns (uint);
@@ -88,10 +87,10 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get ethereum address for trade
+     * @dev get Dai v2 address
      */
     function getAddressDAI() public pure returns (address dai) {
-        dai = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
+        dai = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     }
 
     /**
@@ -102,31 +101,31 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get Compound Comptroller Address
+     * @dev get Compound Orcale Address
      */
     function getCompOracleAddress() public pure returns (address troller) {
-        troller = 0xe7664229833AE4Abf4E269b8F23a86B657E2338D;
+        troller = 0x1D8aEdc9E924730DD3f9641CDb4D1B92B848b4bd;
     }
 
     /**
-     * @dev get Compound Comptroller Address
+     * @dev get Compound Ceth Address
      */
     function getCETHAddress() public pure returns (address cEth) {
         cEth = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
     }
 
     /**
-     * @dev get Compound Comptroller Address
+     * @dev get Compound Dai Address
      */
     function getCDAIAddress() public pure returns (address cDai) {
-        cDai = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+        cDai = 0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643;
     }
 
     /**
-     * @dev get admin address
+     * @dev get SplitSwap address
      */
     function getAddressSplitSwap() public pure returns (address payable splitSwap) {
-        splitSwap = 0x5D05EA343C7a13cee09b14e56FCBe985c25521b7;
+        splitSwap = 0xc51a5024280d6AB2596e4aFFe1BDf6bDc2318da2;
     }
 
     function enterMarket(address cErc20) internal {
@@ -146,7 +145,7 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev setting allowance to compound for the "user proxy" if required
+     * @dev setting allowance to compound for the "user proxy" if required.
      */
     function setApproval(address erc20, uint srcAmt, address to) internal {
         ERC20Interface erc20Contract = ERC20Interface(erc20);
@@ -155,7 +154,6 @@ contract Helpers is DSMath {
             erc20Contract.approve(to, 2**255);
         }
     }
-
 }
 
 
@@ -331,9 +329,8 @@ contract CompoundResolver is CompoundHelper {
 
 contract CompoundSave is CompoundResolver {
 
-    event LogSaveCompound(uint srcETH, uint destDAI);
-
-    event LogLeverageCompound(uint srcDAI,uint destETH);
+    event LogSaveDaiCompound(uint srcETH, uint destDAI);
+    event LogLeverageDaiCompound(uint srcDAI,uint destETH);
 
     function save(
         uint ethToFree,
@@ -350,7 +347,7 @@ contract CompoundSave is CompoundResolver {
         redeemEth(ethToSwap);
         uint destAmt = SplitSwapInterface(getAddressSplitSwap()).ethToDaiSwap.value(ethToSwap)(splitAmt, slippageAmt);
         repayDai(destAmt);
-        emit LogSaveCompound(ethToSwap, destAmt);
+        emit LogSaveDaiCompound(ethToSwap, destAmt);
     }
 
     function leverage(
@@ -370,13 +367,13 @@ contract CompoundSave is CompoundResolver {
         ERC20Interface(getAddressDAI()).approve(getAddressSplitSwap(), daiToSwap);
         uint destAmt = SplitSwapInterface(getAddressSplitSwap()).daiToEthSwap(daiToSwap, splitAmt, slippageAmt);
         mintCEth(destAmt);
-        emit LogLeverageCompound(daiToSwap, destAmt);
+        emit LogLeverageDaiCompound(daiToSwap, destAmt);
     }
 
 }
 
 
-contract InstaCompSave is CompoundSave {
+contract InstaCompDaiSave is CompoundSave {
 
     function() external payable {}
 
