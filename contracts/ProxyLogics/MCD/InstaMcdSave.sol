@@ -282,7 +282,7 @@ contract MakerHelpers is Helpers {
     function joinDaiJoin(address urn, uint wad) internal {
         address daiJoin = InstaMcdAddress(getMcdAddresses()).daiJoin();
         // Gets DAI from the user's wallet
-        DaiJoinLike(daiJoin).dai().transferFrom(msg.sender, address(this), wad);
+        // DaiJoinLike(daiJoin).dai().transferFrom(msg.sender, address(this), wad); // getting dai from eth swap.
         // Approves adapter to take the DAI amount
         DaiJoinLike(daiJoin).dai().approve(daiJoin, wad);
         // Joins DAI into the vat
@@ -630,7 +630,6 @@ contract Save is GetDetails {
         uint maxDebtLimit = sub(wdiv(colToUSD, 1500000000000000000), 10);
         debtToBorrow = sub(maxDebtLimit, daiDebt);
     }
-
 }
 
 
