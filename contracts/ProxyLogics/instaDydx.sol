@@ -70,17 +70,6 @@ contract SoloMarginContract {
 }
 
 
-contract PayableProxySoloMarginContract {
-
-    function operate(
-        SoloMarginContract.Info[] memory accounts,
-        SoloMarginContract.ActionArgs[] memory actions,
-        address payable sendEthTo
-    ) public payable;
-
-}
-
-
 contract DSMath {
 
     function add(uint x, uint y) internal pure returns (uint z) {
@@ -128,13 +117,6 @@ contract Helpers is DSMath {
     }
 
     /**
-     * @dev get Dydx Solo payable Address
-     */
-    function getSoloPayableAddress() public pure returns (address addr) {
-        addr = 0xa8b39829cE2246f89B31C013b8Cde15506Fb9A76;
-    }
-
-    /**
      * @dev setting allowance to dydx for the "user proxy" if required
      */
     function setApproval(address erc20, uint srcAmt, address to) internal {
@@ -157,7 +139,7 @@ contract Helpers is DSMath {
             tokenAmt
         );
         bytes memory empty;
-        address otherAddr = (marketId == 0 && sign) ? getSoloPayableAddress() : address(this);
+        // address otherAddr = (marketId == 0 && sign) ? getSoloPayableAddress() : address(this);
         SoloMarginContract.ActionType action = sign ? SoloMarginContract.ActionType.Deposit : SoloMarginContract.ActionType.Withdraw;
         actions[0] = SoloMarginContract.ActionArgs(
             action,
@@ -165,7 +147,7 @@ contract Helpers is DSMath {
             amount,
             marketId,
             0,
-            otherAddr,
+            address(this),
             0,
             empty
         );
@@ -184,11 +166,11 @@ contract Helpers is DSMath {
     /**
      * @dev getting dydx balance
      */
-    function getDydxBal(uint256 marketId) internal returns (uint) {
+    function getDydxBal(uint256 marketId) internal returns (uint tokenBal, bool tokenSign) {
         SoloMarginContract solo = SoloMarginContract(getSoloAddress());
-        SoloMarginContract.Wei memory tokenWeiBal = solo.getAccountWei(getAccountArgs()[0],marketId);
-        uint tokenBal = tokenWeiBal.value;
-        return tokenBal;
+        SoloMarginContract.Wei memory tokenWeiBal = solo.getAccountWei(getAccountArgs()[0], marketId);
+        tokenBal = tokenWeiBal.value;
+        tokenSign = tokenWeiBal.sign;
     }
 
 }
@@ -206,13 +188,13 @@ contract DydxResolver is Helpers {
      */
     function deposit(uint256 marketId, address erc20Addr, uint256 tokenAmt) public payable {
         if (erc20Addr == getAddressETH()) {
-            PayableProxySoloMarginContract soloPayable = PayableProxySoloMarginContract(getSoloPayableAddress());
-            soloPayable.operate.value(msg.value)(getAccountArgs(), getActionsArgs(marketId, msg.value, true), msg.sender);
+            ERC20Interface(getAddressWETH()).deposit.value(msg.value)();
+            setApproval(getAddressWETH(), tokenAmt, getSoloAddress());
         } else {
             require(ERC20Interface(erc20Addr).transferFrom(msg.sender, address(this), tokenAmt), "Allowance or not enough bal");
             setApproval(erc20Addr, tokenAmt, getSoloAddress());
-            SoloMarginContract(getSoloAddress()).operate(getAccountArgs(), getActionsArgs(marketId, tokenAmt, true));
         }
+        SoloMarginContract(getSoloAddress()).operate(getAccountArgs(), getActionsArgs(marketId, tokenAmt, true));
         emit LogDeposit(erc20Addr, tokenAmt, address(this));
     }
 
@@ -220,17 +202,18 @@ contract DydxResolver is Helpers {
      * @dev Payback ETH/ERC20
      */
     function payback(uint256 marketId, address erc20Addr, uint256 tokenAmt) public payable {
-        uint toPayback = getDydxBal(marketId);
+        (uint toPayback, bool tokenSign) = getDydxBal(marketId);
+        require(!tokenSign, "No debt to payback");
         toPayback = toPayback > tokenAmt ? tokenAmt : toPayback;
         if (erc20Addr == getAddressETH()) {
-            PayableProxySoloMarginContract soloPayable = PayableProxySoloMarginContract(getSoloPayableAddress());
-            soloPayable.operate.value(toPayback)(getAccountArgs(), getActionsArgs(marketId, toPayback, true), msg.sender);
+            ERC20Interface(getAddressWETH()).deposit.value(toPayback)();
+            setApproval(getAddressWETH(), toPayback, getSoloAddress());
             msg.sender.transfer(address(this).balance);
         } else {
             require(ERC20Interface(erc20Addr).transferFrom(msg.sender, address(this), toPayback), "Allowance or not enough bal");
             setApproval(erc20Addr, toPayback, getSoloAddress());
-            SoloMarginContract(getSoloAddress()).operate(getAccountArgs(), getActionsArgs(marketId, toPayback, true));
         }
+        SoloMarginContract(getSoloAddress()).operate(getAccountArgs(), getActionsArgs(marketId, toPayback, true));
         emit LogPayback(erc20Addr, toPayback, address(this));
     }
 
@@ -238,11 +221,12 @@ contract DydxResolver is Helpers {
      * @dev Withdraw ETH/ERC20
      */
     function withdraw(uint256 marketId, address erc20Addr, uint256 tokenAmt) public {
-        uint toWithdraw = getDydxBal(marketId);
+        (uint toWithdraw, bool tokenSign) = getDydxBal(marketId);
+        require(tokenSign, "token not deposited");
         toWithdraw = toWithdraw > tokenAmt ? tokenAmt : toWithdraw;
+        SoloMarginContract solo = SoloMarginContract(getSoloAddress());
+        solo.operate(getAccountArgs(), getActionsArgs(marketId, toWithdraw, false));
         if (erc20Addr == getAddressETH()) {
-            PayableProxySoloMarginContract soloPayable = PayableProxySoloMarginContract(getSoloPayableAddress());
-            soloPayable.operate(getAccountArgs(), getActionsArgs(marketId, toWithdraw, false), msg.sender);
             ERC20Interface wethContract = ERC20Interface(getAddressWETH());
             uint wethBal = wethContract.balanceOf(address(this));
             toWithdraw = toWithdraw < wethBal ? wethBal : toWithdraw;
@@ -250,8 +234,6 @@ contract DydxResolver is Helpers {
             ERC20Interface(getAddressWETH()).withdraw(toWithdraw);
             msg.sender.transfer(toWithdraw);
         } else {
-            SoloMarginContract solo = SoloMarginContract(getSoloAddress());
-            solo.operate(getAccountArgs(), getActionsArgs(marketId, toWithdraw, false));
             require(ERC20Interface(erc20Addr).transfer(msg.sender, toWithdraw), "Allowance or not enough bal");
         }
         emit LogWithdraw(erc20Addr, toWithdraw, address(this));
@@ -261,14 +243,12 @@ contract DydxResolver is Helpers {
     * @dev Borrow ETH/ERC20
     */
     function borrow(uint256 marketId, address erc20Addr, uint256 tokenAmt) public {
+        SoloMarginContract(getSoloAddress()).operate(getAccountArgs(), getActionsArgs(marketId, tokenAmt, false));
         if (erc20Addr == getAddressETH()) {
-            PayableProxySoloMarginContract soloPayable = PayableProxySoloMarginContract(getSoloPayableAddress());
-            soloPayable.operate(getAccountArgs(), getActionsArgs(marketId, tokenAmt, false), msg.sender);
             setApproval(getAddressWETH(), tokenAmt, getAddressWETH());
             ERC20Interface(getAddressWETH()).withdraw(tokenAmt);
             msg.sender.transfer(tokenAmt);
         } else {
-            SoloMarginContract(getSoloAddress()).operate(getAccountArgs(), getActionsArgs(marketId, tokenAmt, false));
             require(ERC20Interface(erc20Addr).transfer(msg.sender, tokenAmt), "Allowance or not enough bal");
         }
         emit LogBorrow(erc20Addr, tokenAmt, address(this));
@@ -278,7 +258,5 @@ contract DydxResolver is Helpers {
 
 
 contract InstaDydx is DydxResolver {
-
     function() external payable {}
-
 }
