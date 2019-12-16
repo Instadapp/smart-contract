@@ -105,7 +105,7 @@ contract Helpers is DSMath {
      * @dev get Compound Comptroller Address
      */
     function getCompOracleAddress() public pure returns (address troller) {
-        troller = 0xe7664229833AE4Abf4E269b8F23a86B657E2338D;
+        troller = 0x1D8aEdc9E924730DD3f9641CDb4D1B92B848b4bd;
     }
 
     /**
