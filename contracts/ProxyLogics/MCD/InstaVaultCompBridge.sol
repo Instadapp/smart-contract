@@ -1,25 +1,77 @@
 pragma solidity ^0.5.7;
 
-interface TubInterface {
-    function open() external returns (bytes32);
-    function join(uint) external;
-    function exit(uint) external;
-    function lock(bytes32, uint) external;
-    function free(bytes32, uint) external;
-    function draw(bytes32, uint) external;
-    function wipe(bytes32, uint) external;
-    function give(bytes32, address) external;
-    function shut(bytes32) external;
-    function cups(bytes32) external view returns (address, uint, uint, uint);
-    function gem() external view returns (TokenInterface);
-    function gov() external view returns (TokenInterface);
-    function skr() external view returns (TokenInterface);
-    function sai() external view returns (TokenInterface);
-    function ink(bytes32) external view returns (uint);
-    function tab(bytes32) external returns (uint);
-    function rap(bytes32) external returns (uint);
-    function per() external view returns (uint);
-    function pep() external view returns (PepInterface);
+interface GemLike {
+    function approve(address, uint) external;
+    function transfer(address, uint) external;
+    function transferFrom(address, address, uint) external;
+    function deposit() external payable;
+    function withdraw(uint) external;
+}
+
+interface ManagerLike {
+    function cdpCan(address, uint, address) external view returns (uint);
+    function ilks(uint) external view returns (bytes32);
+    function owns(uint) external view returns (address);
+    function urns(uint) external view returns (address);
+    function vat() external view returns (address);
+    function open(bytes32, address) external returns (uint);
+    function give(uint, address) external;
+    function cdpAllow(uint, address, uint) external;
+    function urnAllow(address, uint) external;
+    function frob(uint, int, int) external;
+    function flux(uint, address, uint) external;
+    function move(uint, address, uint) external;
+    function exit(
+        address,
+        uint,
+        address,
+        uint
+    ) external;
+    function quit(uint, address) external;
+    function enter(address, uint) external;
+    function shift(uint, uint) external;
+}
+
+interface VatLike {
+    function can(address, address) external view returns (uint);
+    function ilks(bytes32) external view returns (uint, uint, uint, uint, uint);
+    function dai(address) external view returns (uint);
+    function urns(bytes32, address) external view returns (uint, uint);
+    function frob(
+        bytes32,
+        address,
+        address,
+        address,
+        int,
+        int
+    ) external;
+    function hope(address) external;
+    function move(address, address, uint) external;
+    function gem(bytes32, address) external view returns (uint);
+
+}
+
+interface GemJoinLike {
+    function dec() external returns (uint);
+    function gem() external returns (GemLike);
+    function join(address, uint) external payable;
+    function exit(address, uint) external;
+}
+
+interface DaiJoinLike {
+    function vat() external returns (VatLike);
+    function dai() external returns (GemLike);
+    function join(address, uint) external payable;
+    function exit(address, uint) external;
+}
+
+interface HopeLike {
+    function hope(address) external;
+    function nope(address) external;
+}
+
+interface JugLike {
+    function drip(bytes32) external returns (uint);
 }
 
 interface TokenInterface {
@@ -105,6 +157,25 @@ interface CompOracleInterface {
     function getUnderlyingPrice(address) external view returns (uint);
 }
 
+interface InstaMcdAddress {
+    function manager() external view returns (address);
+    function dai() external view returns (address);
+    function daiJoin() external view returns (address);
+    function vat() external view returns (address);
+    function jug() external view returns (address);
+    function ethAJoin() external view returns (address);
+}
+
+interface OtcInterface {
+    function getPayAmount(address, address, uint) external view returns (uint);
+    function buyAllAmount(
+        address,
+        uint,
+        address,
+        uint
+    ) external;
+}
+
 
 contract DSMath {
 
@@ -139,6 +210,15 @@ contract DSMath {
         z = add(mul(x, WAD), y / 2) / y;
     }
 
+    function toInt(uint x) internal pure returns (int y) {
+        y = int(x);
+        require(y >= 0, "int-overflow");
+    }
+
+    function toRad(uint wad) internal pure returns (uint rad) {
+        rad = mul(wad, 10 ** 27);
+    }
+
 }
 
 
@@ -152,31 +232,10 @@ contract Helper is DSMath {
     }
 
     /**
-     * @dev get MakerDAO CDP engine
+     * @dev get MakerDAO MCD Address contract
      */
-    function getSaiTubAddress() public pure returns (address sai) {
-        sai = 0x448a5065aeBB8E423F0896E6c5D525C040f59af3;
-    }
-
-    /**
-     * @dev get MakerDAO Oracle for ETH price
-     */
-    function getOracleAddress() public pure returns (address oracle) {
-        oracle = 0x729D19f657BD0614b4985Cf1D82531c67569197B;
-    }
-
-    /**
-     * @dev get uniswap MKR exchange
-     */
-    function getUniswapMKRExchange() public pure returns (address ume) {
-        ume = 0x2C4Bd064b998838076fa341A83d007FC2FA50957;
-    }
-
-    /**
-     * @dev get uniswap DAI exchange
-     */
-    function getUniswapDAIExchange() public pure returns (address ude) {
-        ude = 0x09cabEC1eAd1c0Ba254B09efb3EE13841712bE14;
+    function getMcdAddresses() public pure returns (address mcd) {
+        mcd = 0xF23196DF1C440345DE07feFbe556a5eF0dcD29F0;
     }
 
     /**
@@ -194,13 +253,6 @@ contract Helper is DSMath {
     }
 
     /**
-     * @dev get Compound Oracle Address
-     */
-    function getCompOracleAddress() public pure returns (address troller) {
-        troller = 0xe7664229833AE4Abf4E269b8F23a86B657E2338D;
-    }
-
-    /**
      * @dev get CETH Address
      */
     function getCETHAddress() public pure returns (address cEth) {
@@ -211,21 +263,14 @@ contract Helper is DSMath {
      * @dev get DAI Address
      */
     function getDAIAddress() public pure returns (address dai) {
-        dai = 0x89d24A6b4CcB1B6fAA2625fE562bDD9a23260359;
-    }
-
-    /**
-     * @dev get MKR Address
-     */
-    function getMKRAddress() public pure returns (address dai) {
-        dai = 0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2;
+        dai = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     }
 
     /**
      * @dev get CDAI Address
      */
     function getCDAIAddress() public pure returns (address cDai) {
-        cDai = 0xF5DCe57282A584D2746FaF1593d3121Fcac444dC;
+        cDai = 0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643;
     }
 
     /**
@@ -242,14 +287,34 @@ contract Helper is DSMath {
 }
 
 
-contract MakerHelper is Helper {
+contract InstaPoolResolver is Helper {
+
+    function accessDai(uint daiAmt, bool isCompound) internal {
+        address[] memory borrowAddr = new address[](1);
+        uint[] memory borrowAmt = new uint[](1);
+        borrowAddr[0] = getCDAIAddress();
+        borrowAmt[0] = daiAmt;
+        PoolInterface(getPoolAddr()).accessToken(borrowAddr, borrowAmt, isCompound);
+
+    }
+
+    function returnDai(uint daiAmt, bool isCompound) internal {
+        address[] memory borrowAddr = new address[](1);
+        borrowAddr[0] = getCDAIAddress();
+        require(TokenInterface(getDAIAddress()).transfer(getPoolAddr(), daiAmt), "Not-enough-DAI");
+        PoolInterface(getPoolAddr()).paybackToken(borrowAddr, isCompound);
+    }
+
+}
+
+
+contract MakerHelper is InstaPoolResolver {
 
     event LogOpen(uint cdpNum, address owner);
-    event LogLock(uint cdpNum, uint amtETH, uint amtPETH, address owner);
-    event LogFree(uint cdpNum, uint amtETH, uint amtPETH, address owner);
-    event LogDraw(uint cdpNum, uint amtDAI, address owner);
-    event LogWipe(uint cdpNum, uint daiAmt, uint mkrFee, uint daiFee, address owner);
-    event LogShut(uint cdpNum);
+    event LogLock(uint cdpNum, uint amtETH, address owner);
+    event LogFree(uint cdpNum, uint amtETH, address owner);
+    event LogDraw(uint cdpNum, uint daiAmt, address owner);
+    event LogWipe(uint cdpNum, uint daiAmt, address owner);
 
     /**
      * @dev Allowance to Maker's contract
@@ -261,13 +326,77 @@ contract MakerHelper is Helper {
     }
 
     /**
-     * @dev CDP stats by Bytes
+     * @dev Check if entered amt is valid or not (Used in makerToCompound)
      */
-    function getCDPStats(bytes32 cup) internal view returns (uint ethCol, uint daiDebt) {
-        TubInterface tub = TubInterface(getSaiTubAddress());
-        (, uint pethCol, uint debt,) = tub.cups(cup);
-        ethCol = rmul(pethCol, tub.per()); // get ETH col from PETH col
-        daiDebt = debt;
+    function checkVault(uint id, uint ethAmt, uint daiAmt) internal view returns (uint ethCol, uint daiDebt) {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        address urn = ManagerLike(manager).urns(id);
+        bytes32 ilk = ManagerLike(manager).ilks(id);
+        uint art = 0;
+        (ethCol, art) = VatLike(ManagerLike(manager).vat()).urns(ilk, urn);
+        (,uint rate,,,) = VatLike(ManagerLike(manager).vat()).ilks(ilk);
+        daiDebt = rmul(art,rate);
+        daiDebt = daiAmt < daiDebt ? daiAmt : daiDebt; // if DAI amount > max debt. Set max debt
+        ethCol = ethAmt < ethCol ? ethAmt : ethCol; // if ETH amount > max Col. Set max col
+    }
+
+    function joinDaiJoin(address urn, uint wad) internal {
+        address daiJoin = InstaMcdAddress(getMcdAddresses()).daiJoin();
+        // Approves adapter to take the DAI amount
+        DaiJoinLike(daiJoin).dai().approve(daiJoin, wad);
+        // Joins DAI into the vat
+        DaiJoinLike(daiJoin).join(urn, wad);
+    }
+
+    function _getDrawDart(
+        address vat,
+        address jug,
+        address urn,
+        bytes32 ilk,
+        uint wad
+    ) internal returns (int dart)
+    {
+        // Updates stability fee rate
+        uint rate = JugLike(jug).drip(ilk);
+
+        // Gets DAI balance of the urn in the vat
+        uint dai = VatLike(vat).dai(urn);
+
+        // If there was already enough DAI in the vat balance, just exits it without adding more debt
+        if (dai < mul(wad, RAY)) {
+            // Calculates the needed dart so together with the existing dai in the vat is enough to exit wad amount of DAI tokens
+            dart = toInt(sub(mul(wad, RAY), dai) / rate);
+            // This is neeeded due lack of precision. It might need to sum an extra dart wei (for the given DAI wad amount)
+            dart = mul(uint(dart), rate) < mul(wad, RAY) ? dart + 1 : dart;
+        }
+    }
+
+    function _getWipeDart(
+        address vat,
+        uint dai,
+        address urn,
+        bytes32 ilk
+    ) internal view returns (int dart)
+    {
+        // Gets actual rate from the vat
+        (, uint rate,,,) = VatLike(vat).ilks(ilk);
+        // Gets actual art value of the urn
+        (, uint art) = VatLike(vat).urns(ilk, urn);
+
+        // Uses the whole dai balance in the vat to reduce the debt
+        dart = toInt(dai / rate);
+        // Checks the calculated dart is not higher than urn.art (total debt), otherwise uses its value
+        dart = uint(dart) <= art ? - dart : - toInt(art);
+    }
+
+    function joinEthJoin(address urn, uint _wad) internal {
+        address ethJoin = InstaMcdAddress(getMcdAddresses()).ethAJoin();
+        // Wraps ETH in WETH
+        GemJoinLike(ethJoin).gem().deposit.value(_wad)();
+        // Approves adapter to take the WETH amount
+        GemJoinLike(ethJoin).gem().approve(address(ethJoin), _wad);
+        // Joins WETH collateral into the vat
+        GemJoinLike(ethJoin).join(urn, _wad);
     }
 
 }
@@ -302,219 +431,146 @@ contract CompoundHelper is MakerHelper {
 }
 
 
-contract InstaPoolResolver is CompoundHelper {
-
-    function accessDai(uint daiAmt, bool isCompound) internal {
-        address[] memory borrowAddr = new address[](1);
-        uint[] memory borrowAmt = new uint[](1);
-        borrowAddr[0] = getCDAIAddress();
-        borrowAmt[0] = daiAmt;
-        PoolInterface(getPoolAddr()).accessToken(borrowAddr, borrowAmt, isCompound);
+contract MakerResolver is CompoundHelper {
+    function flux(uint cdp, address dst, uint wad) internal {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        ManagerLike(manager).flux(cdp, dst, wad);
     }
 
-    function returnDai(uint daiAmt, bool isCompound) internal {
-        address[] memory borrowAddr = new address[](1);
-        borrowAddr[0] = getCDAIAddress();
-        require(TokenInterface(getDAIAddress()).transfer(getPoolAddr(), daiAmt), "Not-enough-DAI");
-        PoolInterface(getPoolAddr()).paybackToken(borrowAddr, isCompound);
+    function move(uint cdp, address dst, uint rad) public {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        ManagerLike(manager).move(cdp, dst, rad);
     }
 
-}
-
-
-contract MakerResolver is InstaPoolResolver {
-
-    /**
-     * @dev Open new CDP
-     */
-    function open() internal returns (uint) {
-        bytes32 cup = TubInterface(getSaiTubAddress()).open();
-        emit LogOpen(uint(cup), address(this));
-        return uint(cup);
+    function frob(uint cdp, int dink, int dart) internal {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        ManagerLike(manager).frob(cdp, dink, dart);
     }
 
-    /**
-     * @dev transfer CDP ownership
-     */
-    function give(uint cdpNum, address nextOwner) internal {
-        TubInterface(getSaiTubAddress()).give(bytes32(cdpNum), nextOwner);
+    function open() public returns (uint cdp) {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        bytes32 ilk = 0x4554482d41000000000000000000000000000000000000000000000000000000;
+        cdp = ManagerLike(manager).open(ilk, address(this));
+        emit LogOpen(cdp, address(this));
     }
 
-    function setWipeAllowances(TubInterface tub) internal { // to solve stack to deep error
-        TokenInterface dai = tub.sai();
-        TokenInterface mkr = tub.gov();
-        setMakerAllowance(dai, getSaiTubAddress());
-        setMakerAllowance(mkr, getSaiTubAddress());
-        setMakerAllowance(dai, getUniswapDAIExchange());
+    function give(uint cdp, address usr) public {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        ManagerLike(manager).give(cdp, usr);
     }
 
-    /**
-     * @dev Pay CDP debt
-     */
-    function wipe(uint cdpNum, uint _wad, bool isCompound) internal returns (uint daiAmt) {
-        if (_wad > 0) {
-            TubInterface tub = TubInterface(getSaiTubAddress());
-            UniswapExchange daiEx = UniswapExchange(getUniswapDAIExchange());
-            UniswapExchange mkrEx = UniswapExchange(getUniswapMKRExchange());
+    function lock(uint cdp, uint _wad) internal {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        // Receives ETH amount, converts it to WETH and joins it into the vat
+        joinEthJoin(address(this), _wad);
+        // Locks WETH amount into the CDP
+        VatLike(ManagerLike(manager).vat()).frob(
+            ManagerLike(manager).ilks(cdp),
+            ManagerLike(manager).urns(cdp),
+            address(this),
+            address(this),
+            toInt(_wad),
+            0
+        );
+        emit LogLock(cdp, _wad, address(this));
+    }
 
-            bytes32 cup = bytes32(cdpNum);
+    function free(uint cdp, uint wad) internal {
+        address ethJoin = InstaMcdAddress(getMcdAddresses()).ethAJoin();
+        // Unlocks WETH amount from the CDP
+        frob(
+            cdp,
+            -toInt(wad),
+            0
+        );
+        // Moves the amount from the CDP urn to proxy's address
+        flux(
+            cdp,
+            address(this),
+            wad
+        );
+        // Exits WETH amount to proxy address as a token
+        GemJoinLike(ethJoin).exit(address(this), wad);
+        // Converts WETH to ETH
+        GemJoinLike(ethJoin).gem().withdraw(wad);
+        emit LogFree(cdp, wad, address(this));
+    }
 
-            (address lad,,,) = tub.cups(cup);
-            require(lad == address(this), "cup-not-owned");
-
-            setWipeAllowances(tub);
-            (bytes32 val, bool ok) = tub.pep().peek();
-
-            // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
-            uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
-
-            uint daiFeeAmt = daiEx.getTokenToEthOutputPrice(mkrEx.getEthToTokenOutputPrice(mkrFee));
-            daiAmt = add(_wad, daiFeeAmt);
-
-            // Getting Liquidity from Liquidity Contract
-            accessDai(daiAmt, isCompound);
-
-            if (ok && val != 0) {
-                daiEx.tokenToTokenSwapOutput(
-                    mkrFee,
-                    daiFeeAmt,
-                    uint(999000000000000000000),
-                    uint(1899063809), // 6th March 2030 GMT // no logic
-                    getMKRAddress()
-                );
-            }
-
-            tub.wipe(cup, _wad);
-
-            emit LogWipe(
-                cdpNum,
-                daiAmt,
-                mkrFee,
-                daiFeeAmt,
-                address(this)
-            );
-
+    function draw(uint cdp, uint wad) internal {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        address jug = InstaMcdAddress(getMcdAddresses()).jug();
+        address daiJoin = InstaMcdAddress(getMcdAddresses()).daiJoin();
+        address urn = ManagerLike(manager).urns(cdp);
+        address vat = ManagerLike(manager).vat();
+        bytes32 ilk = ManagerLike(manager).ilks(cdp);
+        // Generates debt in the CDP
+        frob(
+            cdp,
+            0,
+            _getDrawDart(
+                vat,
+                jug,
+                urn,
+                ilk,
+                wad
+            )
+        );
+        // Moves the DAI amount (balance in the vat in rad) to proxy's address
+        move(
+            cdp,
+            address(this),
+            toRad(wad)
+        );
+        // Allows adapter to access to proxy's DAI balance in the vat
+        if (VatLike(vat).can(address(this), address(daiJoin)) == 0) {
+            VatLike(vat).hope(daiJoin);
         }
+        // Exits DAI to the user's wallet as a token
+        DaiJoinLike(daiJoin).exit(address(this), wad);
+        emit LogDraw(cdp, wad, address(this));
+
     }
 
-    /**
-     * @dev Pay CDP debt
-     */
-    function wipeWithMkr(uint cdpNum, uint _wad, bool isCompound) internal {
-        if (_wad > 0) {
-            TubInterface tub = TubInterface(getSaiTubAddress());
-            TokenInterface dai = tub.sai();
-            TokenInterface mkr = tub.gov();
+    function wipe(uint cdp, uint wad) internal {
+        address manager = InstaMcdAddress(getMcdAddresses()).manager();
+        address vat = ManagerLike(manager).vat();
+        address urn = ManagerLike(manager).urns(cdp);
+        bytes32 ilk = ManagerLike(manager).ilks(cdp);
 
-            bytes32 cup = bytes32(cdpNum);
-
-            (address lad,,,) = tub.cups(cup);
-            require(lad == address(this), "cup-not-owned");
-
-            setMakerAllowance(dai, getSaiTubAddress());
-            setMakerAllowance(mkr, getSaiTubAddress());
-
-            (bytes32 val, bool ok) = tub.pep().peek();
-
-            // MKR required for wipe = Stability fees accrued in Dai / MKRUSD value
-            uint mkrFee = wdiv(rmul(_wad, rdiv(tub.rap(cup), tub.tab(cup))), uint(val));
-
-            // Getting Liquidity from Liquidity Contract
-            accessDai(_wad, isCompound);
-
-            if (ok && val != 0) {
-                require(mkr.transferFrom(msg.sender, address(this), mkrFee), "MKR-Allowance?");
-            }
-
-            tub.wipe(cup, _wad);
-
-            emit LogWipe(
-                cdpNum,
-                _wad,
-                mkrFee,
+        address own = ManagerLike(manager).owns(cdp);
+        if (own == address(this) || ManagerLike(manager).cdpCan(own, cdp, address(this)) == 1) {
+            // Joins DAI amount into the vat
+            joinDaiJoin(urn, wad);
+            // Paybacks debt to the CDP
+            frob(
+                cdp,
                 0,
-                address(this)
+                _getWipeDart(
+                    vat,
+                    VatLike(vat).dai(urn),
+                    urn,
+                    ilk
+                )
             );
-
+        } else {
+             // Joins DAI amount into the vat
+            joinDaiJoin(address(this), wad);
+            // Paybacks debt to the CDP
+            VatLike(vat).frob(
+                ilk,
+                urn,
+                address(this),
+                address(this),
+                0,
+                _getWipeDart(
+                    vat,
+                    wad * RAY,
+                    urn,
+                    ilk
+                )
+            );
         }
-    }
-
-    /**
-     * @dev Withdraw CDP
-     */
-    function free(uint cdpNum, uint jam) internal {
-        if (jam > 0) {
-            bytes32 cup = bytes32(cdpNum);
-            address tubAddr = getSaiTubAddress();
-
-            TubInterface tub = TubInterface(tubAddr);
-            TokenInterface peth = tub.skr();
-            TokenInterface weth = tub.gem();
-
-            uint ink = rdiv(jam, tub.per());
-            ink = rmul(ink, tub.per()) <= jam ? ink : ink - 1;
-            tub.free(cup, ink);
-
-            setMakerAllowance(peth, tubAddr);
-
-            tub.exit(ink);
-            uint freeJam = weth.balanceOf(address(this)); // withdraw possible previous stuck WETH as well
-            weth.withdraw(freeJam);
-        }
-    }
-
-    /**
-     * @dev Deposit Collateral
-     */
-    function lock(uint cdpNum, uint ethAmt) internal {
-        if (ethAmt > 0) {
-            bytes32 cup = bytes32(cdpNum);
-            address tubAddr = getSaiTubAddress();
-
-            TubInterface tub = TubInterface(tubAddr);
-            TokenInterface weth = tub.gem();
-            TokenInterface peth = tub.skr();
-
-            (address lad,,,) = tub.cups(cup);
-            require(lad == address(this), "cup-not-owned");
-
-            weth.deposit.value(ethAmt)();
-
-            uint ink = rdiv(ethAmt, tub.per());
-            ink = rmul(ink, tub.per()) <= ethAmt ? ink : ink - 1;
-
-            setMakerAllowance(weth, tubAddr);
-            tub.join(ink);
-
-            setMakerAllowance(peth, tubAddr);
-            tub.lock(cup, ink);
-        }
-    }
-
-    /**
-     * @dev Borrow DAI Debt
-     */
-    function draw(uint cdpNum, uint _wad, bool isCompound) internal {
-        bytes32 cup = bytes32(cdpNum);
-        if (_wad > 0) {
-            TubInterface tub = TubInterface(getSaiTubAddress());
-
-            tub.draw(cup, _wad);
-
-            // Returning Liquidity To Liquidity Contract
-            returnDai(_wad, isCompound);
-        }
-    }
-
-    /**
-     * @dev Check if entered amt is valid or not (Used in makerToCompound)
-     */
-    function checkCDP(bytes32 cup, uint ethAmt, uint daiAmt) internal returns (uint ethCol, uint daiDebt) {
-        TubInterface tub = TubInterface(getSaiTubAddress());
-        ethCol = rmul(tub.ink(cup), tub.per()) - 1; // get ETH col from PETH col
-        daiDebt = tub.tab(cup);
-        daiDebt = daiAmt < daiDebt ? daiAmt : daiDebt; // if DAI amount > max debt. Set max debt
-        ethCol = ethAmt < ethCol ? ethAmt : ethCol; // if ETH amount > max Col. Set max col
+        emit LogWipe(cdp, wad, address(this));
     }
 
     /**
@@ -524,16 +580,11 @@ contract MakerResolver is InstaPoolResolver {
         uint cdpNum,
         uint jam,
         uint _wad,
-        bool isCompound,
-        bool feeInMkr
-    ) internal returns (uint daiAmt)
+        bool isCompound
+    ) internal
     {
-        if (feeInMkr) {
-            wipeWithMkr(cdpNum, _wad, isCompound);
-            daiAmt = _wad;
-        } else {
-            daiAmt = wipe(cdpNum, _wad, isCompound);
-        }
+        accessDai(_wad, isCompound);
+        wipe(cdpNum, _wad);
         free(cdpNum, jam);
     }
 
@@ -548,7 +599,8 @@ contract MakerResolver is InstaPoolResolver {
     ) internal
     {
         lock(cdpNum, jam);
-        draw(cdpNum, _wad, isCompound);
+        draw(cdpNum, _wad);
+        returnDai(_wad, isCompound);
     }
 
 }
@@ -608,7 +660,6 @@ contract CompoundResolver is MakerResolver {
 
     /**
      * @dev Redeem CETH
-     * @param tokenAmt Amount of token To Redeem
      */
     function redeemCETH(uint tokenAmt) internal returns(uint ethAmtReddemed) {
         CTokenInterface cToken = CTokenInterface(getCETHAddress());
@@ -665,10 +716,10 @@ contract CompoundResolver is MakerResolver {
 }
 
 
-contract InstaMakerCompBridge is CompoundResolver {
+contract BridgeResolver is CompoundResolver {
 
-    event LogMakerToCompound(uint ethAmt, uint daiAmt);
-    event LogCompoundToMaker(uint ethAmt, uint daiAmt);
+    event LogVaultToCompound(uint ethAmt, uint daiAmt);
+    event LogCompoundToVault(uint ethAmt, uint daiAmt);
 
     /**
      * @dev convert Maker CDP into Compound Collateral
@@ -677,21 +728,20 @@ contract InstaMakerCompBridge is CompoundResolver {
         uint cdpId,
         uint ethQty,
         uint daiQty,
-        bool isCompound, // access Liquidity from Compound
-        bool feeInMkr
-        ) external
-        {
+        bool isCompound // access Liquidity from Compound
+    ) external
+    {
         // subtracting 0.00000001 ETH from initialPoolBal to solve Compound 8 decimal CETH error.
         uint initialPoolBal = sub(getPoolAddr().balance, 10000000000);
 
-        (uint ethAmt, uint daiDebt) = checkCDP(bytes32(cdpId), ethQty, daiQty);
-        uint daiAmt = wipeAndFreeMaker(
+        (uint ethAmt, uint daiAmt) = checkVault(cdpId, ethQty, daiQty);
+        wipeAndFreeMaker(
             cdpId,
             ethAmt,
-            daiDebt,
-            isCompound,
-            feeInMkr
+            daiAmt,
+            isCompound
         ); // Getting Liquidity inside Wipe function
+
         enterMarket(getCETHAddress());
         enterMarket(getCDAIAddress());
         mintAndBorrowComp(ethAmt, daiAmt, isCompound); // Returning Liquidity inside Borrow function
@@ -699,7 +749,7 @@ contract InstaMakerCompBridge is CompoundResolver {
         uint finalPoolBal = getPoolAddr().balance;
         assert(finalPoolBal >= initialPoolBal);
 
-        emit LogMakerToCompound(ethAmt, daiAmt);
+        emit LogVaultToCompound(ethAmt, daiAmt);
     }
 
     /**
@@ -730,9 +780,11 @@ contract InstaMakerCompBridge is CompoundResolver {
         uint finalPoolBal = getPoolAddr().balance;
         assert(finalPoolBal >= initialPoolBal);
 
-        emit LogCompoundToMaker(ethAmt, daiAmt);
+        emit LogCompoundToVault(ethAmt, daiAmt);
     }
+}
 
+
+contract InstaVaultCompBridge is BridgeResolver {
     function() external payable {}
-
 }
