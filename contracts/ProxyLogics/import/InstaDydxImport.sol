@@ -21,7 +21,7 @@ contract SoloMarginContract {
 
     enum ActionType {
         Deposit,   // supply tokens
-        Withdraw,  // borrow tokens
+        Withdraw,  // supply tokens
         Transfer,  // transfer balance between accounts
         Buy,       // buy an amount of some token (externally)
         Sell,      // sell an amount of some token (externally)
@@ -65,10 +65,9 @@ contract SoloMarginContract {
     }
 
     function operate(Info[] memory accounts, ActionArgs[] memory actions) public;
-    function getAccountWei(Info memory account, uint256 marketId) public returns (Wei memory);
+    function getAccountWei(Info memory account, uint256 marketId) public view returns (Wei memory);
     function getNumMarkets() public view returns (uint256);
     function getMarketTokenAddress(uint256 marketI) public view returns (address);
-    
 }
 
 interface PoolInterface {
@@ -148,7 +147,14 @@ contract Helpers is DSMath {
     /**
     * @dev getting actions arg
     */
-    function getActionsArgs(address tknAccount, uint256 marketId, uint256 tokenAmt, bool sign) internal view returns (SoloMarginContract.ActionArgs[] memory) {
+    function getActionsArgs(
+        address tknAccount,
+        uint accountIndex,
+        uint256 marketId,
+        uint256 tokenAmt,
+        bool sign
+    ) internal pure returns (SoloMarginContract.ActionArgs[] memory)
+    {
         SoloMarginContract.ActionArgs[] memory actions = new SoloMarginContract.ActionArgs[](1);
         SoloMarginContract.AssetAmount memory amount = SoloMarginContract.AssetAmount(
             sign,
@@ -161,7 +167,7 @@ contract Helpers is DSMath {
         SoloMarginContract.ActionType action = sign ? SoloMarginContract.ActionType.Deposit : SoloMarginContract.ActionType.Withdraw;
         actions[0] = SoloMarginContract.ActionArgs(
             action,
-            0,
+            accountIndex,
             amount,
             marketId,
             0,
@@ -175,7 +181,7 @@ contract Helpers is DSMath {
     /**
     * @dev getting acccount arg
     */
-    function getAccountArgs(address owner, uint accountId) internal view returns (SoloMarginContract.Info[] memory) {
+    function getAccountArgs(address owner, uint accountId) internal pure returns (SoloMarginContract.Info[] memory) {
         SoloMarginContract.Info[] memory accounts = new SoloMarginContract.Info[](1);
         accounts[0] = (SoloMarginContract.Info(owner, accountId));
         return accounts;
@@ -184,7 +190,7 @@ contract Helpers is DSMath {
     /**
      * @dev getting dydx balance
      */
-    function getDydxBal(address owner, uint256 marketId, uint accountId) internal returns (uint tokenBal, bool tokenSign) {
+    function getDydxBal(address owner, uint256 marketId, uint accountId) internal view returns (uint tokenBal, bool tokenSign) {
         SoloMarginContract solo = SoloMarginContract(getSoloAddress());
         SoloMarginContract.Wei memory tokenWeiBal = solo.getAccountWei(getAccountArgs(owner, accountId)[0], marketId);
         tokenBal = tokenWeiBal.value;
@@ -194,88 +200,7 @@ contract Helpers is DSMath {
 }
 
 
-contract DydxResolver is Helpers {
-
-    event LogDeposit(address erc20Addr, uint tokenAmt, address owner);
-    event LogWithdraw(address erc20Addr, uint tokenAmt, address owner);
-    event LogBorrow(address erc20Addr, uint tokenAmt, address owner);
-    event LogPayback(address erc20Addr, uint tokenAmt, address owner);
-
-    // /**
-    //  * @dev Deposit ETH/ERC20
-    //  */
-    // function deposit(uint256 marketId, address erc20Addr, uint256 tokenAmt) public payable {
-    //     if (erc20Addr == getAddressETH()) {
-    //         ERC20Interface(getAddressWETH()).deposit.value(msg.value)();
-    //         setApproval(getAddressWETH(), tokenAmt, getSoloAddress());
-    //     } else {
-    //         require(ERC20Interface(erc20Addr).transferFrom(msg.sender, address(this), tokenAmt), "Allowance or not enough bal");
-    //         setApproval(erc20Addr, tokenAmt, getSoloAddress());
-    //     }
-    //     SoloMarginContract(getSoloAddress()).operate(getAccountArgs(), getActionsArgs(marketId, tokenAmt, true));
-    //     emit LogDeposit(erc20Addr, tokenAmt, address(this));
-    // }
-
-    // /**
-    //  * @dev Payback ETH/ERC20
-    //  */
-    // function payback(uint256 marketId, address erc20Addr, uint256 tokenAmt) public payable {
-    //     (uint toPayback, bool tokenSign) = getDydxBal(marketId);
-    //     require(!tokenSign, "No debt to payback");
-    //     toPayback = toPayback > tokenAmt ? tokenAmt : toPayback;
-    //     if (erc20Addr == getAddressETH()) {
-    //         ERC20Interface(getAddressWETH()).deposit.value(toPayback)();
-    //         setApproval(getAddressWETH(), toPayback, getSoloAddress());
-    //         msg.sender.transfer(address(this).balance);
-    //     } else {
-    //         require(ERC20Interface(erc20Addr).transferFrom(msg.sender, address(this), toPayback), "Allowance or not enough bal");
-    //         setApproval(erc20Addr, toPayback, getSoloAddress());
-    //     }
-    //     SoloMarginContract(getSoloAddress()).operate(getAccountArgs(), getActionsArgs(marketId, toPayback, true));
-    //     emit LogPayback(erc20Addr, toPayback, address(this));
-    // }
-
-    // /**
-    //  * @dev Withdraw ETH/ERC20
-    //  */
-    // function withdraw(uint256 marketId, address erc20Addr, uint256 tokenAmt) public {
-    //     (uint toWithdraw, bool tokenSign) = getDydxBal(marketId);
-    //     require(tokenSign, "token not deposited");
-    //     toWithdraw = toWithdraw > tokenAmt ? tokenAmt : toWithdraw;
-    //     SoloMarginContract solo = SoloMarginContract(getSoloAddress());
-    //     solo.operate(getAccountArgs(), getActionsArgs(marketId, toWithdraw, false));
-    //     if (erc20Addr == getAddressETH()) {
-    //         ERC20Interface wethContract = ERC20Interface(getAddressWETH());
-    //         uint wethBal = wethContract.balanceOf(address(this));
-    //         toWithdraw = toWithdraw < wethBal ? wethBal : toWithdraw;
-    //         setApproval(getAddressWETH(), toWithdraw, getAddressWETH());
-    //         ERC20Interface(getAddressWETH()).withdraw(toWithdraw);
-    //         msg.sender.transfer(toWithdraw);
-    //     } else {
-    //         require(ERC20Interface(erc20Addr).transfer(msg.sender, toWithdraw), "Allowance or not enough bal");
-    //     }
-    //     emit LogWithdraw(erc20Addr, toWithdraw, address(this));
-    // }
-
-    // /**
-    // * @dev Borrow ETH/ERC20
-    // */
-    // function borrow(uint256 marketId, address erc20Addr, uint256 tokenAmt) public {
-    //     SoloMarginContract(getSoloAddress()).operate(getAccountArgs(), getActionsArgs(marketId, tokenAmt, false));
-    //     if (erc20Addr == getAddressETH()) {
-    //         setApproval(getAddressWETH(), tokenAmt, getAddressWETH());
-    //         ERC20Interface(getAddressWETH()).withdraw(tokenAmt);
-    //         msg.sender.transfer(tokenAmt);
-    //     } else {
-    //         require(ERC20Interface(erc20Addr).transfer(msg.sender, tokenAmt), "Allowance or not enough bal");
-    //     }
-    //     emit LogBorrow(erc20Addr, tokenAmt, address(this));
-    // }
-
-}
-
-
-contract ImportHelper is DydxResolver {
+contract ImportHelper is Helpers {
     struct BorrowData {
         uint[] borrowAmt;
         address[] borrowAddr;
@@ -290,135 +215,138 @@ contract ImportHelper is DydxResolver {
         uint supplyCount;
     }
 
-    function getUserData(uint accountId, uint toConvert) internal returns(SupplyData memory, BorrowData memory) {
+    function getTokensData(uint accountId, uint toConvert) public returns(SupplyData memory, BorrowData memory) {
         SoloMarginContract solo = SoloMarginContract(getSoloAddress());
         uint markets = solo.getNumMarkets();
-        uint[] memory supplyArr = new uint[](markets);
-        uint[] memory borrowArr = new uint[](markets);
-        uint[] memory supplyId = new uint[](markets);
-        uint[] memory borrowId = new uint[](markets);
-        address[] memory supplyAddr = new address[](markets);
-        address[] memory borrowAddr = new address[](markets);
+        SupplyData memory supplyDataArr;
+        supplyDataArr.supplyAmt = new uint[](markets);
+        supplyDataArr.marketId = new uint[](markets);
+        supplyDataArr.supplyAddr = new address[](markets);
+        BorrowData memory borrowDataArr;
+        borrowDataArr.borrowAmt = new uint[](markets);
+        borrowDataArr.marketId = new uint[](markets);
+        borrowDataArr.borrowAddr = new address[](markets);
         uint borrowCount = 0;
         uint supplyCount = 0;
+
         for (uint i = 0; i < markets; i++) {
             (uint tokenbal, bool tokenSign) = getDydxBal(msg.sender, i, accountId);
-            if (tokenSign) {
-                supplyArr[supplyCount] = wmul(tokenbal, toConvert);
-                supplyAddr[supplyCount] = solo.getMarketTokenAddress(i);
-                supplyId[supplyCount] = i;
-                supplyCount++;
-            } else {
-                borrowArr[borrowCount] = wmul(tokenbal, toConvert);
-                borrowAddr[borrowCount] = solo.getMarketTokenAddress(i);
-                borrowId[borrowCount] = i;
-                borrowCount++;
+            if (tokenbal > 0) {
+                if (tokenSign) {
+                    supplyDataArr.supplyAmt[supplyCount] = wmul(tokenbal, toConvert);
+                    supplyDataArr.supplyAddr[supplyCount] = solo.getMarketTokenAddress(i);
+                    supplyDataArr.marketId[supplyCount] = i;
+                    supplyCount++;
+                } else {
+                    borrowDataArr.borrowAmt[borrowCount] = wmul(tokenbal, toConvert);
+                    borrowDataArr.borrowAddr[borrowCount] = solo.getMarketTokenAddress(i);
+                    borrowDataArr.marketId[borrowCount] = i;
+                    borrowCount++;
+                }
+                setApproval(solo.getMarketTokenAddress(i), uint(-1), getSoloAddress());
             }
         }
-        return (
-            SupplyData(
-                supplyArr,
-                supplyAddr,
-                supplyId,
-                supplyCount),
-            BorrowData(
-                borrowArr,
-                borrowAddr,
-                borrowId,
-                borrowCount
-            ));
+        borrowDataArr.borrowCount = borrowCount;
+        supplyDataArr.supplyCount = supplyCount;
+        return (supplyDataArr, borrowDataArr);
     }
 
-    struct ImportStruct {
-        SoloMarginContract.Info[] accounts;
-        SoloMarginContract.ActionArgs[] actions;
-    }
-
-    function createArgs(
-        SupplyData memory suppyArr,
-        BorrowData memory borrowArr
-    ) internal view returns(SoloMarginContract.Info[] memory, SoloMarginContract.ActionArgs[] memory) {
-        uint borrowCount = borrowArr.borrowAmt.length;
-        uint supplyCount = suppyArr.supplyAmt.length;
-        uint totalCount = borrowArr.borrowAmt.length + suppyArr.supplyAmt.length;
-        SoloMarginContract.ActionArgs[] memory actions = new SoloMarginContract.ActionArgs[](totalCount);
-        SoloMarginContract.Info[] memory accounts = new SoloMarginContract.Info[](totalCount);
+    function getOperatorActionsArgs(SupplyData memory suppyArr, BorrowData memory borrowArr) public view
+    returns(SoloMarginContract.ActionArgs[] memory)
+    {
+        uint borrowCount = borrowArr.borrowCount;
+        uint supplyCount = suppyArr.supplyCount;
+        uint totalCount = borrowCount + supplyCount;
+        SoloMarginContract.ActionArgs[] memory actions = new SoloMarginContract.ActionArgs[](totalCount*2);
 
         for (uint i = 0; i < borrowCount; i++) {
             actions[i] = getActionsArgs(
                 address(this),
+                0,
                 borrowArr.marketId[i],
                 borrowArr.borrowAmt[i],
-                true)[0]; // add markets , account to take token.
-            accounts[i] = getAccountArgs(msg.sender, 0)[0];
-            actions[i + supplyCount + supplyCount] = getActionsArgs(
-                msg.sender,
+                true
+            )[0];
+            actions[i + totalCount + supplyCount] = getActionsArgs(
+                getPoolAddress(), // After borrowing transfer directly to InstaDApp's Pool.
+                1,
                 borrowArr.marketId[i],
                 borrowArr.borrowAmt[i],
-                false)[0];
-            accounts[i + supplyCount + supplyCount] = getAccountArgs(address(this), 0)[0];
+                false
+            )[0];
         }
 
         for (uint i = 0; i < supplyCount; i++) {
             uint baseIndex = borrowCount + i;
             actions[baseIndex] = getActionsArgs(
                 address(this),
+                0,
                 suppyArr.marketId[i],
                 suppyArr.supplyAmt[i],
-                false)[0];
-            accounts[i] = getAccountArgs(msg.sender, 0)[0];
+                false
+            )[0];
             actions[baseIndex + supplyCount] = getActionsArgs(
                 address(this),
+                1,
                 suppyArr.marketId[i],
                 suppyArr.supplyAmt[i],
-                true)[0];
-            accounts[baseIndex + supplyCount] = getAccountArgs(address(this), 0)[0];
+                true
+            )[0];
         }
+        return (actions);
+    }
 
-        return (accounts, actions);
+    function getOperatorAccountArgs(uint accountId) public view returns (SoloMarginContract.Info[] memory) {
+        SoloMarginContract.Info[] memory accounts = new SoloMarginContract.Info[](2);
+        accounts[0] = getAccountArgs(msg.sender, accountId)[0];
+        accounts[1] = getAccountArgs(address(this), 0)[0];
+        return accounts;
     }
 }
 
 
 contract ImportResolver is  ImportHelper {
-    event LogDydxImport(address owner, uint percentage, bool isCompound, address[] markets, address[] borrowAddr, uint[] borrowAmt);
+    event LogDydxImport(address owner, uint accountId, uint percentage, bool isCompound, SupplyData supplyData, BorrowData borrowData);
 
-    function importAssets(uint toConvert, uint accountId, bool isCompound) external {
+    function importAssets(
+        uint toConvert,
+        uint accountId,
+        bool isCompound
+    ) external
+    {
         // subtracting 0.00000001 ETH from initialPoolBal to solve Compound 8 decimal CETH error.
         uint initialPoolBal = sub(getPoolAddress().balance, 10000000000);
-        (SupplyData memory supplyArr, BorrowData memory borrowArr) = getUserData(accountId, toConvert);
+        (SupplyData memory supplyArr, BorrowData memory borrowArr) = getTokensData(accountId, toConvert);
 
         // Get liquidity assets to payback user wallet borrowed assets
-        PoolInterface(getPoolAddress()).accessToken(borrowArr.borrowAddr, borrowArr.borrowAmt, isCompound);
-
-        SoloMarginContract solo = SoloMarginContract(getSoloAddress());
-        (SoloMarginContract.Info[] memory accounts, SoloMarginContract.ActionArgs[] memory actions) = createArgs(supplyArr, borrowArr);
-        solo.operate(accounts, actions);
-        // // payback user wallet borrowed assets
-        for (uint i = 0; i < borrowArr.borrowCount; i++) {
-            address erc20 = borrowArr.borrowAddr[i];
-            uint toPayback = borrowArr.borrowAmt[i];
-            if (erc20 == getAddressWETH()) {
-                getPoolAddress().transfer(toPayback);
-            } else {
-                require(ERC20Interface(erc20).transfer(getPoolAddress(), toPayback), "Not-enough-amt");
-            }
+        if (borrowArr.borrowCount > 0) {
+            PoolInterface(getPoolAddress()).accessToken(borrowArr.borrowAddr, borrowArr.borrowAmt, isCompound);
         }
 
+        // Creating actions args for solo operate
+        SoloMarginContract.ActionArgs[] memory actions = getOperatorActionsArgs(supplyArr, borrowArr);
+        SoloMarginContract.Info[] memory accounts = getOperatorAccountArgs(accountId);
+
+        // Import Assests from msg.sender to address(this)
+        SoloMarginContract solo = SoloMarginContract(getSoloAddress());
+        solo.operate(accounts, actions);
+
         //payback InstaDApp liquidity
-        PoolInterface(getPoolAddress()).paybackToken(borrowArr.borrowAddr, isCompound);
+        if (borrowArr.borrowCount > 0) {
+            PoolInterface(getPoolAddress()).paybackToken(borrowArr.borrowAddr, isCompound);
+        }
 
         uint finalPoolBal = getPoolAddress().balance;
         assert(finalPoolBal >= initialPoolBal);
 
-        // emit LogCompoundImport(
-        //     msg.sender,
-        //     toConvert,
-        //     isCompound,
-        //     markets,
-        //     borrowAddr,
-        //     borrowAmt
-        // );
+        emit LogDydxImport(
+            msg.sender,
+            accountId,
+            toConvert,
+            isCompound,
+            supplyArr,
+            borrowArr
+        );
     }
 
 }
