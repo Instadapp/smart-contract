@@ -139,7 +139,6 @@ contract Helpers is DSMath {
             tokenAmt
         );
         bytes memory empty;
-        // address otherAddr = (marketId == 0 && sign) ? getSoloPayableAddress() : address(this);
         SoloMarginContract.ActionType action = sign ? SoloMarginContract.ActionType.Deposit : SoloMarginContract.ActionType.Withdraw;
         actions[0] = SoloMarginContract.ActionArgs(
             action,
@@ -157,18 +156,18 @@ contract Helpers is DSMath {
     /**
     * @dev getting acccount arg
     */
-    function getAccountArgs(address owner) internal view returns (SoloMarginContract.Info[] memory) {
+    function getAccountArgs() internal view returns (SoloMarginContract.Info[] memory) {
         SoloMarginContract.Info[] memory accounts = new SoloMarginContract.Info[](1);
-        accounts[0] = (SoloMarginContract.Info(owner, 0));
+        accounts[0] = (SoloMarginContract.Info(address(this), 0));
         return accounts;
     }
 
     /**
      * @dev getting dydx balance
      */
-    function getDydxBal(address owner, uint256 marketId) internal returns (uint tokenBal, bool tokenSign) {
+    function getDydxBal(uint256 marketId) internal returns (uint tokenBal, bool tokenSign) {
         SoloMarginContract solo = SoloMarginContract(getSoloAddress());
-        SoloMarginContract.Wei memory tokenWeiBal = solo.getAccountWei(getAccountArgs(owner)[0], marketId);
+        SoloMarginContract.Wei memory tokenWeiBal = solo.getAccountWei(getAccountArgs()[0], marketId);
         tokenBal = tokenWeiBal.value;
         tokenSign = tokenWeiBal.sign;
     }
@@ -234,7 +233,7 @@ contract DydxResolver is Helpers {
             ERC20Interface(getAddressWETH()).withdraw(toWithdraw);
             msg.sender.transfer(toWithdraw);
         } else {
-            require(ERC20Interface(erc20Addr).transfer(msg.sender, toWithdraw), "Allowance or not enough bal");
+            require(ERC20Interface(erc20Addr).transfer(msg.sender, toWithdraw),  "not enough bal");
         }
         emit LogWithdraw(erc20Addr, toWithdraw, address(this));
     }
@@ -249,7 +248,7 @@ contract DydxResolver is Helpers {
             ERC20Interface(getAddressWETH()).withdraw(tokenAmt);
             msg.sender.transfer(tokenAmt);
         } else {
-            require(ERC20Interface(erc20Addr).transfer(msg.sender, tokenAmt), "Allowance or not enough bal");
+            require(ERC20Interface(erc20Addr).transfer(msg.sender, tokenAmt), "not enough bal");
         }
         emit LogBorrow(erc20Addr, tokenAmt, address(this));
     }
