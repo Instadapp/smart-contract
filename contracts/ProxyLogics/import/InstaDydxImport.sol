@@ -11,6 +11,10 @@ interface ERC20Interface {
     function withdraw(uint) external;
 }
 
+interface InstaCompoundMapping {
+    function ctokenAddrs(address) external view returns (address);
+}
+
 
 contract SoloMarginContract {
 
@@ -134,6 +138,13 @@ contract Helpers is DSMath {
     }
 
     /**
+     * @dev get InstaDApp Compound Mapping Address
+     */
+    function getCompMappingAddr() public pure returns (address compMap) {
+        compMap = 0x3e980fB77B2f63613cDDD3C130E4cc10E90Ad6d1;
+    }
+
+    /**
      * @dev setting allowance to dydx for the "user proxy" if required
      */
     function setApproval(address erc20, uint srcAmt, address to) internal {
@@ -204,6 +215,7 @@ contract ImportHelper is Helpers {
     struct BorrowData {
         uint[] borrowAmt;
         address[] borrowAddr;
+        address[] borrowCAddr;
         uint[] marketId;
         uint borrowCount;
     }
@@ -226,6 +238,7 @@ contract ImportHelper is Helpers {
         borrowDataArr.borrowAmt = new uint[](markets);
         borrowDataArr.marketId = new uint[](markets);
         borrowDataArr.borrowAddr = new address[](markets);
+        borrowDataArr.borrowCAddr = new address[](markets);
         uint borrowCount = 0;
         uint supplyCount = 0;
 
@@ -238,8 +251,10 @@ contract ImportHelper is Helpers {
                     supplyDataArr.marketId[supplyCount] = i;
                     supplyCount++;
                 } else {
+                    address erc20 = solo.getMarketTokenAddress(i);
                     borrowDataArr.borrowAmt[borrowCount] = wmul(tokenbal, toConvert);
-                    borrowDataArr.borrowAddr[borrowCount] = solo.getMarketTokenAddress(i);
+                    borrowDataArr.borrowAddr[borrowCount] = erc20;
+                    borrowDataArr.borrowCAddr[borrowCount] = InstaCompoundMapping(getCompMappingAddr()).ctokenAddrs(erc20 == getAddressWETH() ? getAddressETH() : erc20);
                     borrowDataArr.marketId[borrowCount] = i;
                     borrowCount++;
                 }
@@ -320,7 +335,7 @@ contract ImportResolver is  ImportHelper {
 
         // Get liquidity assets to payback user wallet borrowed assets
         if (borrowArr.borrowCount > 0) {
-            PoolInterface(getPoolAddress()).accessToken(borrowArr.borrowAddr, borrowArr.borrowAmt, isCompound);
+            PoolInterface(getPoolAddress()).accessToken(borrowArr.borrowCAddr, borrowArr.borrowAmt, isCompound);
         }
 
         // Creating actions args for solo operate
@@ -333,7 +348,7 @@ contract ImportResolver is  ImportHelper {
 
         //payback InstaDApp liquidity
         if (borrowArr.borrowCount > 0) {
-            PoolInterface(getPoolAddress()).paybackToken(borrowArr.borrowAddr, isCompound);
+            PoolInterface(getPoolAddress()).paybackToken(borrowArr.borrowCAddr, isCompound);
         }
 
         uint finalPoolBal = getPoolAddress().balance;
