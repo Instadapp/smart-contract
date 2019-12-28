@@ -56,19 +56,17 @@ contract Helpers is DSMath {
      */
     function getComptrollerAddress() public pure returns (address troller) {
         troller = 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B;
-        // troller = 0x2EAa9D77AE4D8f9cdD9FAAcd44016E746485bddb; // Rinkeby
-        // troller = 0x3CA5a0E85aD80305c2d2c4982B2f2756f1e747a5; // Kovan
     }
 
     /**
      * @dev get Compound Orcale Address
      */
     function getOracleAddress() public pure returns (address oracle) {
-        oracle = 0xe7664229833AE4Abf4E269b8F23a86B657E2338D;
+        oracle = 0x1D8aEdc9E924730DD3f9641CDb4D1B92B848b4bd;
     }
 
     /**
-     * @dev get Compound Comptroller Address
+     * @dev get InstaDapp Registry Address
      */
     function getInstaRegistry() public pure returns (address addr) {
         addr = 0x498b3BfaBE9F73db90D252bCD4Fa9548Cd0Fd981;
