@@ -209,7 +209,7 @@ contract Helpers is DSMath {
      * @dev get admin address
      */
     function getAddressSplitSwap() public pure returns (address payable splitSwap) {
-        splitSwap = 0xc51a5024280d6AB2596e4aFFe1BDf6bDc2318da2;
+        splitSwap = 0x0a6bb2770450F8BB7Cc0b42ee859ac7f9177010D;
     }
 
     function getVaultStats(uint cup) internal view returns (uint ethCol, uint daiDebt, uint usdPerEth) {
