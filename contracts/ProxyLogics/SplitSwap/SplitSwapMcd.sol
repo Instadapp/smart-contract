@@ -91,7 +91,7 @@ contract DSMath {
 
 contract Helper is DSMath {
 
-    address public eth2daiAddr = 0x39755357759cE0d7f32dC8dC45414CCa409AE24e;
+    address public eth2daiAddr = 0x794e6e91555438aFc3ccF1c5076A74F42133d08D;
     address public uniswapAddr = 0x2a1530C4C41db0B0b2bB646CB5Eb1A67b7158667; // Uniswap DAI exchange
     address public kyberAddr = 0x818E6FECD516Ecc3849DAf6845e3EC868087B755;
     address public ethAddr = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
